@@ -1,0 +1,110 @@
+"use client";
+
+import Link from "next/link";
+import { useState } from "react";
+import { getCampaignById, getContributionsByCampaign } from "@/data/screensData";
+import ContributionCard from "@/components/cards/ContributionCard";
+import Button from "@/components/ui/Button";
+import ProgressBar from "@/components/ui/ProgressBar";
+import Tag from "@/components/ui/Tag";
+
+export default async function CampaignContributionsPage({
+  params,
+}: {
+  params: Promise<{ campanaId: string }>;
+}) {
+  const { campanaId } = await params;
+  const campaign = getCampaignById(campanaId);
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+
+  if (!campaign) return <p className="text-sm text-ink-2">Campaña no encontrada.</p>;
+
+  const items = getContributionsByCampaign(campaign.id).filter((item) => !removedIds.includes(item.id));
+  const accepted = items.filter((item) => item.status === "aceptado");
+  const pending = items.filter((item) => item.status === "pendiente" || item.status === "espera_final");
+  const rejected = items.filter((item) => item.status === "rechazado");
+  const filteredItems = statusFilter === "todos"
+    ? items
+    : items.filter((item) => statusFilter === "aceptados" ? item.status === "aceptado" : statusFilter === "revision" ? item.status === "pendiente" || item.status === "espera_final" : item.status === "rechazado");
+  const canAdd = campaign.status === "activa" && items.length < campaign.quotaPerUser;
+  const isActive = campaign.status === "activa";
+  const progress = Math.round((items.length / campaign.quotaPerUser) * 100);
+
+  return (
+    <div className="mx-auto max-w-3xl">
+      <Link
+        href="/mis-aportes"
+        className="mb-4 inline-block text-[13px] text-ink-2 hover:text-ink"
+      >
+        ← Volver a mis aportes
+      </Link>
+
+      <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-extrabold text-ink">{campaign.name}</h1>
+          <p className="text-[13px] text-ink-2">{campaign.tag} · campaña {isActive ? "activa" : "finalizada"}</p>
+        </div>
+        <div className="flex gap-2">
+          <Link href={`/campanas/${campaign.id}`}><Button size="sm">Ver campaña</Button></Link>
+          {canAdd && <Link href={`/campanas/${campaign.id}/aportar`}><Button variant="primary" size="sm">Añadir aporte</Button></Link>}
+        </div>
+      </div>
+
+      <div className="mb-6 rounded-lg border border-line bg-surface p-4">
+        <div className="mb-2 flex items-center justify-between gap-4 text-[13px] font-semibold text-ink">
+          <span>Tu cuota en esta campaña</span><span className="font-mono">{items.length} de {campaign.quotaPerUser} aportes</span>
+        </div>
+        <ProgressBar pct={progress} />
+        <div className="mt-3 grid grid-cols-3 gap-3">
+          <div><p className="font-mono text-[15px] font-bold text-ok">{accepted.length}</p><p className="text-[11px] text-ink-3">aceptados · {accepted.length * campaign.xpPerContribution} XP</p></div>
+          <div><p className="font-mono text-[15px] font-bold text-warn">{pending.length}</p><p className="text-[11px] text-ink-3">en revisión</p></div>
+          <div><p className="font-mono text-[15px] font-bold text-ink">{Math.max(campaign.quotaPerUser - items.length, 0)}</p><p className="text-[11px] text-ink-3">disponibles</p></div>
+        </div>
+      </div>
+
+      <p className="mb-2 text-[12.5px] font-semibold text-ink">Filtrar historial</p>
+      <div className="mb-5 flex flex-wrap gap-2">
+        <select className="rounded border border-line-2 bg-surface px-3 py-2 text-[13px] text-ink" aria-label="Filtrar por estado" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <option value="todos">Todos los estados</option>
+          <option value="aceptados">Aceptados</option>
+          <option value="revision">En revisión</option>
+          <option value="rechazados">Rechazados</option>
+        </select>
+        <Button size="sm" onClick={() => setStatusFilter("todos")}>Limpiar</Button>
+      </div>
+
+      <div className="mb-4 flex flex-wrap gap-2">
+        {[{ id: "todos", label: "Todos", count: items.length }, { id: "aceptados", label: "Aceptados", count: accepted.length }, { id: "revision", label: "En revisión", count: pending.length }, { id: "rechazados", label: "Rechazados", count: rejected.length }].map((filter) => (
+          <button key={filter.id} type="button" onClick={() => setStatusFilter(filter.id)} className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold ${statusFilter === filter.id ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2"}`}>
+            {filter.label} <span className="ml-1 font-mono">{filter.count}</span>
+          </button>
+        ))}
+      </div>
+
+      {filteredItems.length === 0 ? (
+        <p className="text-sm text-ink-2">Aún no has enviado aportes a esta campaña.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filteredItems.map((item) => (
+            <div key={item.id}>
+              <ContributionCard contribution={item} />
+              {item.status === "pendiente" && isActive && (
+                <div className="-mt-2 rounded-b-lg border border-t-0 border-warn bg-warn-tint px-4 pb-3 pt-4">
+                  <button type="button" className="text-[12px] font-bold text-danger underline" onClick={() => setRemovedIds((current) => [...current, item.id])}>
+                    Eliminar aporte
+                  </button>
+                  <span className="ml-3 text-[11.5px] text-ink-2">Al eliminarlo recuperas el cupo en tu cuota.</span>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      <div className="mt-5 flex items-center gap-2 rounded-lg border border-line bg-surface p-3 text-[12px] text-ink-2">
+        <Tag>{isActive ? "Consulta" : "Solo lectura"}</Tag>
+        <span>{isActive ? "Para enviar contenido nuevo usa Añadir aporte." : "La campaña finalizó: ya no puedes añadir ni eliminar aportes."}</span>
+      </div>
+    </div>
+  );
+}

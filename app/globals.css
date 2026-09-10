@@ -1,26 +1,104 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #fbfaf8;
+  --surface: #ffffff;
+  --sunken: #f4f2ef;
+  --ink: #12131a;
+  --ink-2: #5c606b;
+  --ink-3: #9298a3;
+  --line: #e9e6e1;
+  --line-2: #d8d4cd;
+  --accent: #2e5aac;
+  --accent-deep: #22447f;
+  --accent-tint: #eaf0fa;
+  --ok: #0e7a55;
+  --ok-tint: #e4f4ec;
+  --warn: #96660f;
+  --warn-tint: #fbf0dc;
+  --danger: #ae362b;
+  --danger-tint: #fbeae7;
+  --r: 10px;
+  --r-lg: 16px;
+  --pill: 999px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+@theme {
+  --color-paper: var(--paper);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+  --color-accent: var(--accent);
+  --color-accent-deep: var(--accent-deep);
+  --color-accent-tint: var(--accent-tint);
+  --color-ok: var(--ok);
+  --color-ok-tint: var(--ok-tint);
+  --color-warn: var(--warn);
+  --color-warn-tint: var(--warn-tint);
+  --color-danger: var(--danger);
+  --color-danger-tint: var(--danger-tint);
+  --radius-pill: var(--pill);
+  --radius-lg: var(--r-lg);
+  --font-sans: var(--font-jakarta), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  box-sizing: border-box;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-jakarta), ui-sans-serif, sans-serif;
+  font-size: 14.5px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+.dashboard-shell {
+  min-height: calc(100vh - 61px);
+}
+
+.dashboard-sidebar {
+  flex: 0 0 16rem;
+  width: 16rem;
+  overflow-y: auto;
+}
+
+@media (max-width: 767px) {
+  .dashboard-shell {
+    display: block;
+  }
+
+  .dashboard-sidebar {
+    flex-basis: auto;
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 10px 16px;
+  }
+
+  .dashboard-sidebar > p,
+  .dashboard-sidebar-callout {
+    display: none;
+  }
+
+  .dashboard-nav {
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .dashboard-nav a {
+    flex: 0 0 auto;
+    padding: 8px 12px;
+    white-space: nowrap;
+  }
 }
