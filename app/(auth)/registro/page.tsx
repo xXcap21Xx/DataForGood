@@ -18,6 +18,29 @@ const PASSWORD_RULES: Rule[] = [
   { label: "Un carácter especial", test: (v) => /[^A-Za-z0-9]/.test(v) },
 ];
 
+function GoogleLogo() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4" aria-label="Google">
+      <path
+        fill="#4285F4"
+        d="M21.8 12.2c0-.7-.1-1.4-.2-2H12v3.8h5.4a4.6 4.6 0 0 1-2 3v2.5h3.2c1.9-1.7 3-4.2 3-7.3z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 21c2.7 0 5-.9 6.7-2.5l-3.2-2.5c-.9.6-2.1.9-3.5.9-2.7 0-5-1.8-5.8-4.2H.5v2.6A10 10 0 0 0 12 21z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M6.2 14.6a6.1 6.1 0 0 1 0-3.9V8.1H.5a10 10 0 0 0 0 9.1l5.7-4.6z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 6c1.5 0 2.9.6 4 1.7l3-3C17 1.7 14.7 0 12 0A10 10 0 0 0 .5 17.2l5.7-4.5C7.1 7.8 9.3 6 12 6z"
+      />
+    </svg>
+  );
+}
+
 export default function RegistroPage() {
   const router = useRouter();
   const [nombre, setNombre] = useState("");
@@ -187,6 +210,11 @@ export default function RegistroPage() {
 
         <Button variant="primary" type="submit" className="w-full" disabled={!canSubmit || submitting}>
           {submitting ? "Creando cuenta..." : "Continuar"}
+        </Button>
+
+        <Button variant="secondary" type="button" className="mt-3 w-full">
+          <GoogleLogo />
+          <span>Continuar con Google</span>
         </Button>
       </form>
 
