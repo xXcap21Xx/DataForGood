@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field } from "@/components/ui/Input";
+import { currentUser } from "@/data/screensData";
 
 const INTERESTS = [
   "Medio ambiente",
@@ -17,7 +18,10 @@ const INTERESTS = [
 
 export default function BienvenidaPage() {
   const router = useRouter();
-  const [selected, setSelected] = useState<string[]>(["Medio ambiente", "Educación"]);
+  const [selected, setSelected] = useState<string[]>(currentUser.intereses ?? ["Medio ambiente", "Educación"]);
+  const [state, setState] = useState(currentUser.state ?? "Nayarit");
+  const [city, setCity] = useState(currentUser.city ?? "Tepic");
+  const [specialty, setSpecialty] = useState(currentUser.specialty ?? "Ingeniería de software");
 
   function toggleInterest(tag: string) {
     setSelected((prev) =>
@@ -25,7 +29,22 @@ export default function BienvenidaPage() {
     );
   }
 
-  function finish() {
+  async function finish() {
+    try {
+      await fetch(`/api/usuarios/${currentUser.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          state,
+          city,
+          specialty,
+          intereses: selected,
+        }),
+      });
+    } catch (error) {
+      console.error("No se pudo guardar el perfil del usuario", error);
+    }
+
     router.push("/campanas");
   }
 
@@ -54,7 +73,8 @@ export default function BienvenidaPage() {
 
       <Field label="Estado">
         <select
-          defaultValue="Nayarit"
+          value={state}
+          onChange={(e) => setState(e.target.value)}
           className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
         >
           <option>Nayarit</option>
@@ -65,7 +85,8 @@ export default function BienvenidaPage() {
 
       <Field label="Ciudad">
         <select
-          defaultValue="Tepic"
+          value={city}
+          onChange={(e) => setCity(e.target.value)}
           className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
         >
           <option>Tepic</option>
@@ -79,7 +100,8 @@ export default function BienvenidaPage() {
         hint="Si más adelante te asignan el rol de supervisor, se usará para repartirte campañas de tu área."
       >
         <select
-          defaultValue="Ingeniería de software"
+          value={specialty}
+          onChange={(e) => setSpecialty(e.target.value)}
           className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
         >
           <option>Ingeniería de software</option>

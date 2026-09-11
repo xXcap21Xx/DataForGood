@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { currentUser } from "@/data/screensData";
 
 export default function TopBar() {
@@ -18,19 +19,29 @@ export default function TopBar() {
             3
           </span>
         </button>
-        <a href="/cuenta" className="flex items-center gap-2.5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[12px] font-bold text-white">
-            {currentUser.alias
-              .split(" ")
-              .map((p) => p[0])
-              .join("")
-              .slice(0, 2)}
-          </div>
-          <div className="hidden sm:block">
-            <p className="text-[13px] font-semibold text-ink">{currentUser.alias}</p>
-            <p className="text-[11.5px] text-ink-3">Ver perfil</p>
-          </div>
-        </a>
+        <div className="flex items-center gap-2.5">
+          <Link href="/cuenta" className="flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[12px] font-bold text-white">
+              {(currentUser.nombre ?? "")
+                .split(" ")
+                .map((p) => p[0])
+                .join("")
+                .slice(0, 2)}
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-[13px] font-semibold text-ink">{`${currentUser.nombre ?? ""} ${currentUser.apellidos ?? ""}`.trim()}</p>
+              <p className="text-[11.5px] text-ink-3">Ver perfil</p>
+            </div>
+          </Link>
+          {currentUser.role === "supervisor" && (
+            <Link
+              href="/supervision"
+              className="rounded-pill border border-line-2 bg-sunken px-3 py-1.5 text-[11px] font-bold text-accent hover:border-accent hover:bg-accent-tint"
+            >
+              Supervisor
+            </Link>
+          )}
+        </div>
       </div>
     </header>
   );

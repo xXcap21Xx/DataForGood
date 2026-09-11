@@ -18,14 +18,20 @@ export type ContributionStatus =
   | "aceptado"
   | "rechazado";
 
+export type UserRole = "usuario" | "supervisor" | "revisor" | "admin";
+
 export interface User {
   id: string;
-  alias: string;
+  nombre?: string;
+  apellidos?: string;
+  alias?: string;
   email: string;
   avatarUrl?: string;
   state?: string;
   city?: string;
   specialty?: string;
+  intereses?: string[];
+  role?: UserRole;
   xpTotal: number;
   level: number;
   streakDays: number;

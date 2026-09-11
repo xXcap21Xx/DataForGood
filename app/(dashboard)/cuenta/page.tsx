@@ -28,14 +28,14 @@ export default function CuentaPage() {
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-lg font-extrabold text-white">
-              {currentUser.alias
+              {(currentUser.nombre ?? "")
                 .split(" ")
                 .map((p) => p[0])
                 .join("")
                 .slice(0, 2)}
             </div>
             <div>
-              <p className="text-lg font-extrabold text-ink">{currentUser.alias}</p>
+              <p className="text-lg font-extrabold text-ink">{`${currentUser.nombre ?? ""} ${currentUser.apellidos ?? ""}`.trim()}</p>
               <p className="text-[13px] text-ink-2">{currentUser.email}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="rounded-pill border border-line-2 bg-sunken px-3 py-1 text-[11px] font-semibold text-ink-2">
@@ -78,7 +78,7 @@ export default function CuentaPage() {
               </label>
               <input
                 readOnly
-                value={currentUser.alias}
+                value={`${currentUser.nombre ?? ""} ${currentUser.apellidos ?? ""}`.trim()}
                 className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
               />
             </div>

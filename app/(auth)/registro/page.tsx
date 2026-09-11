@@ -20,25 +20,61 @@ const PASSWORD_RULES: Rule[] = [
 
 export default function RegistroPage() {
   const router = useRouter();
-  const [alias, setAlias] = useState("");
+  const [nombre, setNombre] = useState("");
+  const [apellidos, setApellidos] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [acceptedTerms, setAcceptedTerms] = useState(false);
   const [emailTaken, setEmailTaken] = useState(false);
+  const [serverError, setServerError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const allRulesPass = PASSWORD_RULES.every((r) => r.test(password));
   const passwordsMatch = password.length > 0 && password === confirmPassword;
-  const canSubmit = alias && email && allRulesPass && passwordsMatch && acceptedTerms;
+  const canSubmit = nombre && apellidos && email && allRulesPass && passwordsMatch && acceptedTerms;
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (email === "carlos@correo.com") {
-      setEmailTaken(true);
+    setServerError("");
+    setEmailTaken(false);
+
+    if (!canSubmit) {
       return;
     }
-    setEmailTaken(false);
-    router.push("/verificar");
+
+    setSubmitting(true);
+
+    try {
+      const response = await fetch("/api/usuarios", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          nombre,
+          apellidos,
+          email,
+          password,
+          role: "usuario",
+        }),
+      });
+
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        if (response.status === 409) {
+          setEmailTaken(true);
+          setServerError(payload.error ?? "Ese correo ya está registrado");
+        } else {
+          setServerError(payload.error ?? "No se pudo crear la cuenta");
+        }
+        return;
+      }
+
+      router.push("/verificar");
+    } catch (error) {
+      setServerError("No se pudo conectar con el servicio de usuarios");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -57,11 +93,20 @@ export default function RegistroPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col">
-        <Field label="Nombre o alias" required>
+        <Field label="Nombre" required>
           <Input
-            value={alias}
-            onChange={(e) => setAlias(e.target.value)}
-            placeholder="Carlos P."
+            value={nombre}
+            onChange={(e) => setNombre(e.target.value)}
+            placeholder="Carlos"
+            required
+          />
+        </Field>
+
+        <Field label="Apellidos" required>
+          <Input
+            value={apellidos}
+            onChange={(e) => setApellidos(e.target.value)}
+            placeholder="Pérez"
             required
           />
         </Field>
@@ -80,6 +125,9 @@ export default function RegistroPage() {
           />
           {emailTaken && (
             <p className="mt-1.5 text-[12px] text-danger">Ese correo ya está registrado</p>
+          )}
+          {serverError && (
+            <p className="mt-1.5 text-[12px] text-danger">{serverError}</p>
           )}
         </Field>
 
@@ -137,8 +185,8 @@ export default function RegistroPage() {
           </Link>
         </label>
 
-        <Button variant="primary" type="submit" className="w-full" disabled={!canSubmit}>
-          Continuar
+        <Button variant="primary" type="submit" className="w-full" disabled={!canSubmit || submitting}>
+          {submitting ? "Creando cuenta..." : "Continuar"}
         </Button>
       </form>
 

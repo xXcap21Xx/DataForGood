@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { currentUser } from "@/data/screensData";
 
 const NAV_ITEMS = [
   { href: "/campanas", label: "Explorar" },
@@ -35,6 +36,19 @@ export default function SidebarNav() {
             </Link>
           );
         })}
+
+        {currentUser.role === "supervisor" && (
+          <Link
+            href="/supervision"
+            className={`rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors ${
+              pathname.startsWith("/supervision")
+                ? "bg-accent text-white"
+                : "text-ink-2 hover:bg-sunken hover:text-ink"
+            }`}
+          >
+            Supervisión
+          </Link>
+        )}
       </nav>
 
       <div className="dashboard-sidebar-callout mt-6 rounded-lg bg-accent-deep p-4 text-white">

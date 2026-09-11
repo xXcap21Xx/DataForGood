@@ -6,12 +6,15 @@ import type {
 } from "@/types";
 
 export const currentUser: User = {
-  id: "u-carlos",
-  alias: "Carlos P.",
+  id: "1",
+  nombre: "Carlos",
+  apellidos: "Pérez",
   email: "carlos@correo.com",
   state: "Nayarit",
   city: "Tepic",
   specialty: "Ingeniería de software",
+  intereses: ["Medio ambiente", "Educación"],
+  role: "supervisor",
   xpTotal: 1840,
   level: 7,
   streakDays: 12,

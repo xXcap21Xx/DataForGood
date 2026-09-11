@@ -24,7 +24,7 @@ export default function MisCampanasPage() {
       <div className="mb-2 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-ink">Mis campañas</h1>
-          <p className="mt-1 text-[13px] text-ink-2">{currentUser.alias}</p>
+          <p className="mt-1 text-[13px] text-ink-2">{`${currentUser.nombre ?? ""} ${currentUser.apellidos ?? ""}`.trim()}</p>
         </div>
         <Link href="/mis-campanas/nueva">
           <Button variant="primary" size="sm">
