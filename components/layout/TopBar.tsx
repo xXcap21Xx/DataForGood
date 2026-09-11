@@ -18,7 +18,7 @@ export default function TopBar() {
             3
           </span>
         </button>
-        <div className="flex items-center gap-2.5">
+        <a href="/cuenta" className="flex items-center gap-2.5">
           <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent text-[12px] font-bold text-white">
             {currentUser.alias
               .split(" ")
@@ -30,7 +30,7 @@ export default function TopBar() {
             <p className="text-[13px] font-semibold text-ink">{currentUser.alias}</p>
             <p className="text-[11.5px] text-ink-3">Ver perfil</p>
           </div>
-        </div>
+        </a>
       </div>
     </header>
   );

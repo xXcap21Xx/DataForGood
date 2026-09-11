@@ -7,6 +7,7 @@ const NAV_ITEMS = [
   { href: "/campanas", label: "Explorar" },
   { href: "/mis-aportes", label: "Mis aportes" },
   { href: "/mis-campanas", label: "Mis campañas" },
+  { href: "/cuenta", label: "Configuración de cuenta" },
 ];
 
 export default function SidebarNav() {
