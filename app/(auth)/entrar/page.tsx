@@ -1,17 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 
 export default function EntrarPage() {
+  return (
+    <Suspense fallback={null}>
+      <EntrarForm />
+    </Suspense>
+  );
+}
+
+function EntrarForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [serverError, setServerError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("error") === "google") {
+      setServerError("No se pudo iniciar sesión con Google. Intenta de nuevo.");
+    }
+  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -27,6 +42,12 @@ export default function EntrarPage() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
+
+        if (payload.requiresVerification) {
+          router.push("/verificar");
+          return;
+        }
+
         setServerError(payload.error ?? "No se pudo iniciar sesión");
         return;
       }
@@ -81,7 +102,14 @@ export default function EntrarPage() {
         <Button variant="primary" type="submit" className="w-full" disabled={submitting}>
           {submitting ? "Entrando..." : "Entrar"}
         </Button>
-        <Button variant="secondary" type="button" className="mt-2.5 w-full">
+        <Button
+          variant="secondary"
+          type="button"
+          className="mt-2.5 w-full"
+          onClick={() => {
+            window.location.href = "/api/auth/google";
+          }}
+        >
           Continuar con Google
         </Button>
       </form>

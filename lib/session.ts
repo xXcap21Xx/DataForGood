@@ -1,4 +1,5 @@
 import { randomBytes, createHash } from "crypto";
+import { cache } from "react";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
 
@@ -28,6 +29,8 @@ export interface SessionUser {
   xp_total: number;
   level: number;
   streak_days: number;
+  email_verificado: boolean;
+  tiene_contrasena: boolean;
 }
 
 function hashToken(token: string) {
@@ -56,7 +59,7 @@ export async function createSession(usuarioId: number) {
   });
 }
 
-export async function getSessionUser(): Promise<SessionUser | null> {
+export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   await pool.query(ensureSessionsTable);
 
   const cookieStore = await cookies();
@@ -70,7 +73,8 @@ export async function getSessionUser(): Promise<SessionUser | null> {
 
   const result = await pool.query(
     `SELECT u.id, u.nombre, u.apellidos, u.email, u.state, u.city, u.specialty,
-            u.intereses, u.role, u.xp_total, u.level, u.streak_days
+            u.intereses, u.role, u.xp_total, u.level, u.streak_days, u.email_verificado,
+            (u.password_hash IS NOT NULL) AS tiene_contrasena
      FROM sessions s
      JOIN usuarios u ON u.id = s.usuario_id
      WHERE s.token_hash = $1 AND s.expires_at > NOW()
@@ -83,7 +87,7 @@ export async function getSessionUser(): Promise<SessionUser | null> {
   }
 
   return result.rows[0] as SessionUser;
-}
+});
 
 export async function destroySession() {
   await pool.query(ensureSessionsTable);

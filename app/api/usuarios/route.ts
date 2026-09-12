@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
-import { createHash } from "crypto";
 import { pool } from "@/lib/db";
+import { hashPassword } from "@/lib/password";
+import { isValidEmail } from "@/lib/validation";
+import { startVerification } from "@/lib/verification";
 
 const ensureUsuariosTable = `
   CREATE TABLE IF NOT EXISTS usuarios (
@@ -17,6 +19,9 @@ const ensureUsuariosTable = `
     xp_total INTEGER NOT NULL DEFAULT 0,
     level INTEGER NOT NULL DEFAULT 1,
     streak_days INTEGER NOT NULL DEFAULT 0,
+    email_verificado BOOLEAN NOT NULL DEFAULT false,
+    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
+    locked_until TIMESTAMP,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   );
@@ -28,6 +33,9 @@ const ensureUsuariosColumns = `
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS city VARCHAR(100);
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS specialty VARCHAR(150);
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intereses JSONB NOT NULL DEFAULT '[]'::jsonb;
+  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_verificado BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP;
 `;
 
 export async function POST(request: Request) {
@@ -54,6 +62,13 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!isValidEmail(email)) {
+      return NextResponse.json(
+        { error: "El correo no tiene un formato válido" },
+        { status: 400 }
+      );
+    }
+
     const emailExists = await pool.query(
       `SELECT 1 FROM usuarios WHERE email = $1 LIMIT 1`,
       [email]
@@ -66,17 +81,27 @@ export async function POST(request: Request) {
       );
     }
 
-    const passwordHash = createHash("sha256").update(password).digest("hex");
+    const passwordHash = await hashPassword(password);
 
     const result = await pool.query(
       `INSERT INTO usuarios (nombre, apellidos, email, password_hash, state, city, specialty, intereses, xp_total, level, streak_days, role)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8::jsonb, 0, 1, 0, $9)
-       RETURNING id, nombre, apellidos, email, state, city, specialty, intereses, role, xp_total, level, streak_days`,
+       RETURNING id, nombre, apellidos, email, state, city, specialty, intereses, role, xp_total, level, streak_days, email_verificado`,
       [nombre, apellidos, email, passwordHash, state, city, specialty, JSON.stringify(intereses), role]
     );
 
+    const usuario = result.rows[0];
+    let emailEnviado = true;
+
+    try {
+      await startVerification(usuario.id, usuario.email, usuario.nombre);
+    } catch (verificationError) {
+      console.error("No se pudo enviar el correo de verificación", verificationError);
+      emailEnviado = false;
+    }
+
     return NextResponse.json(
-      { message: "Usuario creado", data: result.rows[0] },
+      { message: "Usuario creado", data: usuario, emailEnviado },
       { status: 201 }
     );
   } catch (error) {
@@ -94,7 +119,7 @@ export async function GET() {
     await pool.query(ensureUsuariosColumns);
 
     const result = await pool.query(
-      `SELECT id, nombre, apellidos, email, state, city, specialty, intereses, role, xp_total, level, streak_days
+      `SELECT id, nombre, apellidos, email, state, city, specialty, intereses, role, xp_total, level, streak_days, email_verificado
        FROM usuarios ORDER BY id DESC LIMIT 50`
     );
 
