@@ -212,7 +212,14 @@ export default function RegistroPage() {
           {submitting ? "Creando cuenta..." : "Continuar"}
         </Button>
 
-        <Button variant="secondary" type="button" className="mt-3 w-full">
+        <Button
+          variant="secondary"
+          type="button"
+          className="mt-3 w-full"
+          onClick={() => {
+            window.location.href = "/api/auth/google";
+          }}
+        >
           <GoogleLogo />
           <span>Continuar con Google</span>
         </Button>

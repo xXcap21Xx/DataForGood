@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { currentUser } from "@/data/screensData";
+import type { SessionUser } from "@/lib/session";
 
 const NAV_ITEMS = [
   { href: "/campanas", label: "Explorar" },
@@ -11,7 +11,7 @@ const NAV_ITEMS = [
   { href: "/cuenta", label: "Configuración de cuenta" },
 ];
 
-export default function SidebarNav() {
+export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
   const pathname = usePathname();
 
   return (
@@ -37,7 +37,7 @@ export default function SidebarNav() {
           );
         })}
 
-        {currentUser.role === "supervisor" && (
+        {usuario.role === "supervisor" && (
           <Link
             href="/supervision"
             className={`rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors ${

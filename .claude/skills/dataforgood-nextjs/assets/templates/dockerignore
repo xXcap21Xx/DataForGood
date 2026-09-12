@@ -1,0 +1,11 @@
+# Renombrar a .dockerignore. Evita meter secretos y basura en la imagen.
+.env
+.env.*
+!env.example
+node_modules
+.next
+dist
+.git
+docs/prototipo
+coverage
+*.log

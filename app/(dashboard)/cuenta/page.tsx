@@ -1,8 +1,25 @@
 import Link from "next/link";
-import { currentUser } from "@/data/screensData";
+import { redirect } from "next/navigation";
 import Button from "@/components/ui/Button";
+import LogoutButton from "@/components/auth/LogoutButton";
+import { getSessionUser } from "@/lib/session";
 
-export default function CuentaPage() {
+const ROLE_LABELS: Record<string, string> = {
+  usuario: "Usuario común",
+  revisor: "Revisor de aportes",
+  supervisor: "Supervisor",
+  admin: "SuperUsuario",
+};
+
+export default async function CuentaPage() {
+  const currentUser = await getSessionUser();
+
+  if (!currentUser) {
+    redirect("/entrar");
+  }
+
+  const roleLabel = ROLE_LABELS[currentUser.role] ?? currentUser.role;
+
   return (
     <div className="space-y-6">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
@@ -39,7 +56,7 @@ export default function CuentaPage() {
               <p className="text-[13px] text-ink-2">{currentUser.email}</p>
               <div className="mt-2 flex flex-wrap gap-2">
                 <span className="rounded-pill border border-line-2 bg-sunken px-3 py-1 text-[11px] font-semibold text-ink-2">
-                  Usuario común
+                  {roleLabel}
                 </span>
                 <span className="rounded-pill border border-ok/30 bg-ok-tint px-3 py-1 text-[11px] font-semibold text-ok">
                   Nivel {currentUser.level}
@@ -99,7 +116,7 @@ export default function CuentaPage() {
                 </label>
                 <input
                   readOnly
-                  value={currentUser.state ?? "Nayarit"}
+                  value={currentUser.state || "No especificado"}
                   className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
                 />
               </div>
@@ -109,7 +126,7 @@ export default function CuentaPage() {
                 </label>
                 <input
                   readOnly
-                  value={currentUser.city ?? "Tepic"}
+                  value={currentUser.city || "No especificado"}
                   className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
                 />
               </div>
@@ -120,7 +137,7 @@ export default function CuentaPage() {
               </label>
               <input
                 readOnly
-                value={currentUser.specialty ?? "Sin especialidad"}
+                value={currentUser.specialty || "Sin especialidad"}
                 className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
               />
             </div>
@@ -144,9 +161,13 @@ export default function CuentaPage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-bold text-ink">Contraseña</p>
-                  <p className="text-[12.5px] text-ink-2">Último cambio hace 30 días</p>
+                  <p className="text-[12.5px] text-ink-2">
+                    {currentUser.tiene_contrasena
+                      ? "Inicia sesión con tu correo y contraseña"
+                      : "Esta cuenta inicia sesión con Google"}
+                  </p>
                 </div>
-                <Button variant="secondary" size="sm">
+                <Button variant="secondary" size="sm" disabled={!currentUser.tiene_contrasena}>
                   Cambiar
                 </Button>
               </div>
@@ -156,11 +177,19 @@ export default function CuentaPage() {
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-sm font-bold text-ink">Verificación</p>
-                  <p className="text-[12.5px] text-ink-2">Correo confirmado</p>
+                  <p className="text-[12.5px] text-ink-2">
+                    {currentUser.email_verificado ? "Correo confirmado" : "Correo sin confirmar"}
+                  </p>
                 </div>
-                <span className="rounded-pill border border-ok/30 bg-ok-tint px-3 py-1 text-[11px] font-bold text-ok">
-                  Activa
-                </span>
+                {currentUser.email_verificado ? (
+                  <span className="rounded-pill border border-ok/30 bg-ok-tint px-3 py-1 text-[11px] font-bold text-ok">
+                    Activa
+                  </span>
+                ) : (
+                  <span className="rounded-pill border border-warn/30 bg-warn-tint px-3 py-1 text-[11px] font-bold text-warn">
+                    Pendiente
+                  </span>
+                )}
               </div>
             </div>
 
@@ -175,6 +204,16 @@ export default function CuentaPage() {
                 <button className="relative h-6 w-11 rounded-pill bg-accent">
                   <span className="absolute right-1 top-1 h-4 w-4 rounded-full bg-white" />
                 </button>
+              </div>
+            </div>
+
+            <div className="rounded border border-line bg-sunken p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-bold text-ink">Sesión</p>
+                  <p className="text-[12.5px] text-ink-2">Cierra tu sesión en este dispositivo</p>
+                </div>
+                <LogoutButton />
               </div>
             </div>
           </div>
@@ -197,20 +236,21 @@ export default function CuentaPage() {
         </div>
 
         <div className="flex flex-wrap gap-2">
-          {[
-            "Medio ambiente",
-            "Reforestación",
-            "Educación",
-            "Fauna urbana",
-          ].map((interest) => (
-            <span
-              key={interest}
-              className="inline-flex items-center gap-2 rounded-pill border border-accent bg-accent px-4 py-2 text-[12px] font-bold text-white"
-            >
-              {interest}
-              <span className="font-mono text-[11px]">×</span>
-            </span>
-          ))}
+          {currentUser.intereses.length === 0 ? (
+            <p className="text-[12.5px] text-ink-2">
+              Todavía no seleccionas ningún interés.
+            </p>
+          ) : (
+            currentUser.intereses.map((interest) => (
+              <span
+                key={interest}
+                className="inline-flex items-center gap-2 rounded-pill border border-accent bg-accent px-4 py-2 text-[12px] font-bold text-white"
+              >
+                {interest}
+                <span className="font-mono text-[11px]">×</span>
+              </span>
+            ))
+          )}
         </div>
         <p className="mt-3 text-[12.5px] text-ink-2">
           Determinan qué campañas aparecen en “Sugeridas para ti”.
@@ -228,10 +268,10 @@ export default function CuentaPage() {
                 Nivel {currentUser.level}
               </span>
               <span className="text-ink-2">
-                · {currentUser.xpTotal.toLocaleString("es-MX")} XP
+                · {currentUser.xp_total.toLocaleString("es-MX")} XP
               </span>
               <span className="text-ink-2">
-                · racha de {currentUser.streakDays} días
+                · racha de {currentUser.streak_days} días
               </span>
             </div>
           </div>

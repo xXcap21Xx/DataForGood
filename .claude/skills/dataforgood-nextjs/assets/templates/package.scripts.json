@@ -1,0 +1,40 @@
+{
+  "//": "Fusionar con el package.json de la rama. Ya existen next, react, react-dom, tailwindcss, typescript y eslint: no cambiar sus versiones. Subir @types/node a 24.x (Vitest 5 no acepta la 20 y el contenedor usa Node 24). No usar output 'standalone'. Solo PostgreSQL.",
+  "scripts": {
+    "dev": "tsx watch --clear-screen=false server.ts",
+    "build": "next build && npm run build:server",
+    "build:server": "esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.mjs",
+    "start": "NODE_ENV=production node dist/server.mjs",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint",
+    "test": "vitest run",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "drizzle-kit migrate",
+    "db:studio": "drizzle-kit studio",
+    "check:integridad": "node scripts/check-integrity.mjs",
+    "docker:dev": "docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build",
+    "docker:up": "docker compose up -d --build",
+    "docker:logs": "docker compose logs -f app minio-setup"
+  },
+  "dependencies": {
+    "express": "5.x",
+    "drizzle-orm": "0.45.x",
+    "pg": "8.x",
+    "zod": "4.x",
+    "cookie": "1.x",
+    "@node-rs/argon2": "2.x",
+    "@aws-sdk/client-s3": "3.x",
+    "@aws-sdk/s3-presigned-post": "3.x",
+    "@aws-sdk/s3-request-presigner": "3.x",
+    "server-only": "0.0.x"
+  },
+  "devDependencies": {
+    "tsx": "4.x",
+    "esbuild": "0.x",
+    "drizzle-kit": "0.x",
+    "vitest": "latest",
+    "@types/node": "24.x",
+    "@types/express": "5.x",
+    "@types/pg": "8.x"
+  }
+}
