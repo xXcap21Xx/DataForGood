@@ -1,0 +1,21 @@
+# Sobrescribe docker-compose.yml para desarrollar dentro de Docker con recarga en caliente.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+# Tras cambiar package.json: agrega -V para recrear el volumen de node_modules.
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"            # para DBeaver/pgAdmin desde tu máquina
+    volumes:
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro   # crea la base de pruebas (solo en volumen nuevo)
+
+  app:
+    build:
+      target: dev
+    command: npm run dev
+    environment:
+      NODE_ENV: development
+      RUN_MIGRATIONS: "false"            # en dev: docker compose exec app npm run db:migrate
+    volumes:
+      - .:/app
+      - /app/node_modules                # conserva los módulos instalados en Linux dentro del contenedor
+      - /app/.next
