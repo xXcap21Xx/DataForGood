@@ -31,12 +31,12 @@ export default async function PanelCampanaPage({ params }: { params: Promise<{ i
         <div>
           <h1 className="text-xl font-extrabold text-ink">{campaign.name}</h1>
           <p className="mt-1 font-mono text-[13px] text-ink-2">
-            {new Date(campaign.startDate).toLocaleDateString("es-MX", {
+            {campaign.startDate && new Date(campaign.startDate).toLocaleDateString("es-MX", {
               day: "numeric",
               month: "short",
             })}{" "}
             –{" "}
-            {new Date(campaign.endDate).toLocaleDateString("es-MX", {
+            {campaign.endDate && new Date(campaign.endDate).toLocaleDateString("es-MX", {
               day: "numeric",
               month: "short",
               year: "numeric",
@@ -115,7 +115,7 @@ export default async function PanelCampanaPage({ params }: { params: Promise<{ i
               <div className="flex justify-between">
                 <span className="text-ink-2">Cerrada el</span>
                 <span className="font-mono font-medium text-ink">
-                  {new Date(campaign.endDate).toLocaleDateString("es-MX", {
+                  {campaign.endDate && new Date(campaign.endDate).toLocaleDateString("es-MX", {
                     day: "numeric",
                     month: "short",
                     year: "numeric",

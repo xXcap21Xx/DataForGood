@@ -5,7 +5,8 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import Button from "@/components/ui/Button";
 import type { Campaign } from "@/types";
 
-function formatDateRange(start: string, end: string) {
+function formatDateRange(start: string | null, end: string | null) {
+  if (!start || !end) return "Sin fecha definida";
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
   const s = new Date(start).toLocaleDateString("es-MX", opts);
   const e = new Date(end).toLocaleDateString("es-MX", opts);

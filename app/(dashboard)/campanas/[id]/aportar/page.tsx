@@ -1,25 +1,41 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getCampaignById, getContributionsByCampaign } from "@/data/screensData";
 import { Field, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
+import type { Campaign } from "@/types";
 
 export default function AportarPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const campaign = getCampaignById(params.id);
-
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [isCreator, setIsCreator] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [fileError, setFileError] = useState<string | null>(null);
   const [description, setDescription] = useState("");
 
-  if (!campaign) {
-    return <p className="text-sm text-ink-2">Campaña no encontrada.</p>;
-  }
+  useEffect(() => {
+    async function loadCampaign() {
+      try {
+        const response = await fetch(`/api/campanas?id=${encodeURIComponent(params.id)}`, { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar la campaña");
+        setCampaign(payload.data as Campaign);
+        setIsCreator(Boolean(payload.viewer?.isCreator));
+      } catch (cause) {
+        setLoadError(cause instanceof Error ? cause.message : "No se pudo cargar la campaña");
+      }
+    }
+    void loadCampaign();
+  }, [params.id]);
 
-  const submittedCount = getContributionsByCampaign(campaign.id).length;
+  if (loadError) return <p className="text-sm text-danger">{loadError}</p>;
+  if (!campaign) return <p className="text-sm text-ink-2">Cargando campaña...</p>;
+  if (isCreator) return <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">No puedes aportar en una campaña que creaste.</p>;
+
+  const submittedCount = 0;
   const quotaReached = submittedCount >= campaign.quotaPerUser;
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {

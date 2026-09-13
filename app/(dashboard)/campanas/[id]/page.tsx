@@ -1,20 +1,38 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { getCampaignById } from "@/data/screensData";
 import Button from "@/components/ui/Button";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
+import type { Campaign } from "@/types";
 
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
-  const campaign = getCampaignById(params.id);
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [isCreator, setIsCreator] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
 
-  if (!campaign) return <p className="text-sm text-ink-2">Campaña no encontrada.</p>;
+  useEffect(() => {
+    async function loadCampaign() {
+      try {
+        const response = await fetch(`/api/campanas?id=${encodeURIComponent(params.id)}`, { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar la campaña");
+        setCampaign(payload.data as Campaign);
+        setIsCreator(Boolean(payload.viewer?.isCreator));
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "No se pudo cargar la campaña");
+      }
+    }
+    void loadCampaign();
+  }, [params.id]);
+
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!campaign) return <p className="text-sm text-ink-2">Cargando campaña...</p>;
 
   const pct = Math.round(
     (campaign.currentContributions / campaign.goalContributions) * 100
@@ -46,12 +64,12 @@ export default function CampaignDetailPage() {
             {campaign.locationCity}, {campaign.locationState}
           </span>
           <span>
-            {new Date(campaign.startDate).toLocaleDateString("es-MX", {
+            {campaign.startDate && new Date(campaign.startDate).toLocaleDateString("es-MX", {
               day: "numeric",
               month: "short",
             })}{" "}
             –{" "}
-            {new Date(campaign.endDate).toLocaleDateString("es-MX", {
+            {campaign.endDate && new Date(campaign.endDate).toLocaleDateString("es-MX", {
               day: "numeric",
               month: "short",
               year: "numeric",
@@ -102,11 +120,15 @@ export default function CampaignDetailPage() {
             cuota: {campaign.quotaPerUser}
           </p>
 
-          <Link href={`/campanas/${campaign.id}/aportar`}>
-            <Button variant="primary" className="w-full">
-              Realizar un aporte
-            </Button>
-          </Link>
+          {isCreator ? (
+            <p className="rounded-lg bg-sunken p-3 text-center text-[12.5px] text-ink-2">Creaste esta campaña, por lo que no puedes aportar en ella.</p>
+          ) : campaign.status === "activa" ? (
+            <Link href={`/campanas/${campaign.id}/aportar`}>
+              <Button variant="primary" className="w-full">Realizar un aporte</Button>
+            </Link>
+          ) : (
+            <p className="rounded-lg bg-sunken p-3 text-center text-[12.5px] text-ink-2">Esta campaña no está recibiendo aportes.</p>
+          )}
           <Button variant="secondary" className="mt-2.5 w-full" onClick={() => setSaved((current) => !current)}>
             {saved ? "Campaña guardada" : "Guardar campaña"}
           </Button>

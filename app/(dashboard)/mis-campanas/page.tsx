@@ -1,135 +1,23 @@
+"use client";
+
 import Link from "next/link";
-import { getMyCampaigns, currentUser } from "@/data/screensData";
+import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import ProgressBar from "@/components/ui/ProgressBar";
-import type { CampaignStatus } from "@/types";
+import type { Campaign, CampaignStatus } from "@/types";
 
-const STATUS_LABEL: Record<CampaignStatus, string> = {
-  borrador: "Borrador",
-  en_revision: "En revisión",
-  activa: "Activa",
-  pausada: "Pausada",
-  finalizada: "Finalizada",
-  rechazada: "Rechazada",
-};
+const labels: Record<CampaignStatus, string> = { borrador: "Borrador", en_revision: "En revision", activa: "Activa", pausada: "Pausada", finalizada: "Finalizada", rechazada: "Rechazada" };
+
+function mapCampaign(row: Record<string, unknown>): Campaign {
+  const status = String(row.status ?? "borrador") as CampaignStatus;
+  return { id: String(row.id ?? ""), creatorId: String(row.creatorId ?? ""), creatorName: String(row.creatorName ?? ""), name: String(row.name ?? ""), description: String(row.description ?? ""), tag: String(row.tag ?? ""), tematica: String(row.tematica ?? ""), status: labels[status] ? status : "borrador", dataTypes: Array.isArray(row.dataTypes) ? row.dataTypes as Campaign["dataTypes"] : [], goalContributions: Number(row.goalContributions ?? 0), quotaPerUser: Number(row.quotaPerUser ?? 1), currentContributions: Number(row.currentContributions ?? 0), approvedContributions: Number(row.approvedContributions ?? 0), pendingContributions: Number(row.pendingContributions ?? 0), rejectedContributions: Number(row.rejectedContributions ?? 0), participants: Number(row.participants ?? 0), startDate: row.startDate as string | null, endDate: row.endDate as string | null, locationCity: String(row.locationCity ?? ""), locationState: String(row.locationState ?? ""), xpPerContribution: Number(row.xpPerContribution ?? 0), daysRemaining: row.daysRemaining as number | null, hasReviewerAssigned: Boolean(row.hasReviewerAssigned) };
+}
 
 export default function MisCampanasPage() {
-  const myCampaigns = getMyCampaigns();
-  const activeCount = myCampaigns.filter((c) => c.status === "activa").length;
-  const finishedCount = myCampaigns.filter((c) => c.status === "finalizada").length;
-
-  return (
-    <div className="mx-auto max-w-5xl">
-      <div className="mb-2 flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-extrabold text-ink">Mis campañas</h1>
-          <p className="mt-1 text-[13px] text-ink-2">{`${currentUser.nombre ?? ""} ${currentUser.apellidos ?? ""}`.trim()}</p>
-        </div>
-        <Link href="/mis-campanas/nueva">
-          <Button variant="primary" size="sm">
-            Nueva campaña
-          </Button>
-        </Link>
-      </div>
-
-      <div className="mb-5 mt-4 flex flex-wrap gap-2">
-        <Tag tone="on">Activas {activeCount}</Tag>
-        <Tag>Finalizadas {finishedCount}</Tag>
-      </div>
-
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        {myCampaigns.map((campaign) => {
-          const pct =
-            campaign.status === "finalizada"
-              ? 100
-              : Math.round(
-                  (campaign.currentContributions / campaign.goalContributions) * 100
-                );
-          return (
-            <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4">
-              <div className="mb-1 flex items-start justify-between gap-2">
-                <p className="text-[13.5px] font-medium text-ink">{campaign.name}</p>
-                <Tag tone={campaign.status === "activa" ? "ok" : "default"}>
-                  {STATUS_LABEL[campaign.status]}
-                </Tag>
-              </div>
-              <p className="mb-2.5 font-mono text-[11.5px] text-ink-2">
-                {new Date(campaign.startDate).toLocaleDateString("es-MX", {
-                  day: "numeric",
-                  month: "short",
-                })}{" "}
-                –{" "}
-                {new Date(campaign.endDate).toLocaleDateString("es-MX", {
-                  day: "numeric",
-                  month: "short",
-                  year: "numeric",
-                })}
-              </p>
-
-              <ProgressBar pct={pct} tone={campaign.status === "finalizada" ? "ok" : "accent"} />
-
-              <p className="my-2.5 font-mono text-[12px] text-ink-2">
-                {campaign.currentContributions} / {campaign.goalContributions}
-                {campaign.status === "activa" &&
-                  ` · ${campaign.pendingContributions} aportes pendientes`}
-                {campaign.status === "finalizada" &&
-                  ` · cerrada el ${new Date(campaign.endDate).toLocaleDateString("es-MX", {
-                    day: "numeric",
-                    month: "short",
-                  })}`}
-              </p>
-
-              <div className="flex flex-wrap gap-1.5">
-                {campaign.status === "activa" ? (
-                  <>
-                    <Link href={`/mis-campanas/${campaign.id}/aportes`}>
-                      <Button variant="primary" size="sm">
-                        Revisar {campaign.pendingContributions} aportes
-                      </Button>
-                    </Link>
-                    <Link href={`/mis-campanas/${campaign.id}/panel`}>
-                      <Button size="sm">Panel</Button>
-                    </Link>
-                    <Link href={`/mis-campanas/nueva?edit=${campaign.id}`}>
-                      <Button size="sm">Editar</Button>
-                    </Link>
-                    <Link href={`/mis-campanas/${campaign.id}/especial`}>
-                      <Button size="sm">Hacer especial</Button>
-                    </Link>
-                    <Link href={`/mis-campanas/${campaign.id}/compartir`}>
-                      <Button size="sm">Compartir</Button>
-                    </Link>
-                    <Button size="sm">Pausar</Button>
-                  </>
-                ) : (
-                  <>
-                    <Link href={`/mis-campanas/${campaign.id}/panel`}>
-                      <Button size="sm">Ver datos</Button>
-                    </Link>
-                    <Link href={`/mis-campanas/${campaign.id}/aportes`}>
-                      <Button size="sm">Descargar</Button>
-                    </Link>
-                    <Link href={`/mis-campanas/${campaign.id}/compartir`}>
-                      <Button size="sm">Compartir aportes</Button>
-                    </Link>
-                  </>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      <div className="mt-4 rounded-lg bg-sunken p-4">
-        <p className="mb-1.5 text-[12px] font-medium text-ink">Transiciones permitidas</p>
-        <p className="font-mono text-[11.5px] leading-relaxed text-ink-2">
-          Borrador → En revisión → Activa ⇄ Pausada → Finalizada
-        </p>
-        <p className="mt-1.5 text-[12.5px] text-ink-2">
-          Una campaña finalizada pasa a solo lectura y no puede reactivarse.
-        </p>
-      </div>
-    </div>
-  );
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => { void fetch("/api/campanas?mine=true", { cache: "no-store" }).then(async (response) => { const payload = await response.json(); if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campanas"); setCampaigns((Array.isArray(payload.data) ? payload.data : []).map((item: unknown) => mapCampaign(item as Record<string, unknown>))); }).catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudieron cargar las campanas")); }, []);
+  const count = (status: CampaignStatus) => campaigns.filter((campaign) => campaign.status === status).length;
+  return <div className="mx-auto max-w-5xl"><div className="mb-2 flex items-start justify-between gap-4"><div><h1 className="text-2xl font-extrabold text-ink">Mis campanas</h1><p className="mt-1 text-[13px] text-ink-2">Administra las campanas que has creado.</p></div><Link href="/mis-campanas/nueva"><Button variant="primary" size="sm">Nueva campana</Button></Link></div><div className="mb-5 mt-4 flex flex-wrap gap-2"><Tag tone="on">Todas {campaigns.length}</Tag><Tag tone="warn">En revision {count("en_revision")}</Tag><Tag>Finalizadas {count("finalizada")}</Tag><Tag>Activas {count("activa")}</Tag></div>{error ? <p className="rounded-lg bg-danger-tint p-4 text-sm text-danger">{error}</p> : campaigns.length === 0 ? <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">Cargando o no tienes campanas creadas.</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{campaigns.map((campaign) => { const pct = campaign.goalContributions ? Math.min(100, Math.round(campaign.currentContributions / campaign.goalContributions * 100)) : 0; return <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4"><div className="mb-1 flex items-start justify-between gap-2"><p className="text-[13.5px] font-medium text-ink">{campaign.name}</p><Tag tone={campaign.status === "activa" ? "ok" : "default"}>{labels[campaign.status]}</Tag></div><p className="mb-2.5 font-mono text-[11.5px] text-ink-2">{campaign.startDate ?? "Sin fecha"} - {campaign.endDate ?? "Sin fecha"}</p><ProgressBar pct={campaign.status === "finalizada" ? 100 : pct} tone={campaign.status === "finalizada" ? "ok" : "accent"} /><p className="my-2.5 font-mono text-[12px] text-ink-2">{campaign.currentContributions} / {campaign.goalContributions} - {campaign.pendingContributions} aportes pendientes</p><div className="flex flex-wrap gap-1.5"><Link href={`/mis-campanas/${campaign.id}/aportes`}><Button variant="primary" size="sm">Revisar aportes</Button></Link><Link href={`/mis-campanas/${campaign.id}/panel`}><Button size="sm">Panel</Button></Link><Link href={`/mis-campanas/nueva?edit=${campaign.id}`}><Button size="sm">Editar</Button></Link></div></div>; })}</div>}</div>;
 }

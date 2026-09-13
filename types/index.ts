@@ -44,6 +44,7 @@ export interface Campaign {
   name: string;
   description: string;
   tag: string;
+  tematica?: string;
   status: CampaignStatus;
   dataTypes: DataType[];
   goalContributions: number;
@@ -53,8 +54,8 @@ export interface Campaign {
   pendingContributions: number;
   rejectedContributions: number;
   participants: number;
-  startDate: string; // ISO date
-  endDate: string; // ISO date
+  startDate: string | null; // ISO date
+  endDate: string | null; // ISO date
   locationCity: string;
   locationState: string;
   organizer?: string;
@@ -64,6 +65,7 @@ export interface Campaign {
   hasReviewerAssigned: boolean;
   shareToken?: string;
   shareTokenExpiresAt?: string; // ISO datetime
+  contributions?: Contribution[];
 }
 
 export interface Contribution {

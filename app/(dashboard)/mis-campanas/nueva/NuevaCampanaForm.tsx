@@ -58,10 +58,58 @@ export default function NuevaCampanaForm() {
     );
   }
 
-  function handleSubmit(e: React.FormEvent, asDraft: boolean) {
+  async function handleSubmit(e: React.FormEvent, asDraft: boolean) {
     e.preventDefault();
-    // En producción: POST/PUT a la API y redirigir con el id real.
-    router.push("/mis-campanas");
+
+    const payload = {
+      creatorId: 1,
+      creatorName: "Carlos P.",
+      name,
+      description,
+      tematica: theme,
+      tag: theme,
+      status: asDraft ? "borrador" : "en_revision",
+      dataTypes,
+      goalContributions: Number(goal),
+      quotaPerUser: Number(quota),
+      currentContributions: 0,
+      approvedContributions: 0,
+      pendingContributions: 0,
+      rejectedContributions: 0,
+      participants: 0,
+      startDate,
+      endDate,
+      locationCity: "Tepic",
+      locationState: "Nayarit",
+      organizer: "Ayuntamiento de Tepic",
+      xpPerContribution: 50,
+      isSpecial: false,
+      daysRemaining: null,
+      hasReviewerAssigned: false,
+      shareToken: "",
+      shareTokenExpiresAt: null,
+      aportes: [],
+    };
+
+    try {
+      const response = await fetch("/api/campanas", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "No se pudo crear la campaña");
+      }
+
+      router.push("/mis-campanas");
+    } catch (error) {
+      console.error("Error creando campaña", error);
+      router.push("/mis-campanas");
+    }
   }
 
   const canPublish = !limitReached && name && description && dataTypes.length > 0;
@@ -264,7 +312,7 @@ export default function NuevaCampanaForm() {
         </Field>
 
         <div className="mb-6 max-w-lg rounded-lg bg-warn-tint p-4 text-[12.5px] text-warn">
-          Al enviar, la campaña pasa a "En revisión" y no podrás editarla hasta que el
+          Al enviar, la campaña pasa a &quot;En revisión&quot; y no podrás editarla hasta que el
           supervisor responda.
         </div>
 
