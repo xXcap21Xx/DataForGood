@@ -25,7 +25,7 @@ export interface SessionUser {
   city: string | null;
   specialty: string | null;
   intereses: string[];
-  role: string;
+  role: string[];
   xp_total: number;
   level: number;
   streak_days: number;

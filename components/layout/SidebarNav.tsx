@@ -37,7 +37,7 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
           );
         })}
 
-        {usuario.role === "supervisor" && (
+        {Array.isArray(usuario.role) && usuario.role.includes("supervisor") && (
           <Link
             href="/supervision"
             className={`rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors ${

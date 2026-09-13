@@ -19,7 +19,7 @@ const ensureUsuariosTable = `
     city VARCHAR(100),
     specialty VARCHAR(150),
     intereses JSONB NOT NULL DEFAULT '[]'::jsonb,
-    role VARCHAR(30) NOT NULL DEFAULT 'usuario',
+    role JSONB NOT NULL DEFAULT '["usuario"]'::jsonb,
     xp_total INTEGER NOT NULL DEFAULT 0,
     level INTEGER NOT NULL DEFAULT 1,
     streak_days INTEGER NOT NULL DEFAULT 0,
@@ -123,15 +123,25 @@ export async function POST(request: Request) {
     );
 
     if (!usuario.email_verificado) {
-      try {
-        await startVerification(usuario.id, usuario.email, usuario.nombre);
-      } catch (verificationError) {
-        console.error("No se pudo enviar el correo de verificación", verificationError);
-      }
-      return NextResponse.json(
+      const response = NextResponse.json(
         { error: "Verifica tu correo antes de iniciar sesión", requiresVerification: true },
         { status: 403 }
       );
+
+      try {
+        const { expiresAt } = await startVerification(usuario.id, usuario.email, usuario.nombre, response);
+        response.cookies.set("pending_verification_id", String(usuario.id), {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          path: "/",
+          expires: expiresAt,
+        });
+      } catch (verificationError) {
+        console.error("No se pudo enviar el correo de verificación", verificationError);
+      }
+
+      return response;
     }
 
     delete usuario.password_hash;
@@ -142,9 +152,10 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Sesión iniciada", data: usuario }, { status: 200 });
   } catch (error) {
-    console.error(error);
+    console.error("POST /api/auth/login:", error);
+    const detail = error instanceof Error ? error.message : String(error);
     return NextResponse.json(
-      { error: "No se pudo iniciar sesión" },
+      { error: "No se pudo iniciar sesión", detail },
       { status: 500 }
     );
   }

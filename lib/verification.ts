@@ -1,9 +1,10 @@
 import { randomInt, createHash } from "crypto";
 import { cookies } from "next/headers";
+import type { NextResponse } from "next/server";
 import nodemailer from "nodemailer";
 import { pool } from "@/lib/db";
 
-const PENDING_COOKIE = "pending_verification_id";
+export const PENDING_COOKIE = "pending_verification_id";
 const CODE_LENGTH = 6;
 const CODE_DURATION_MS = 1000 * 60 * 15; // 15 minutos
 const MAX_ATTEMPTS = 3;
@@ -20,7 +21,7 @@ function hashCode(code: string) {
 
 function getMailTransport() {
   const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
+  const pass = String(process.env.GMAIL_APP_PASSWORD ?? "").replace(/\s+/g, "");
 
   if (!user || !pass) {
     throw new Error("GMAIL_USER o GMAIL_APP_PASSWORD no están configuradas");
@@ -49,7 +50,12 @@ async function sendVerificationEmail(email: string, nombre: string, code: string
   });
 }
 
-export async function startVerification(usuarioId: number, email: string, nombre: string) {
+export async function startVerification(
+  usuarioId: number,
+  email: string,
+  nombre: string,
+  response?: NextResponse
+) {
   await pool.query(ensureVerificationColumns);
 
   const code = randomInt(0, 1_000_000).toString().padStart(CODE_LENGTH, "0");
@@ -62,16 +68,17 @@ export async function startVerification(usuarioId: number, email: string, nombre
     [usuarioId, hashCode(code), expiresAt]
   );
 
-  const cookieStore = await cookies();
-  cookieStore.set(PENDING_COOKIE, String(usuarioId), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: expiresAt,
-  });
-
   await sendVerificationEmail(email, nombre, code);
+
+  if (response) {
+    response.cookies.set(PENDING_COOKIE, String(usuarioId), {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      expires: expiresAt,
+    });
+  }
 
   return { expiresAt };
 }
@@ -115,7 +122,12 @@ export async function getPendingVerification(): Promise<PendingVerification | nu
   };
 }
 
-export async function clearPendingVerificationCookie() {
+export async function clearPendingVerificationCookie(response?: NextResponse) {
+  if (response) {
+    response.cookies.delete(PENDING_COOKIE);
+    return;
+  }
+
   const cookieStore = await cookies();
   cookieStore.delete(PENDING_COOKIE);
 }

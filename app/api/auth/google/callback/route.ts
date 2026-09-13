@@ -17,7 +17,7 @@ const ensureUsuariosTable = `
     city VARCHAR(100),
     specialty VARCHAR(150),
     intereses JSONB NOT NULL DEFAULT '[]'::jsonb,
-    role VARCHAR(30) NOT NULL DEFAULT 'usuario',
+    role JSONB NOT NULL DEFAULT '["usuario"]'::jsonb,
     xp_total INTEGER NOT NULL DEFAULT 0,
     level INTEGER NOT NULL DEFAULT 1,
     streak_days INTEGER NOT NULL DEFAULT 0,
@@ -71,9 +71,9 @@ export async function GET(request: Request) {
     } else {
       const inserted = await pool.query(
         `INSERT INTO usuarios (nombre, apellidos, email, password_hash, google_id, email_verificado, role, xp_total, level, streak_days)
-         VALUES ($1, $2, $3, NULL, $4, true, 'usuario', 0, 1, 0)
+         VALUES ($1, $2, $3, NULL, $4, true, $5::jsonb, 0, 1, 0)
          RETURNING id`,
-        [profile.givenName, profile.familyName, profile.email, profile.googleId]
+        [profile.givenName, profile.familyName, profile.email, profile.googleId, JSON.stringify(["usuario"])]
       );
       usuarioId = inserted.rows[0].id;
     }

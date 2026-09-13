@@ -12,7 +12,7 @@ const ensureUsuariosTable = `
     city VARCHAR(100),
     specialty VARCHAR(150),
     intereses JSONB NOT NULL DEFAULT '[]'::jsonb,
-    role VARCHAR(30) NOT NULL DEFAULT 'usuario',
+    role JSONB NOT NULL DEFAULT '["usuario"]'::jsonb,
     xp_total INTEGER NOT NULL DEFAULT 0,
     level INTEGER NOT NULL DEFAULT 1,
     streak_days INTEGER NOT NULL DEFAULT 0,

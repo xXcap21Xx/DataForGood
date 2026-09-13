@@ -33,7 +33,7 @@ export default function TopBar({ usuario }: { usuario: SessionUser }) {
               <p className="text-[11.5px] text-ink-3">Ver perfil</p>
             </div>
           </Link>
-          {usuario.role === "supervisor" && (
+          {Array.isArray(usuario.role) && usuario.role.includes("supervisor") && (
             <Link
               href="/supervision"
               className="rounded-pill border border-line-2 bg-sunken px-3 py-1.5 text-[11px] font-bold text-accent hover:border-accent hover:bg-accent-tint"
