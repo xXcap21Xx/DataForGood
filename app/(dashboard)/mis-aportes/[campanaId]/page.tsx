@@ -1,35 +1,70 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { getCampaignById, getContributionsByCampaign } from "@/data/screensData";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import ContributionCard from "@/components/cards/ContributionCard";
 import Button from "@/components/ui/Button";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
+import type { Campaign, Contribution } from "@/types";
 
-export default async function CampaignContributionsPage({
-  params,
-}: {
-  params: Promise<{ campanaId: string }>;
-}) {
-  const { campanaId } = await params;
-  const campaign = getCampaignById(campanaId);
-  const [statusFilter, setStatusFilter] = useState("todos");
+export default function CampaignContributionsPage() {
+  const params = useParams<{ campanaId: string }>();
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [items, setItems] = useState<Contribution[]>([]);
   const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState("todos");
+  const [error, setError] = useState<string | null>(null);
 
-  if (!campaign) return <p className="text-sm text-ink-2">Campaña no encontrada.</p>;
+  useEffect(() => {
+    async function load() {
+      try {
+        const [campaignRes, aportesRes] = await Promise.all([
+          fetch(`/api/campanas?id=${encodeURIComponent(params.campanaId)}`, { cache: "no-store" }),
+          fetch(`/api/aportes?campaignId=${encodeURIComponent(params.campanaId)}&mine=true`, { cache: "no-store" }),
+        ]);
 
-  const items = getContributionsByCampaign(campaign.id).filter((item) => !removedIds.includes(item.id));
-  const accepted = items.filter((item) => item.status === "aceptado");
-  const pending = items.filter((item) => item.status === "pendiente" || item.status === "espera_final");
-  const rejected = items.filter((item) => item.status === "rechazado");
-  const filteredItems = statusFilter === "todos"
-    ? items
-    : items.filter((item) => statusFilter === "aceptados" ? item.status === "aceptado" : statusFilter === "revision" ? item.status === "pendiente" || item.status === "espera_final" : item.status === "rechazado");
-  const canAdd = campaign.status === "activa" && items.length < campaign.quotaPerUser;
+        const campaignPayload = await campaignRes.json().catch(() => ({}));
+        if (!campaignRes.ok) throw new Error(campaignPayload.error ?? "No se pudo cargar la campaña");
+        setCampaign(campaignPayload.data as Campaign);
+
+        const aportesPayload = await aportesRes.json().catch(() => ({}));
+        if (!aportesRes.ok) throw new Error(aportesPayload.error ?? "No se pudieron cargar tus aportes");
+        setItems(
+          (Array.isArray(aportesPayload.data) ? (aportesPayload.data as Contribution[]) : []).map((item) => ({
+            ...item,
+            campaignId: campaignPayload.data.id,
+            campaignName: campaignPayload.data.name,
+          }))
+        );
+      } catch (cause) {
+        setError(cause instanceof Error ? cause.message : "No se pudo cargar la información");
+      }
+    }
+    void load();
+  }, [params.campanaId]);
+
+  if (error) return <p className="text-sm text-danger">{error}</p>;
+  if (!campaign) return <p className="text-sm text-ink-2">Cargando...</p>;
+
+  const visible = items.filter((item) => !removedIds.includes(item.id));
+  const accepted = visible.filter((item) => item.status === "aceptado");
+  const pending = visible.filter((item) => item.status === "pendiente" || item.status === "espera_final");
+  const rejected = visible.filter((item) => item.status === "rechazado");
+  const filteredItems =
+    statusFilter === "todos"
+      ? visible
+      : visible.filter((item) =>
+          statusFilter === "aceptados"
+            ? item.status === "aceptado"
+            : statusFilter === "revision"
+              ? item.status === "pendiente" || item.status === "espera_final"
+              : item.status === "rechazado"
+        );
+  const canAdd = campaign.status === "activa" && visible.length < campaign.quotaPerUser;
   const isActive = campaign.status === "activa";
-  const progress = Math.round((items.length / campaign.quotaPerUser) * 100);
+  const progress = campaign.quotaPerUser > 0 ? Math.round((visible.length / campaign.quotaPerUser) * 100) : 0;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -53,13 +88,13 @@ export default async function CampaignContributionsPage({
 
       <div className="mb-6 rounded-lg border border-line bg-surface p-4">
         <div className="mb-2 flex items-center justify-between gap-4 text-[13px] font-semibold text-ink">
-          <span>Tu cuota en esta campaña</span><span className="font-mono">{items.length} de {campaign.quotaPerUser} aportes</span>
+          <span>Tu cuota en esta campaña</span><span className="font-mono">{visible.length} de {campaign.quotaPerUser} aportes</span>
         </div>
         <ProgressBar pct={progress} />
         <div className="mt-3 grid grid-cols-3 gap-3">
           <div><p className="font-mono text-[15px] font-bold text-ok">{accepted.length}</p><p className="text-[11px] text-ink-3">aceptados · {accepted.length * campaign.xpPerContribution} XP</p></div>
           <div><p className="font-mono text-[15px] font-bold text-warn">{pending.length}</p><p className="text-[11px] text-ink-3">en revisión</p></div>
-          <div><p className="font-mono text-[15px] font-bold text-ink">{Math.max(campaign.quotaPerUser - items.length, 0)}</p><p className="text-[11px] text-ink-3">disponibles</p></div>
+          <div><p className="font-mono text-[15px] font-bold text-ink">{Math.max(campaign.quotaPerUser - visible.length, 0)}</p><p className="text-[11px] text-ink-3">disponibles</p></div>
         </div>
       </div>
 
@@ -75,7 +110,7 @@ export default async function CampaignContributionsPage({
       </div>
 
       <div className="mb-4 flex flex-wrap gap-2">
-        {[{ id: "todos", label: "Todos", count: items.length }, { id: "aceptados", label: "Aceptados", count: accepted.length }, { id: "revision", label: "En revisión", count: pending.length }, { id: "rechazados", label: "Rechazados", count: rejected.length }].map((filter) => (
+        {[{ id: "todos", label: "Todos", count: visible.length }, { id: "aceptados", label: "Aceptados", count: accepted.length }, { id: "revision", label: "En revisión", count: pending.length }, { id: "rechazados", label: "Rechazados", count: rejected.length }].map((filter) => (
           <button key={filter.id} type="button" onClick={() => setStatusFilter(filter.id)} className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold ${statusFilter === filter.id ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2"}`}>
             {filter.label} <span className="ml-1 font-mono">{filter.count}</span>
           </button>

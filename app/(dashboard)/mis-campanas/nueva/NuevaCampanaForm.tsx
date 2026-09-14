@@ -7,7 +7,9 @@ import { Field, Input, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import { getCampaignById, getMyCampaigns } from "@/data/screensData";
-import type { DataType } from "@/types";
+import type { CollectionMode, DataType } from "@/types";
+
+const DEFAULT_CHECKLIST_OPCIONES = ["Especie del árbol", "Estado de salud aparente"];
 
 const THEMES = [
   "Medio ambiente",
@@ -44,9 +46,13 @@ export default function NuevaCampanaForm() {
   const [dataTypes, setDataTypes] = useState<DataType[]>(
     editingCampaign?.dataTypes ?? ["foto"]
   );
-  const [collectionMode, setCollectionMode] = useState<"checklist" | "texto_libre">(
-    "checklist"
+  const [collectionMode, setCollectionMode] = useState<CollectionMode>(
+    editingCampaign?.collectionMode ?? "checklist"
   );
+  const [checklistOpciones, setChecklistOpciones] = useState<string[]>(
+    editingCampaign?.checklistOpciones ?? DEFAULT_CHECKLIST_OPCIONES
+  );
+  const [newOpcion, setNewOpcion] = useState("");
   const [goal, setGoal] = useState(String(editingCampaign?.goalContributions ?? 500));
   const [quota, setQuota] = useState(String(editingCampaign?.quotaPerUser ?? 10));
   const [startDate, setStartDate] = useState(editingCampaign?.startDate ?? "");
@@ -56,6 +62,17 @@ export default function NuevaCampanaForm() {
     setDataTypes((prev) =>
       prev.includes(type) ? prev.filter((t) => t !== type) : [...prev, type]
     );
+  }
+
+  function addChecklistOpcion() {
+    const value = newOpcion.trim();
+    if (!value || checklistOpciones.includes(value)) return;
+    setChecklistOpciones((prev) => [...prev, value]);
+    setNewOpcion("");
+  }
+
+  function removeChecklistOpcion(value: string) {
+    setChecklistOpciones((prev) => prev.filter((item) => item !== value));
   }
 
   async function handleSubmit(e: React.FormEvent, asDraft: boolean) {
@@ -70,6 +87,8 @@ export default function NuevaCampanaForm() {
       tag: theme,
       status: asDraft ? "borrador" : "en_revision",
       dataTypes,
+      collectionMode,
+      checklistOpciones: collectionMode === "checklist" ? checklistOpciones : [],
       goalContributions: Number(goal),
       quotaPerUser: Number(quota),
       currentContributions: 0,
@@ -270,15 +289,47 @@ export default function NuevaCampanaForm() {
             </div>
             {collectionMode === "checklist" && (
               <div className="rounded-lg border border-line bg-surface p-3.5">
-                <label className="mb-2 flex items-center gap-2 text-[12.5px] text-ink-2">
-                  <input type="checkbox" defaultChecked readOnly /> Especie del árbol
-                </label>
-                <label className="mb-2 flex items-center gap-2 text-[12.5px] text-ink-2">
-                  <input type="checkbox" defaultChecked readOnly /> Estado de salud aparente
-                </label>
-                <button type="button" className="text-[12.5px] font-medium text-accent">
-                  + Agregar opción
-                </button>
+                {checklistOpciones.length === 0 && (
+                  <p className="mb-2 text-[12px] text-ink-3">Aún no agregas ninguna opción.</p>
+                )}
+                {checklistOpciones.map((opcion) => (
+                  <div key={opcion} className="mb-2 flex items-center justify-between gap-2 text-[12.5px] text-ink-2">
+                    <label className="flex items-center gap-2">
+                      <input type="checkbox" defaultChecked readOnly /> {opcion}
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => removeChecklistOpcion(opcion)}
+                      className="text-[11.5px] font-medium text-danger"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                ))}
+                <div className="mt-2 flex gap-2">
+                  <input
+                    type="text"
+                    value={newOpcion}
+                    onChange={(e) => setNewOpcion(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        addChecklistOpcion();
+                      }
+                    }}
+                    maxLength={120}
+                    placeholder="Nueva opción del checklist"
+                    className="w-full rounded border border-line-2 bg-surface px-3 py-2 text-[12.5px] text-ink outline-none focus:border-accent"
+                  />
+                  <button
+                    type="button"
+                    onClick={addChecklistOpcion}
+                    disabled={!newOpcion.trim()}
+                    className="whitespace-nowrap text-[12.5px] font-medium text-accent disabled:opacity-40"
+                  >
+                    + Agregar opción
+                  </button>
+                </div>
               </div>
             )}
           </div>

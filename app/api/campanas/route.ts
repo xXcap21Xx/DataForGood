@@ -13,6 +13,8 @@ const ensureCampanasTable = `
     tag VARCHAR(120) NOT NULL,
     status VARCHAR(50) NOT NULL DEFAULT 'borrador',
     data_types JSONB NOT NULL DEFAULT '[]'::jsonb,
+    collection_mode VARCHAR(20) NOT NULL DEFAULT 'checklist',
+    checklist_opciones JSONB NOT NULL DEFAULT '[]'::jsonb,
     goal_contributions INTEGER NOT NULL DEFAULT 0,
     quota_per_user INTEGER NOT NULL DEFAULT 1,
     current_contributions INTEGER NOT NULL DEFAULT 0,
@@ -46,6 +48,8 @@ const ensureCampanasColumns = `
   ALTER TABLE campanas ADD COLUMN IF NOT EXISTS tag VARCHAR(120);
   ALTER TABLE campanas ADD COLUMN IF NOT EXISTS status VARCHAR(50) DEFAULT 'borrador';
   ALTER TABLE campanas ADD COLUMN IF NOT EXISTS data_types JSONB NOT NULL DEFAULT '[]'::jsonb;
+  ALTER TABLE campanas ADD COLUMN IF NOT EXISTS collection_mode VARCHAR(20) NOT NULL DEFAULT 'checklist';
+  ALTER TABLE campanas ADD COLUMN IF NOT EXISTS checklist_opciones JSONB NOT NULL DEFAULT '[]'::jsonb;
   ALTER TABLE campanas ADD COLUMN IF NOT EXISTS goal_contributions INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE campanas ADD COLUMN IF NOT EXISTS quota_per_user INTEGER NOT NULL DEFAULT 1;
   ALTER TABLE campanas ADD COLUMN IF NOT EXISTS current_contributions INTEGER NOT NULL DEFAULT 0;
@@ -92,12 +96,30 @@ function normalizeCampaignStatus(input: unknown): string {
   return allowed.has(value) ? value : "borrador";
 }
 
+function normalizeCollectionMode(input: unknown): string {
+  const value = String(input ?? "checklist").trim().toLowerCase();
+  return value === "texto_libre" ? "texto_libre" : "checklist";
+}
+
+function normalizeChecklistOpciones(input: unknown): string[] {
+  if (!Array.isArray(input)) return [];
+  return Array.from(
+    new Set(
+      input
+        .map((item) => String(item ?? "").trim())
+        .filter((item) => item.length > 0 && item.length <= 120)
+    )
+  ).slice(0, 20);
+}
+
 function mapCampaign(row: Record<string, unknown>) {
   const dataTypes = Array.isArray(row.data_types)
     ? row.data_types
     : Array.isArray(row.data_types ?? [])
       ? row.data_types
       : [];
+
+  const checklistOpciones = Array.isArray(row.checklist_opciones) ? row.checklist_opciones : [];
 
   const aportes = Array.isArray(row.aportes)
     ? row.aportes
@@ -115,6 +137,8 @@ function mapCampaign(row: Record<string, unknown>) {
     tag: String(row.tag ?? String(row.tematica ?? "")),
     status: String(row.status ?? "borrador"),
     dataTypes,
+    collectionMode: String(row.collection_mode ?? "checklist"),
+    checklistOpciones,
     goalContributions: Number(row.goal_contributions ?? 0),
     quotaPerUser: Number(row.quota_per_user ?? 0),
     currentContributions: Number(row.current_contributions ?? 0),
@@ -210,6 +234,11 @@ export async function POST(request: Request) {
 
     const dataTypes = normalizeDataTypes(body.dataTypes ?? body.data_types ?? []);
     const status = normalizeCampaignStatus(body.status ?? "activa");
+    const collectionMode = normalizeCollectionMode(body.collectionMode ?? body.collection_mode);
+    const checklistOpciones =
+      collectionMode === "checklist"
+        ? normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones ?? [])
+        : [];
 
     const goalContributions = Number(body.goalContributions ?? body.goal_contributions ?? 0);
     const quotaPerUser = Number(body.quotaPerUser ?? body.quota_per_user ?? 1);
@@ -243,6 +272,8 @@ export async function POST(request: Request) {
         tag,
         status,
         data_types,
+        collection_mode,
+        checklist_opciones,
         goal_contributions,
         quota_per_user,
         current_contributions,
@@ -263,8 +294,8 @@ export async function POST(request: Request) {
         share_token_expires_at,
         aportes
       ) VALUES (
-        $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10, $11, $12, $13, $14,
-        $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27::jsonb
+        $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10::jsonb, $11, $12, $13, $14, $15,
+        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29::jsonb
       ) RETURNING *`,
       [
         creatorId,
@@ -275,6 +306,8 @@ export async function POST(request: Request) {
         tag,
         status,
         JSON.stringify(dataTypes),
+        collectionMode,
+        JSON.stringify(checklistOpciones),
         goalContributions,
         quotaPerUser,
         currentContributions,

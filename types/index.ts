@@ -12,6 +12,8 @@ export type CampaignStatus =
 
 export type DataType = "texto" | "foto" | "video" | "audio" | "documento";
 
+export type CollectionMode = "checklist" | "texto_libre";
+
 export type ContributionStatus =
   | "pendiente"
   | "espera_final"
@@ -47,6 +49,8 @@ export interface Campaign {
   tematica?: string;
   status: CampaignStatus;
   dataTypes: DataType[];
+  collectionMode?: CollectionMode;
+  checklistOpciones?: string[];
   goalContributions: number;
   quotaPerUser: number;
   currentContributions: number;
@@ -78,6 +82,7 @@ export interface Contribution {
   description: string;
   fileType: DataType;
   fileSizeBytes?: number;
+  caracteristicas?: string[];
   status: ContributionStatus;
   submittedAt: string; // ISO datetime
   rejectionReason?: string;
