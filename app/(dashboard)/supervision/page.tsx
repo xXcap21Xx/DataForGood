@@ -1,111 +1,43 @@
-import { currentUser } from "@/data/screensData";
-import Button from "@/components/ui/Button";
+import Link from "next/link";
+import Tag from "@/components/ui/Tag";
+
+const pendingCampaigns = [
+  ["ruido-nocturno", "Ruido nocturno en el centro", "Luis Márquez · Salud urbana · meta 300 aportes", "56 h sin asignar", "danger"],
+  ["fauna-urbana", "Fauna urbana en parques", "Mara Ortiz · Protección animal · meta 400 aportes", "9 h sin asignar", "warn"],
+  ["huertos-comunitarios", "Huertos comunitarios", "Ana Ruiz · Medio ambiente · meta 250 aportes", "Recién publicada", "ok"],
+  ["bibliotecas-barrio", "Bibliotecas de barrio", "Ana R. · Educación · meta 200 aportes", "3 h sin asignar", "default"],
+] as const;
 
 export default function SupervisionPage() {
-  if (currentUser.role !== "supervisor") {
-    return (
-      <div className="rounded-lg border border-line bg-surface p-8">
-        <h1 className="text-2xl font-extrabold text-ink">Acceso restringido</h1>
-        <p className="mt-2 text-[13px] text-ink-2">
-          Esta sección solo está disponible para usuarios con rol de supervisor.
-        </p>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-4xl">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">
-            Supervisión
-          </p>
-          <h1 className="mt-2 text-2xl font-extrabold text-ink">
-            Panel de supervisión
-          </h1>
-          <p className="mt-1 text-[13px] text-ink-2">
-            Revisión de campañas, aportes y observaciones del ecosistema.
-          </p>
+          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Supervisión</p>
+          <h1 className="mt-2 text-2xl font-extrabold text-ink">Campañas por supervisar</h1>
+          <p className="mt-1 text-[13px] text-ink-2">6 esperando revisión</p>
         </div>
-        <Button variant="primary" size="sm">
-          Crear revisión
-        </Button>
+        <span className="rounded-pill border border-line-2 bg-surface px-4 py-2 text-[12.5px] font-bold text-ink-2">Temática ▾</span>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <section className="rounded-lg border border-line bg-surface p-5">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-            Campañas
-          </p>
-          <div className="mt-3 flex items-end justify-between">
-            <span className="text-4xl font-extrabold text-ink">12</span>
-            <span className="rounded-pill bg-ok-tint px-3 py-1 text-[11px] font-bold text-ok">
-              Activas
-            </span>
-          </div>
-          <p className="mt-3 text-[12.5px] text-ink-2">4 en revisión · 2 pausadas</p>
-        </section>
-
-        <section className="rounded-lg border border-line bg-surface p-5">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-            Aportes
-          </p>
-          <div className="mt-3 flex items-end justify-between">
-            <span className="text-4xl font-extrabold text-ink">48</span>
-            <span className="rounded-pill bg-warn-tint px-3 py-1 text-[11px] font-bold text-warn">
-              Pendientes
-            </span>
-          </div>
-          <p className="mt-3 text-[12.5px] text-ink-2">9 rechazados · 16 aceptados</p>
-        </section>
-
-        <section className="rounded-lg border border-line bg-surface p-5">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-            Observaciones
-          </p>
-          <div className="mt-3 flex items-end justify-between">
-            <span className="text-4xl font-extrabold text-ink">07</span>
-            <span className="rounded-pill bg-accent-tint px-3 py-1 text-[11px] font-bold text-accent">
-              Abiertas
-            </span>
-          </div>
-          <p className="mt-3 text-[12.5px] text-ink-2">3 requieren respuesta</p>
-        </section>
+      <div className="mb-5 flex flex-wrap gap-2">
+        <Tag tone="on">Por supervisar&nbsp; <span className="font-mono text-[11px]">6</span></Tag>
+        <Link href="/supervision/campanas"><Tag>Campañas supervisadas&nbsp; <span className="font-mono text-[11px]">3</span></Tag></Link>
       </div>
 
-      <section className="rounded-lg border border-line bg-surface p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-              Cola de revisión
-            </p>
-            <h2 className="mt-1 text-lg font-extrabold text-ink">
-              Solicitudes recientes
-            </h2>
-          </div>
-          <Button variant="secondary" size="sm">
-            Ver todo
-          </Button>
-        </div>
+      <div className="mb-3 rounded-lg border border-line bg-sunken px-4 py-3 text-[13px] text-ink-2">Selecciona una campaña para ver su detalle. Desde ahí podrás consultar a sus participantes y el panel de campaña.</div>
 
-        <div className="space-y-3">
-          {[
-            ["Censo de árboles urbanos", "Campaña", "Pendiente de aprobación"],
-            ["Mapa de bancas públicas", "Campaña", "Observaciones pendientes"],
-            ["Aporte #3121", "Aporte", "Esperando validación"],
-          ].map(([title, type, state]) => (
-            <div className="flex items-center justify-between rounded border border-line bg-sunken px-4 py-3">
-              <div>
-                <p className="text-sm font-bold text-ink">{title}</p>
-                <p className="text-[12px] text-ink-2">{type}</p>
-              </div>
-              <span className="rounded-pill border border-line-2 bg-surface px-3 py-1 text-[11px] font-bold text-ink-2">
-                {state}
-              </span>
+      <div className="space-y-3">
+        {pendingCampaigns.map(([id, title, detail, status, tone]) => (
+          <Link key={id} href={`/supervision/${id}`} className="block rounded-lg border border-line bg-surface p-5 shadow-sm transition-shadow hover:border-accent hover:shadow-md">
+            <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3">
+              <h2 className="text-[15px] font-extrabold text-ink">{title}</h2>
+              <Tag tone={tone}>{status}</Tag>
             </div>
-          ))}
-        </div>
-      </section>
+            <p className="text-[12.5px] text-ink-3">{detail}</p>
+          </Link>
+        ))}
+      </div>
     </div>
   );
 }
