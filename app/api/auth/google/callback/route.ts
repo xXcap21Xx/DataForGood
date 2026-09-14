@@ -23,7 +23,7 @@ const ensureUsuariosTable = `
     streak_days INTEGER NOT NULL DEFAULT 0,
     email_verificado BOOLEAN NOT NULL DEFAULT false,
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TIMESTAMP,
+    locked_until TIMESTAMPTZ,
     google_id VARCHAR(255) UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
