@@ -6,13 +6,17 @@ import { pool } from "@/lib/db";
 const COOKIE_NAME = "session_token";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 días
 
+// expires_at es TIMESTAMPTZ: con TIMESTAMP (sin zona), comparar contra NOW()
+// cuando Postgres y el servidor de Next corren en husos distintos hace que
+// una sesión recién creada aparezca ya expirada (mismo defecto que se
+// arregló en root_sessions y en verification_code_expires_at).
 const ensureSessionsTable = `
   CREATE TABLE IF NOT EXISTS sessions (
     id SERIAL PRIMARY KEY,
     token_hash VARCHAR(64) NOT NULL UNIQUE,
     usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMP NOT NULL
+    expires_at TIMESTAMPTZ NOT NULL
   );
 `;
 

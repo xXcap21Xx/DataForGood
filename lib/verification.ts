@@ -9,9 +9,13 @@ const CODE_LENGTH = 6;
 const CODE_DURATION_MS = 1000 * 60 * 15; // 15 minutos
 const MAX_ATTEMPTS = 3;
 
+// TIMESTAMPTZ, no TIMESTAMP: si Postgres y el servidor de Next corren en
+// husos horarios distintos, un valor sin zona se interpreta con el huso
+// equivocado al leerlo de vuelta y el código nace "expirado" (mismo defecto
+// que root_sessions.expires_at).
 const ensureVerificationColumns = `
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS verification_code_hash VARCHAR(64);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS verification_code_expires_at TIMESTAMP;
+  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS verification_code_expires_at TIMESTAMPTZ;
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS verification_attempts INTEGER NOT NULL DEFAULT 0;
 `;
 

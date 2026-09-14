@@ -25,7 +25,7 @@ const ensureUsuariosTable = `
     streak_days INTEGER NOT NULL DEFAULT 0,
     email_verificado BOOLEAN NOT NULL DEFAULT false,
     failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TIMESTAMP,
+    locked_until TIMESTAMPTZ,
     created_at TIMESTAMP NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()
   );
@@ -34,7 +34,7 @@ const ensureUsuariosTable = `
 const ensureUsuariosColumns = `
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_verificado BOOLEAN NOT NULL DEFAULT false;
   ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER NOT NULL DEFAULT 0;
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP;
+  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
 `;
 
 export async function POST(request: Request) {
