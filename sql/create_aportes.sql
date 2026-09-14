@@ -1,0 +1,21 @@
+CREATE TABLE IF NOT EXISTS aportes (
+  id SERIAL PRIMARY KEY,
+  campaign_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+  user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+  participant_name VARCHAR(160) NOT NULL,
+  participant_email VARCHAR(200),
+  description TEXT NOT NULL,
+  file_type VARCHAR(20) NOT NULL,
+  file_path VARCHAR(500) NOT NULL,
+  file_original_name VARCHAR(255),
+  file_mime_type VARCHAR(100),
+  file_size_bytes INTEGER,
+  caracteristicas JSONB NOT NULL DEFAULT '[]'::jsonb,
+  status VARCHAR(20) NOT NULL DEFAULT 'pendiente',
+  rejection_reason TEXT,
+  first_pass_by VARCHAR(160),
+  submitted_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  reviewed_at TIMESTAMP,
+  created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
