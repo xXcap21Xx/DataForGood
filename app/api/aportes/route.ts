@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { getSessionUser } from "@/lib/session";
 import { saveUploadedFile } from "@/lib/minio";
+import { getSessionUser } from "@/lib/session";
 
 const ensureAportesTable = `
   CREATE TABLE IF NOT EXISTS aportes (
@@ -73,30 +73,26 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "campaignId es obligatorio" }, { status: 400 });
     }
 
-    const user = await getSessionUser();
-    if (!user) {
-      return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+    const user = mine ? await getSessionUser() : null;
+    if (mine) {
+      if (!user) {
+        return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+      }
+
+      const result = await pool.query(
+        `SELECT * FROM aportes
+         WHERE campaign_id = $1 AND user_id = $2
+         ORDER BY submitted_at DESC`,
+        [campaignId, user.id]
+      );
+
+      return NextResponse.json({ data: result.rows.map(mapAporte) });
     }
 
-    if (!mine) {
-      const campaignResult = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1 LIMIT 1`, [campaignId]);
-      if (campaignResult.rowCount === 0) {
-        return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
-      }
-      if (Number(campaignResult.rows[0].creator_id) !== Number(user.id)) {
-        return NextResponse.json({ error: "Solo quien creó la campaña puede ver todos sus aportes" }, { status: 403 });
-      }
-    }
-
-    const result = mine
-      ? await pool.query(
-          `SELECT * FROM aportes WHERE campaign_id = $1 AND user_id = $2 ORDER BY submitted_at DESC`,
-          [campaignId, user.id]
-        )
-      : await pool.query(
-          `SELECT * FROM aportes WHERE campaign_id = $1 ORDER BY submitted_at DESC`,
-          [campaignId]
-        );
+    const result = await pool.query(
+      `SELECT * FROM aportes WHERE campaign_id = $1 ORDER BY submitted_at DESC`,
+      [campaignId]
+    );
 
     return NextResponse.json({ data: result.rows.map(mapAporte) });
   } catch (error) {
