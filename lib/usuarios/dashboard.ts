@@ -1,4 +1,4 @@
-import type { Pestana } from "../../components/sistema/subtabs";
+import type { Pestana } from "@/components/sistema/subtabs";
 
 /** Pestañas de la sección Usuarios. Las comparten las cuatro pantallas. */
 export const PESTANAS_USUARIOS: Pestana[] = [
@@ -33,7 +33,8 @@ export type DashboardDeUsuarios = {
     correo: string;
     aportesAprobados: number;
     campanas: number;
-    estado: { texto: string; tono: "ok" | "aviso" | "riesgo" };
+    /** Mismos tonos que components/ui/Tag. */
+    estado: { texto: string; tono: "ok" | "warn" | "danger" };
   }[];
   cortadoEn: Date;
 };
@@ -125,7 +126,7 @@ const MUESTRA: DashboardDeUsuarios = {
       correo: "luis@correo.com",
       aportesAprobados: 174,
       campanas: 4,
-      estado: { texto: "2 strikes", tono: "aviso" },
+      estado: { texto: "2 strikes", tono: "warn" },
     },
   ],
   cortadoEn: new Date(),

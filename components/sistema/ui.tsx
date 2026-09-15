@@ -1,12 +1,24 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import styles from "./ui.module.css";
+import ProgressBar from "@/components/ui/ProgressBar";
 
 const nf = new Intl.NumberFormat("es-MX");
 
 export function formatearNumero(n: number): string {
   return nf.format(n);
+}
+
+const CLASES_ENLACE_BOTON =
+  "inline-flex items-center justify-center gap-1.5 rounded-pill border border-line-2 bg-surface px-3.5 py-1.5 text-[12.5px] font-semibold text-ink transition-colors hover:border-ink-3 hover:bg-sunken";
+
+/** Link con la misma apariencia de botón secundario que ya usa `/sistema`. */
+export function EnlaceBoton({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className={CLASES_ENLACE_BOTON}>
+      {children}
+    </Link>
+  );
 }
 
 /* ── encabezado ─────────────────────────────────────────────────────────── */
@@ -23,55 +35,22 @@ export function Encabezado({
   acciones?: ReactNode;
 }) {
   return (
-    <header className={styles.hd}>
+    <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h1 className={styles.titulo}>{titulo}</h1>
+        <h1 className="text-xl font-extrabold text-ink">{titulo}</h1>
         {subtitulo ? (
-          <p className={`${styles.sub} ${subtituloMono ? styles.mono : ""}`}>
+          <p className={`mt-1 text-[13px] text-ink-2 ${subtituloMono ? "font-mono" : ""}`}>
             {subtitulo}
           </p>
         ) : null}
       </div>
-      {acciones ? <div className={styles.row}>{acciones}</div> : null}
+      {acciones ? <div className="flex flex-wrap items-center gap-2">{acciones}</div> : null}
     </header>
   );
 }
 
 export function TituloDeSeccion({ children }: { children: ReactNode }) {
-  return <p className={styles.seccion}>{children}</p>;
-}
-
-/* ── métrica ────────────────────────────────────────────────────────────── */
-
-export function Metrica({
-  etiqueta,
-  valor,
-  enlaces,
-}: {
-  etiqueta: string;
-  valor: number | string;
-  /** Accesos opcionales al pie de la tarjeta. */
-  enlaces?: { texto: string; href: string }[];
-}) {
-  return (
-    <article className={styles.metric}>
-      <p className={styles.metricLabel}>{etiqueta}</p>
-      <p className={styles.metricValue}>
-        {typeof valor === "number" ? formatearNumero(valor) : valor}
-      </p>
-      {enlaces?.length ? (
-        <div className={styles.metricLinks}>
-          {enlaces.map(({ texto, href }) => (
-            <Link key={href + texto} href={href}>
-              {texto}
-              <span aria-hidden="true">›</span>
-              <span className={styles.srOnly}>de {etiqueta.toLowerCase()}</span>
-            </Link>
-          ))}
-        </div>
-      ) : null}
-    </article>
-  );
+  return <p className="mb-3 text-[12.5px] font-semibold text-ink">{children}</p>;
 }
 
 /* ── reparto en barras ──────────────────────────────────────────────────── */
@@ -98,19 +77,17 @@ export function Reparto({
   const tope = maximo ?? Math.max(...filas.map((f) => f.valor), 1);
 
   return (
-    <div>
+    <div className="flex flex-col gap-2.5">
       {filas.map((f) => (
-        <div className={styles.reparto} key={f.etiqueta}>
-          <span
-            className={styles.repartoEtiqueta}
-            style={{ width: anchoEtiqueta }}
-          >
+        <div className="flex items-center gap-2.5 text-[12.5px]" key={f.etiqueta}>
+          <span className="shrink-0 text-ink-2" style={{ width: anchoEtiqueta }}>
             {f.etiqueta}
           </span>
-          <div className={styles.bar}>
-            <i style={{ width: `${Math.round((f.valor / tope) * 100)}%` }} />
-          </div>
-          <span className={styles.repartoValor} style={{ width: anchoValor }}>
+          <ProgressBar pct={(f.valor / tope) * 100} tone="ok" />
+          <span
+            className="shrink-0 text-right font-mono tabular-nums"
+            style={{ width: anchoValor }}
+          >
             {f.display ?? formatearNumero(f.valor)}
           </span>
         </div>
@@ -127,36 +104,15 @@ export function ListaClaveValor({
   filas: { clave: ReactNode; valor: ReactNode }[];
 }) {
   return (
-    <div>
+    <div className="divide-y divide-line">
       {filas.map((f, i) => (
-        <div className={styles.kv} key={i}>
+        <div className="flex items-center justify-between gap-3.5 py-2.5 text-[13.5px]" key={i}>
           <span>{f.clave}</span>
-          <span className={styles.kvValor}>{f.valor}</span>
+          <span className="font-mono tabular-nums">{f.valor}</span>
         </div>
       ))}
     </div>
   );
-}
-
-/* ── etiqueta de estado ─────────────────────────────────────────────────── */
-
-export type TonoDeEtiqueta = "neutro" | "ok" | "aviso" | "riesgo";
-
-const TONOS: Record<TonoDeEtiqueta, string> = {
-  neutro: "",
-  ok: styles.tagOk,
-  aviso: styles.tagWarn,
-  riesgo: styles.tagDanger,
-};
-
-export function Etiqueta({
-  children,
-  tono = "neutro",
-}: {
-  children: ReactNode;
-  tono?: TonoDeEtiqueta;
-}) {
-  return <span className={`${styles.tag} ${TONOS[tono]}`}>{children}</span>;
 }
 
 /* ── pie de pantalla ────────────────────────────────────────────────────── */
@@ -169,11 +125,9 @@ export function PieDePantalla({
   acciones?: ReactNode;
 }) {
   return (
-    <div className={styles.pie}>
-      <Link className={styles.btn} href={volver.href}>
-        ← {volver.texto}
-      </Link>
-      {acciones ? <div className={styles.row}>{acciones}</div> : null}
+    <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
+      <EnlaceBoton href={volver.href}>← {volver.texto}</EnlaceBoton>
+      {acciones ? <div className="flex flex-wrap items-center gap-2">{acciones}</div> : null}
     </div>
   );
 }

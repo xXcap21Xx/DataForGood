@@ -1,26 +1,25 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { Suspense } from "react";
 
-import GraficaDeColumnas from "../../../../components/sistema/grafica-columnas";
-import Subtabs from "../../../../components/sistema/subtabs";
+import GraficaDeColumnas from "@/components/sistema/grafica-columnas";
+import Subtabs from "@/components/sistema/subtabs";
 import {
   Encabezado,
-  Etiqueta,
+  EnlaceBoton,
   ListaClaveValor,
-  Metrica,
   PieDePantalla,
   Reparto,
   TituloDeSeccion,
   formatearNumero,
-} from "../../../../components/sistema/ui";
-import styles from "../../../../components/sistema/ui.module.css";
+} from "@/components/sistema/ui";
+import MetricCard from "@/components/ui/MetricCard";
+import Tag from "@/components/ui/Tag";
 import {
   PESTANAS_USUARIOS,
   formatearCorte,
   obtenerDashboardDeUsuarios,
   type RangoDeFechas,
-} from "../../../../lib/usuarios/dashboard";
+} from "@/lib/usuarios/dashboard";
 import SelectorDeRango from "./selector-de-rango";
 
 export const metadata: Metadata = { title: "Dashboard de usuarios" };
@@ -45,7 +44,7 @@ export default async function DashboardDeUsuariosPage({
   const e = d.estadoDeCuenta;
 
   return (
-    <div className={styles.pad}>
+    <div>
       <Subtabs pestanas={PESTANAS_USUARIOS} etiquetaAria="Secciones de usuarios" />
 
       <Encabezado
@@ -57,33 +56,28 @@ export default async function DashboardDeUsuariosPage({
             <Suspense fallback={null}>
               <SelectorDeRango valor={activo} />
             </Suspense>
-            <Link className={styles.btn} href="/usuarios">
-              Ver lista
-            </Link>
+            <EnlaceBoton href="/usuarios">Ver lista</EnlaceBoton>
           </>
         }
       />
 
-      <div className={styles.g4} style={{ marginBottom: 24 }}>
-        <Metrica etiqueta="Total registrados" valor={d.totalRegistrados} />
-        <Metrica etiqueta="Altas del mes" valor={d.altasDelMes} />
-        <Metrica etiqueta="Con aportes en el rango" valor={d.conAportesEnRango} />
-        <Metrica etiqueta="Cuentas restringidas" valor={d.cuentasRestringidas} />
+      <div className="mb-6 grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-4">
+        <MetricCard label="Total registrados" value={formatearNumero(d.totalRegistrados)} />
+        <MetricCard label="Altas del mes" value={formatearNumero(d.altasDelMes)} />
+        <MetricCard label="Con aportes en el rango" value={formatearNumero(d.conAportesEnRango)} />
+        <MetricCard label="Cuentas restringidas" value={formatearNumero(d.cuentasRestringidas)} />
       </div>
 
       <TituloDeSeccion>Altas por mes</TituloDeSeccion>
-      <div style={{ marginBottom: 26 }}>
-        <GraficaDeColumnas
-          columnas={d.altasPorMes}
-          descripcion="Altas de usuarios por mes"
-        />
+      <div className="mb-6">
+        <GraficaDeColumnas columnas={d.altasPorMes} descripcion="Altas de usuarios por mes" />
       </div>
 
-      <div className={styles.g2} style={{ marginBottom: 24 }}>
+      <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section>
           <TituloDeSeccion>Por rol asignado</TituloDeSeccion>
           <Reparto filas={d.porRol} />
-          <p className={styles.tsub} style={{ marginTop: 10 }}>
+          <p className="mt-2.5 text-[12.5px] text-ink-3">
             Un mismo usuario puede aparecer en más de una fila: crear campañas no
             excluye tener rol de revisor.
           </p>
@@ -93,17 +87,17 @@ export default async function DashboardDeUsuariosPage({
           <TituloDeSeccion>Estado de la cuenta</TituloDeSeccion>
           <ListaClaveValor
             filas={[
-              { clave: <Etiqueta tono="ok">Activas</Etiqueta>, valor: formatearNumero(e.activas) },
+              { clave: <Tag tone="ok">Activas</Tag>, valor: formatearNumero(e.activas) },
               {
-                clave: <Etiqueta tono="aviso">Con strikes acumulados</Etiqueta>,
+                clave: <Tag tone="warn">Con strikes acumulados</Tag>,
                 valor: formatearNumero(e.conStrikes),
               },
               {
-                clave: <Etiqueta tono="riesgo">Suspendidas</Etiqueta>,
+                clave: <Tag tone="danger">Suspendidas</Tag>,
                 valor: formatearNumero(e.suspendidas),
               },
               {
-                clave: <Etiqueta tono="riesgo">Baneadas</Etiqueta>,
+                clave: <Tag tone="danger">Baneadas</Tag>,
                 valor: formatearNumero(e.baneadas),
               },
               { clave: "Correo sin verificar", valor: formatearNumero(e.correoSinVerificar) },
@@ -112,7 +106,7 @@ export default async function DashboardDeUsuariosPage({
         </section>
       </div>
 
-      <div className={styles.g2} style={{ marginBottom: 24 }}>
+      <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section>
           <TituloDeSeccion>Temáticas de interés declaradas</TituloDeSeccion>
           <Reparto
@@ -139,35 +133,33 @@ export default async function DashboardDeUsuariosPage({
       </div>
 
       <TituloDeSeccion>Usuarios con mayor participación</TituloDeSeccion>
-      <div className={styles.tablaWrap}>
-        <table className={styles.tabla}>
-          <thead>
+      <div className="overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm">
+        <table className="w-full min-w-[640px] text-left text-[13.5px]">
+          <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
             <tr>
-              <th style={{ width: "36%" }}>Usuario</th>
-              <th style={{ width: "18%" }}>Aportes aprobados</th>
-              <th style={{ width: "18%" }}>Campañas</th>
-              <th style={{ width: "14%" }}>Estado</th>
-              <th style={{ width: "14%" }} className={styles.tablaDerecha}>
-                Ficha
-              </th>
+              <th className="pb-3 font-medium">Usuario</th>
+              <th className="pb-3 font-medium">Aportes aprobados</th>
+              <th className="pb-3 font-medium">Campañas</th>
+              <th className="pb-3 font-medium">Estado</th>
+              <th className="pb-3 text-right font-medium">Ficha</th>
             </tr>
           </thead>
           <tbody>
             {d.masActivos.map((u) => (
-              <tr key={u.id}>
-                <td>
-                  <div style={{ fontWeight: 500 }}>{u.nombre}</div>
-                  <div className={`${styles.tsub} ${styles.mono}`}>{u.correo}</div>
+              <tr key={u.id} className="border-b border-line last:border-0">
+                <td className="py-4">
+                  <p className="font-bold text-ink">{u.nombre}</p>
+                  <p className="font-mono text-[11px] text-ink-3">{u.correo}</p>
                 </td>
-                <td className={styles.tablaNum}>{formatearNumero(u.aportesAprobados)}</td>
-                <td className={styles.tablaNum}>{u.campanas}</td>
+                <td className="font-mono tabular-nums">{formatearNumero(u.aportesAprobados)}</td>
+                <td className="font-mono tabular-nums">{u.campanas}</td>
                 <td>
-                  <Etiqueta tono={u.estado.tono}>{u.estado.texto}</Etiqueta>
+                  <Tag tone={u.estado.tono}>{u.estado.texto}</Tag>
                 </td>
-                <td className={styles.tablaDerecha}>
-                  <Link className={styles.btn} href={`/usuarios/${u.id}`}>
-                    Abrir<span className={styles.srOnly}> la ficha de {u.nombre}</span>
-                  </Link>
+                <td className="text-right">
+                  <EnlaceBoton href={`/usuarios/${u.id}`}>
+                    Abrir<span className="sr-only"> la ficha de {u.nombre}</span>
+                  </EnlaceBoton>
                 </td>
               </tr>
             ))}
@@ -177,11 +169,7 @@ export default async function DashboardDeUsuariosPage({
 
       <PieDePantalla
         volver={{ texto: "Panel del sistema", href: "/sistema" }}
-        acciones={
-          <Link className={styles.btn} href="/usuarios">
-            Ver directorio completo
-          </Link>
-        }
+        acciones={<EnlaceBoton href="/usuarios">Ver directorio completo</EnlaceBoton>}
       />
     </div>
   );

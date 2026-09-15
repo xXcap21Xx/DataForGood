@@ -3,8 +3,6 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId, useTransition } from "react";
 
-import styles from "../../../../components/sistema/ui.module.css";
-
 const OPCIONES = [
   { valor: "30d", etiqueta: "Últimos 30 días" },
   { valor: "90d", etiqueta: "Últimos 90 días" },
@@ -33,15 +31,15 @@ export default function SelectorDeRango({ valor }: { valor: string }) {
 
   return (
     <>
-      <label className={styles.srOnly} htmlFor={id}>
+      <label className="sr-only" htmlFor={id}>
         Rango de fechas
       </label>
       <select
         id={id}
-        className={styles.select}
         value={valor}
         disabled={pendiente}
         onChange={(e) => cambiar(e.target.value)}
+        className="min-h-[38px] rounded border border-line-2 bg-surface px-3 py-2 text-sm text-ink outline-none transition-colors focus:border-accent"
       >
         {OPCIONES.map((o) => (
           <option key={o.valor} value={o.valor}>
