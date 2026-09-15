@@ -68,17 +68,8 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     await pool.query(ensureAportesTable);
 
     const { id } = await context.params;
-    const user = await getSessionUser();
-    if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
-
     const row = await loadAporteWithCampaign(id);
     if (!row) return NextResponse.json({ error: "Aporte no encontrado" }, { status: 404 });
-
-    const isOwner = Number(row.user_id) === Number(user.id);
-    const isCampaignCreator = Number(row.campaign_creator_id) === Number(user.id);
-    if (!isOwner && !isCampaignCreator) {
-      return NextResponse.json({ error: "No tienes permiso para ver este aporte" }, { status: 403 });
-    }
 
     return NextResponse.json({ data: mapAporte(row) });
   } catch (error) {
