@@ -3,8 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import styles from "./ui.module.css";
-
 export type Pestana = { href: string; etiqueta: string };
 
 export default function Subtabs({
@@ -17,15 +15,19 @@ export default function Subtabs({
   const pathname = usePathname();
 
   return (
-    <nav className={styles.subtabs} aria-label={etiquetaAria}>
+    <nav aria-label={etiquetaAria} className="mb-6 flex flex-wrap gap-1 border-b border-line">
       {pestanas.map(({ href, etiqueta }) => {
         const activa = pathname === href;
         return (
           <Link
             key={href}
             href={href}
-            className={`${styles.subtab} ${activa ? styles.subtabOn : ""}`}
             aria-current={activa ? "page" : undefined}
+            className={`-mb-px border-b-2 px-4 py-2.5 text-[13px] font-medium transition-colors ${
+              activa
+                ? "border-accent font-bold text-accent"
+                : "border-transparent text-ink-2 hover:bg-sunken hover:text-ink"
+            }`}
           >
             {etiqueta}
           </Link>

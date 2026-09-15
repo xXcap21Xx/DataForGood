@@ -1,5 +1,3 @@
-import styles from "./ui.module.css";
-
 export type Columna = { etiqueta: string; valor: number };
 
 /**
@@ -35,7 +33,7 @@ export default function GraficaDeColumnas({
         role="img"
         aria-label={descripcion}
       >
-        <g fill="var(--accent)">
+        <g className="fill-accent">
           {columnas.map((c, i) => {
             const h = Math.max(2, Math.round((c.valor / tope) * ALTO_MAX));
             return (
@@ -50,8 +48,15 @@ export default function GraficaDeColumnas({
             );
           })}
         </g>
-        <line x1="0" y1={BASE + 1} x2={ANCHO} y2={BASE + 1} stroke="var(--line-2)" strokeWidth={1} />
-        <g fontSize={9} fill="var(--ink-3)" style={{ fontFamily: "var(--font-mono), monospace" }}>
+        <line
+          className="stroke-line-2"
+          x1="0"
+          y1={BASE + 1}
+          x2={ANCHO}
+          y2={BASE + 1}
+          strokeWidth={1}
+        />
+        <g className="fill-ink-3 font-mono" fontSize={9}>
           {columnas.map((c, i) => (
             <text key={c.etiqueta} x={i * paso + paso / 2} y={alto} textAnchor="middle">
               {c.etiqueta}
@@ -60,7 +65,7 @@ export default function GraficaDeColumnas({
         </g>
       </svg>
 
-      <table className={styles.srOnly}>
+      <table className="sr-only">
         <caption>{descripcion}</caption>
         <tbody>
           {columnas.map((c) => (
