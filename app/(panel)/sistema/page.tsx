@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import MetricCard from "@/components/ui/MetricCard";
+import MetricCard from "@/components/sistema/MetricCard";
 import { IconoCampanas } from "@/components/sistema/icons";
 import { obtenerMetricasDelSistema } from "@/lib/sistema/metricas";
 
@@ -30,10 +30,7 @@ export default async function PanelDelSistemaPage() {
         <MetricCard
           label="Campañas activas"
           value={m.campanasActivas}
-          links={[
-            { label: "Dashboard", href: "/campanas/dashboard" },
-            { label: "Lista", href: "/campanas" },
-          ]}
+          links={[{ label: "Dashboard", href: "/campanas/dashboard" }]}
         />
         <MetricCard
           label="Aportes recolectados"

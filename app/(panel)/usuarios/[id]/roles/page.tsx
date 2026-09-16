@@ -1,0 +1,148 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+
+import {
+  Aviso,
+  EnlaceBoton,
+  Tarjeta,
+  TituloDeSeccion,
+  Volver,
+  formatearNumero,
+} from "@/components/sistema/ui";
+import {
+  NOMBRE_DE_ROL,
+  QUIEN_ASIGNA,
+  formatearFecha,
+  obtenerUsuario,
+  type RolAsignable,
+} from "@/lib/usuarios/directorio";
+import { BotonAsignar, BotonRevocar } from "./botones-de-rol";
+
+export const dynamic = "force-dynamic";
+
+const ASIGNABLES: RolAsignable[] = ["SUPERVISOR", "REVISOR_DE_APORTES"];
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const u = await obtenerUsuario(id);
+  return { title: u ? `Roles de ${u.nombre}` : "Roles" };
+}
+
+export default async function RolesPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = await params;
+  const u = await obtenerUsuario(id);
+  if (!u) notFound();
+
+  const esSupervisor = u.rolVigente === "SUPERVISOR";
+  const detalle = u.rolVigente
+    ? `${u.correo} · ${NOMBRE_DE_ROL[u.rolVigente]}${
+        u.rolDesde ? ` desde ${formatearFecha(u.rolDesde)}` : ""
+      }`
+    : `${u.correo} · actualmente usuario común`;
+
+  return (
+    <div>
+      <Volver href={`/usuarios/${u.id}`}>Volver a la ficha</Volver>
+
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-extrabold text-ink">Roles de {u.nombre}</h1>
+          <p className="mt-1 font-mono text-[13px] text-ink-2">{detalle}</p>
+        </div>
+        <EnlaceBoton href={`/usuarios/${u.id}`}>Ver ficha completa</EnlaceBoton>
+      </header>
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section>
+          <TituloDeSeccion>Asignar rol</TituloDeSeccion>
+          <div className="mb-4 flex flex-col gap-2">
+            {ASIGNABLES.map((rol) => {
+              const asignado = u.rolVigente === rol;
+              return (
+                <Tarjeta
+                  key={rol}
+                  className={`flex items-center justify-between gap-3 ${
+                    asignado ? "border-accent" : ""
+                  }`}
+                >
+                  <div>
+                    <p className="text-[13.5px] font-semibold text-ink">{NOMBRE_DE_ROL[rol]}</p>
+                    <p className="text-[12.5px] text-ink-3">{QUIEN_ASIGNA[rol]}</p>
+                  </div>
+                  <BotonAsignar usuarioId={u.id} rol={rol} asignado={asignado} />
+                </Tarjeta>
+              );
+            })}
+          </div>
+        </section>
+
+        <section>
+          {esSupervisor ? (
+            <>
+              <TituloDeSeccion>Campañas bajo supervisión</TituloDeSeccion>
+              <p className="mb-2.5 text-[13px] text-ink-2">
+                Se reparten por especialidad declarada; si no tiene, por sus
+                preferencias de interés.
+              </p>
+            </>
+          ) : (
+            <>
+              <TituloDeSeccion>Rol vigente</TituloDeSeccion>
+              <Tarjeta tenue className="mb-4">
+                <p className="mb-1 text-[13.5px] font-semibold text-ink">Sin rol asignado</p>
+                <p className="text-[12.5px] text-ink-2">
+                  Es usuario común. Ha creado {formatearNumero(u.campanasCreadas)}{" "}
+                  campañas, cosa que no requiere rol alguno, y lleva{" "}
+                  {formatearNumero(u.aportesEnviados)} aportes enviados.
+                </p>
+              </Tarjeta>
+
+              <TituloDeSeccion>Intereses declarados</TituloDeSeccion>
+              <p className="mb-2.5 text-[13px] text-ink-2">
+                Si se le asigna Supervisor, las campañas se reparten por
+                especialidad declarada; si no tiene, por estos intereses.
+              </p>
+            </>
+          )}
+
+          <div className="flex flex-col gap-2">
+            {u.interesesDeclarados.map((i) => (
+              <div
+                key={i.tema}
+                className="flex items-center justify-between rounded border border-line-2 bg-surface px-3.5 py-2.5 text-[13px] text-ink"
+              >
+                <span>{i.tema}</span>
+                <span className="font-mono text-[12px] text-ink-3">{i.campanas} campañas</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-4">
+            {esSupervisor ? (
+              <>
+                <Aviso tono="aviso">
+                  Al revocar el rol, sus campañas activas siguen corriendo y pasan
+                  a la tutela del supervisor del área.
+                </Aviso>
+                <BotonRevocar usuarioId={u.id} rol="SUPERVISOR" />
+              </>
+            ) : u.strikes > 0 ? (
+              <Aviso tono="aviso">
+                Acumula {u.strikes} de 3 strikes. Conviene revisar el historial de
+                sanciones en su ficha antes de asignarle un rol.
+              </Aviso>
+            ) : null}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}

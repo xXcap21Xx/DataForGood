@@ -2,8 +2,8 @@
 
 import { useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import Button from "@/components/ui/Button";
-import { Field, Input } from "@/components/ui/Input";
+import Button from "@/components/sistema/Button";
+import { Field, Input } from "@/components/sistema/Input";
 
 /** Destino tras validar la credencial: SCR-WEB-28, Panel del sistema. */
 const PANEL_DEL_SISTEMA = "/sistema";
