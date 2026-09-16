@@ -12,8 +12,8 @@ import {
   TituloDeSeccion,
   formatearNumero,
 } from "@/components/sistema/ui";
-import MetricCard from "@/components/ui/MetricCard";
-import Tag from "@/components/ui/Tag";
+import MetricCard from "@/components/sistema/MetricCard";
+import Tag from "@/components/sistema/Tag";
 import {
   PESTANAS_USUARIOS,
   formatearCorte,

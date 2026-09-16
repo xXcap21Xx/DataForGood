@@ -71,6 +71,24 @@ const ensureCampanasColumns = `
   ALTER TABLE campanas ADD COLUMN IF NOT EXISTS aportes JSONB NOT NULL DEFAULT '[]'::jsonb;
 `;
 
+const ensureCampanasGuardadasTable = `
+  CREATE TABLE IF NOT EXISTS campanas_guardadas (
+    id SERIAL PRIMARY KEY,
+    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+    campana_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+    UNIQUE (usuario_id, campana_id)
+  );
+`;
+
+async function obtenerIdsGuardados(usuarioId: number): Promise<Set<number>> {
+  const result = await pool.query<{ campana_id: number }>(
+    `SELECT campana_id FROM campanas_guardadas WHERE usuario_id = $1`,
+    [usuarioId],
+  );
+  return new Set(result.rows.map((row) => row.campana_id));
+}
+
 function normalizeDataTypes(input: unknown): string[] {
   if (!Array.isArray(input)) {
     return [];
@@ -165,21 +183,31 @@ export async function GET(request: Request) {
   try {
     await pool.query(ensureCampanasTable);
     await pool.query(ensureCampanasColumns);
+    await pool.query(ensureCampanasGuardadasTable);
 
     const url = new URL(request.url);
     const campaignId = url.searchParams.get("id");
     const mine = url.searchParams.get("mine") === "true";
     const available = url.searchParams.get("available") === "true";
-    const user = mine || available || campaignId ? await getSessionUser() : null;
+    // Campañas donde ya se aportó o que se guardaron: el conjunto que muestra "Mis aportes".
+    const misAportes = url.searchParams.get("misAportes") === "true";
+    // Siempre se intenta leer la sesión (aunque el modo no la exija) para poder marcar isSaved.
+    const user = await getSessionUser();
 
-    if ((mine || available) && !user) {
+    if ((mine || available || misAportes) && !user) {
       return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
     }
+
+    const savedIds = user ? await obtenerIdsGuardados(user.id) : new Set<number>();
+    const conIsSaved = (row: Record<string, unknown>) => ({
+      ...mapCampaign(row),
+      isSaved: savedIds.has(Number(row.id)),
+    });
 
     if (campaignId) {
       const result = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [campaignId]);
       if (result.rowCount === 0) return NextResponse.json({ error: "Campana no encontrada" }, { status: 404 });
-      const campaign = mapCampaign(result.rows[0]);
+      const campaign = conIsSaved(result.rows[0]);
       return NextResponse.json({ data: campaign, viewer: { isCreator: user ? campaign.creatorId === String(user.id) : false } });
     }
 
@@ -187,9 +215,20 @@ export async function GET(request: Request) {
       ? await pool.query(`SELECT * FROM campanas WHERE creator_id = $1 ORDER BY created_at DESC`, [user!.id])
       : available
         ? await pool.query(`SELECT * FROM campanas WHERE creator_id <> $1 AND status = 'activa' ORDER BY created_at DESC`, [user!.id])
-        : await pool.query(`SELECT * FROM campanas ORDER BY created_at DESC`);
+        : misAportes
+          ? await pool.query(
+              `SELECT * FROM campanas
+               WHERE creator_id <> $1
+                 AND (
+                   EXISTS (SELECT 1 FROM aportes a WHERE a.campaign_id = campanas.id AND a.user_id = $1)
+                   OR EXISTS (SELECT 1 FROM campanas_guardadas g WHERE g.campana_id = campanas.id AND g.usuario_id = $1)
+                 )
+               ORDER BY created_at DESC`,
+              [user!.id],
+            )
+          : await pool.query(`SELECT * FROM campanas ORDER BY created_at DESC`);
 
-    return NextResponse.json({ data: result.rows.map(mapCampaign) });
+    return NextResponse.json({ data: result.rows.map(conIsSaved) });
   } catch (error) {
     console.error("Error listando campanas", error);
     return NextResponse.json({ error: "No se pudieron listar las campanas" }, { status: 500 });

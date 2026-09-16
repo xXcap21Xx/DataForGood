@@ -14,6 +14,7 @@ export default function CampaignDetailPage() {
   const [isCreator, setIsCreator] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [guardando, setGuardando] = useState(false);
   const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   useEffect(() => {
@@ -24,12 +25,31 @@ export default function CampaignDetailPage() {
         if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar la campaña");
         setCampaign(payload.data as Campaign);
         setIsCreator(Boolean(payload.viewer?.isCreator));
+        setSaved(Boolean((payload.data as Campaign)?.isSaved));
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "No se pudo cargar la campaña");
       }
     }
     void loadCampaign();
   }, [params.id]);
+
+  async function alternarGuardado() {
+    if (guardando) return;
+    setGuardando(true);
+    const metodo = saved ? "DELETE" : "POST";
+    try {
+      const response = await fetch(`/api/campanas/${encodeURIComponent(params.id)}/guardar`, {
+        method: metodo,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo actualizar");
+      setSaved(Boolean(payload.data?.isSaved));
+    } catch {
+      // Si falla, el estado se queda como estaba: no hay nada que revertir.
+    } finally {
+      setGuardando(false);
+    }
+  }
 
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!campaign) return <p className="text-sm text-ink-2">Cargando campaña...</p>;
@@ -129,7 +149,7 @@ export default function CampaignDetailPage() {
           ) : (
             <p className="rounded-lg bg-sunken p-3 text-center text-[12.5px] text-ink-2">Esta campaña no está recibiendo aportes.</p>
           )}
-          <Button variant="secondary" className="mt-2.5 w-full" onClick={() => setSaved((current) => !current)}>
+          <Button variant="secondary" className="mt-2.5 w-full" disabled={guardando} onClick={alternarGuardado}>
             {saved ? "Campaña guardada" : "Guardar campaña"}
           </Button>
           {shareMessage && <p className="mt-2 text-center text-[11.5px] text-ok">{shareMessage}</p>}

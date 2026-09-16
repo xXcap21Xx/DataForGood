@@ -1,7 +1,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import ProgressBar from "@/components/ui/ProgressBar";
+import ProgressBar from "@/components/sistema/ProgressBar";
 
 const nf = new Intl.NumberFormat("es-MX");
 
@@ -51,6 +51,45 @@ export function Encabezado({
 
 export function TituloDeSeccion({ children }: { children: ReactNode }) {
   return <p className="mb-3 text-[12.5px] font-semibold text-ink">{children}</p>;
+}
+
+/** Link de retorno, mismo estilo en toda la sección /usuarios. */
+export function Volver({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link href={href} className="mb-5 inline-block text-[13px] text-ink-2 hover:text-accent">
+      ← {children}
+    </Link>
+  );
+}
+
+/* ── aviso ──────────────────────────────────────────────────────────────── */
+
+export type TonoDeAviso = "neutro" | "info" | "aviso" | "riesgo";
+
+const CLASES_AVISO: Record<TonoDeAviso, string> = {
+  neutro: "bg-sunken text-ink-2",
+  info: "bg-accent-tint text-accent-deep",
+  aviso: "bg-warn-tint text-warn",
+  riesgo: "bg-danger-tint text-danger",
+};
+
+export function Aviso({
+  tono = "neutro",
+  titulo,
+  children,
+  className = "",
+}: {
+  tono?: TonoDeAviso;
+  titulo?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`rounded-lg p-4 text-[12.5px] leading-relaxed ${CLASES_AVISO[tono]} ${className}`}>
+      {titulo ? <p className="mb-1 font-bold">{titulo}</p> : null}
+      <p>{children}</p>
+    </div>
+  );
 }
 
 /* ── reparto en barras ──────────────────────────────────────────────────── */
@@ -112,6 +151,159 @@ export function ListaClaveValor({
         </div>
       ))}
     </div>
+  );
+}
+
+/* ── tarjeta ────────────────────────────────────────────────────────────── */
+
+export function Tarjeta({
+  children,
+  tenue = false,
+  className = "",
+}: {
+  children: ReactNode;
+  /** Fondo hundido, para bloques de contexto secundario. */
+  tenue?: boolean;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`rounded-lg border p-4 ${
+        tenue ? "border-line bg-sunken" : "border-line bg-surface shadow-sm"
+      } ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/* ── identidad ──────────────────────────────────────────────────────────── */
+
+export function iniciales(nombre: string): string {
+  return nombre
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((p) => p.charAt(0).toUpperCase())
+    .join("");
+}
+
+export function Identidad({
+  nombre,
+  detalle,
+  riesgo = false,
+}: {
+  nombre: string;
+  detalle: string;
+  /** Avatar en rojo: la cuenta está baneada. */
+  riesgo?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-3.5">
+      <span
+        aria-hidden="true"
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-[15px] font-bold text-white ${
+          riesgo ? "bg-danger" : "bg-accent"
+        }`}
+      >
+        {iniciales(nombre)}
+      </span>
+      <div>
+        <h1 className="text-base font-extrabold text-ink">{nombre}</h1>
+        <p className="mt-0.5 font-mono text-[13px] text-ink-2">{detalle}</p>
+      </div>
+    </div>
+  );
+}
+
+/* ── medidor de strikes ─────────────────────────────────────────────────── */
+
+export function MedidorDeStrikes({
+  acumulados,
+  limite = 3,
+}: {
+  acumulados: number;
+  limite?: number;
+}) {
+  const critico = acumulados >= limite;
+
+  return (
+    <div
+      role="img"
+      aria-label={`${acumulados} de ${limite} strikes acumulados`}
+      className="mb-2 flex items-center gap-1.5"
+    >
+      {Array.from({ length: limite }, (_, i) => (
+        <span
+          key={i}
+          className={`h-2.5 w-2.5 rounded-full ${
+            i < acumulados ? (critico ? "bg-danger" : "bg-warn") : "bg-line-2"
+          }`}
+        />
+      ))}
+    </div>
+  );
+}
+
+/* ── paginación ─────────────────────────────────────────────────────────── */
+
+export function Paginacion({
+  desde,
+  hasta,
+  total,
+  pagina,
+  paginas,
+  href,
+}: {
+  desde: number;
+  hasta: number;
+  total: number;
+  pagina: number;
+  paginas: number;
+  /** Construye el enlace de cada página. */
+  href: (pagina: number) => string;
+}) {
+  const visibles = Array.from({ length: Math.min(paginas, 5) }, (_, i) => i + 1);
+
+  return (
+    <nav
+      aria-label="Paginación"
+      className="mt-5 flex flex-wrap items-center justify-between gap-3"
+    >
+      <p className="font-mono text-[12.5px] text-ink-3">
+        {formatearNumero(desde)}–{formatearNumero(hasta)} de {formatearNumero(total)}
+      </p>
+      <div className="flex flex-wrap items-center gap-1.5">
+        {pagina > 1 ? (
+          <Link href={href(pagina - 1)} rel="prev" className={CLASES_ENLACE_BOTON}>
+            <span aria-hidden="true">←</span>
+            <span className="sr-only">Página anterior</span>
+          </Link>
+        ) : null}
+
+        {visibles.map((p) =>
+          p === pagina ? (
+            <span
+              key={p}
+              aria-current="page"
+              className="inline-flex items-center justify-center rounded-pill border border-accent bg-accent px-3.5 py-1.5 text-[12.5px] font-bold text-white"
+            >
+              {p}
+            </span>
+          ) : (
+            <Link key={p} href={href(p)} className={CLASES_ENLACE_BOTON}>
+              {p}
+            </Link>
+          ),
+        )}
+
+        {pagina < paginas ? (
+          <Link href={href(pagina + 1)} rel="next" className={CLASES_ENLACE_BOTON}>
+            <span aria-hidden="true">→</span>
+            <span className="sr-only">Página siguiente</span>
+          </Link>
+        ) : null}
+      </div>
+    </nav>
   );
 }
 

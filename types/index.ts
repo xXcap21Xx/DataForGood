@@ -70,6 +70,8 @@ export interface Campaign {
   shareToken?: string;
   shareTokenExpiresAt?: string; // ISO datetime
   contributions?: Contribution[];
+  /** Si el usuario en sesión la guardó. Ausente cuando no hay sesión. */
+  isSaved?: boolean;
 }
 
 export interface Contribution {
