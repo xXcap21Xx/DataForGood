@@ -1,16 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
-
-const ensureCampanasGuardadasTable = `
-  CREATE TABLE IF NOT EXISTS campanas_guardadas (
-    id SERIAL PRIMARY KEY,
-    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    campana_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    UNIQUE (usuario_id, campana_id)
-  );
-`;
 
 function parseCampaignId(raw: string): number | null {
   const id = Number(raw);
@@ -23,7 +14,7 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await pool.query(ensureCampanasGuardadasTable);
+    await ensureCoreSchema();
 
     const user = await getSessionUser();
     if (!user) {
@@ -61,7 +52,7 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await pool.query(ensureCampanasGuardadasTable);
+    await ensureCoreSchema();
 
     const user = await getSessionUser();
     if (!user) {

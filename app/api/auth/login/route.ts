@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { ensureUsuariosTable } from "@/lib/db-schema";
 import { createSession } from "@/lib/session";
 import { verifyPassword, hashPassword, wasLegacyHash } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
@@ -8,39 +9,9 @@ import { startVerification } from "@/lib/verification";
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 1000 * 60 * 15; // 15 minutos
 
-const ensureUsuariosTable = `
-  CREATE TABLE IF NOT EXISTS usuarios (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(120) NOT NULL,
-    apellidos VARCHAR(120) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    state VARCHAR(100),
-    city VARCHAR(100),
-    specialty VARCHAR(150),
-    intereses JSONB NOT NULL DEFAULT '[]'::jsonb,
-    role JSONB NOT NULL DEFAULT '["usuario"]'::jsonb,
-    xp_total INTEGER NOT NULL DEFAULT 0,
-    level INTEGER NOT NULL DEFAULT 1,
-    streak_days INTEGER NOT NULL DEFAULT 0,
-    email_verificado BOOLEAN NOT NULL DEFAULT false,
-    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TIMESTAMPTZ,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-`;
-
-const ensureUsuariosColumns = `
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_verificado BOOLEAN NOT NULL DEFAULT false;
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER NOT NULL DEFAULT 0;
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
-`;
-
 export async function POST(request: Request) {
   try {
-    await pool.query(ensureUsuariosTable);
-    await pool.query(ensureUsuariosColumns);
+    await ensureUsuariosTable();
 
     const body = await request.json();
     const email = String(body.email ?? "").trim().toLowerCase();

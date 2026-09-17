@@ -1,48 +1,14 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { ensureUsuariosTable } from "@/lib/db-schema";
 import { hashPassword } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
 import { normalizeRoles } from "@/lib/roles";
 
-const ensureUsuariosTable = `
-  CREATE TABLE IF NOT EXISTS usuarios (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(120) NOT NULL,
-    apellidos VARCHAR(120) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    state VARCHAR(100),
-    city VARCHAR(100),
-    specialty VARCHAR(150),
-    intereses JSONB NOT NULL DEFAULT '[]'::jsonb,
-    role JSONB NOT NULL DEFAULT '["usuario"]'::jsonb,
-    xp_total INTEGER NOT NULL DEFAULT 0,
-    level INTEGER NOT NULL DEFAULT 1,
-    streak_days INTEGER NOT NULL DEFAULT 0,
-    email_verificado BOOLEAN NOT NULL DEFAULT false,
-    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TIMESTAMPTZ,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-`;
-const ensureUsuariosColumns = `
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS nombre VARCHAR(120);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS apellidos VARCHAR(120);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS state VARCHAR(100);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS city VARCHAR(100);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS specialty VARCHAR(150);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intereses JSONB NOT NULL DEFAULT '[]'::jsonb;
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS email_verificado BOOLEAN NOT NULL DEFAULT false;
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER NOT NULL DEFAULT 0;
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS locked_until TIMESTAMPTZ;
-`;
-
 export async function POST(request: Request) {
   try {
-    await pool.query(ensureUsuariosTable);
-    await pool.query(ensureUsuariosColumns);
+    await ensureUsuariosTable();
 
     const body = await request.json();
 
@@ -135,8 +101,7 @@ export async function POST(request: Request) {
 
 export async function GET() {
   try {
-    await pool.query(ensureUsuariosTable);
-    await pool.query(ensureUsuariosColumns);
+    await ensureUsuariosTable();
 
     const result = await pool.query(
       `SELECT id, nombre, apellidos, email, state, city, specialty, intereses, role, xp_total, level, streak_days, email_verificado

@@ -1,39 +1,11 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
+import { ensureUsuariosTable } from "@/lib/db-schema";
 import { createSession } from "@/lib/session";
 import { exchangeCodeForProfile } from "@/lib/google";
 
 const STATE_COOKIE = "google_oauth_state";
-
-const ensureUsuariosTable = `
-  CREATE TABLE IF NOT EXISTS usuarios (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(120) NOT NULL,
-    apellidos VARCHAR(120) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255),
-    state VARCHAR(100),
-    city VARCHAR(100),
-    specialty VARCHAR(150),
-    intereses JSONB NOT NULL DEFAULT '[]'::jsonb,
-    role JSONB NOT NULL DEFAULT '["usuario"]'::jsonb,
-    xp_total INTEGER NOT NULL DEFAULT 0,
-    level INTEGER NOT NULL DEFAULT 1,
-    streak_days INTEGER NOT NULL DEFAULT 0,
-    email_verificado BOOLEAN NOT NULL DEFAULT false,
-    failed_login_attempts INTEGER NOT NULL DEFAULT 0,
-    locked_until TIMESTAMPTZ,
-    google_id VARCHAR(255) UNIQUE,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-`;
-
-const ensureGoogleColumn = `
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE;
-  ALTER TABLE usuarios ALTER COLUMN password_hash DROP NOT NULL;
-`;
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
@@ -52,8 +24,7 @@ export async function GET(request: Request) {
 
     const profile = await exchangeCodeForProfile(code);
 
-    await pool.query(ensureUsuariosTable);
-    await pool.query(ensureGoogleColumn);
+    await ensureUsuariosTable();
 
     const existing = await pool.query(
       `SELECT id FROM usuarios WHERE email = $1 OR google_id = $2 LIMIT 1`,
