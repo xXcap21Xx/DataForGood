@@ -2,23 +2,10 @@ import { randomBytes, createHash } from "crypto";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
+import { ensureSessionsTable, ensureUsuariosTable } from "@/lib/db-schema";
 
 const COOKIE_NAME = "session_token";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 días
-
-// expires_at es TIMESTAMPTZ: con TIMESTAMP (sin zona), comparar contra NOW()
-// cuando Postgres y el servidor de Next corren en husos distintos hace que
-// una sesión recién creada aparezca ya expirada (mismo defecto que se
-// arregló en root_sessions y en verification_code_expires_at).
-const ensureSessionsTable = `
-  CREATE TABLE IF NOT EXISTS sessions (
-    id SERIAL PRIMARY KEY,
-    token_hash VARCHAR(64) NOT NULL UNIQUE,
-    usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    expires_at TIMESTAMPTZ NOT NULL
-  );
-`;
 
 export interface SessionUser {
   id: number;
@@ -42,7 +29,8 @@ function hashToken(token: string) {
 }
 
 export async function createSession(usuarioId: number) {
-  await pool.query(ensureSessionsTable);
+  await ensureUsuariosTable();
+  await ensureSessionsTable();
 
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
@@ -64,7 +52,8 @@ export async function createSession(usuarioId: number) {
 }
 
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
-  await pool.query(ensureSessionsTable);
+  await ensureUsuariosTable();
+  await ensureSessionsTable();
 
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
@@ -94,7 +83,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 });
 
 export async function destroySession() {
-  await pool.query(ensureSessionsTable);
+  await ensureUsuariosTable();
+  await ensureSessionsTable();
 
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;

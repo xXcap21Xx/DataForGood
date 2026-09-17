@@ -3,6 +3,9 @@
  * cómo se usa, así que aquí se ve qué ha decidido cada uno y se puede revertir.
  */
 
+import { pool } from "@/lib/db";
+import { ensureUsuariosTable } from "@/lib/db-schema";
+
 export type TipoDeAccion =
   | "VETO_PARTICIPANTE"
   | "PAUSO_CAMPANA"
@@ -36,12 +39,14 @@ export type Supervisor = {
   id: string;
   nombre: string;
   correo: string;
-  desde: Date;
+  /** No se guarda cuándo se asignó el rol todavía (ver rolDesde en directorio.ts): null si no se sabe. */
+  desde: Date | null;
   campanasACargo: number;
   aportesValidados: number;
   accionesEnRango: number;
   revertidas: number;
-  ultimaActividad: Date;
+  /** null si no hay ninguna acción registrada todavía. */
+  ultimaActividad: Date | null;
 };
 
 export type ActividadDeSupervisor = Supervisor & {
@@ -175,191 +180,140 @@ const fechaConHora = new Intl.DateTimeFormat("es-MX", {
   timeZone: "America/Mazatlan",
 });
 
-export const formatearFechaSup = (f: Date) => fechaCorta.format(f);
-export const formatearFechaHoraSup = (f: Date) => fechaConHora.format(f);
+export const formatearFechaSup = (f: Date | null) => (f ? fechaCorta.format(f) : "sin registrar");
+export const formatearFechaHoraSup = (f: Date | null) =>
+  f ? fechaConHora.format(f) : "sin actividad registrada";
 
 /*
  * ────────────────────────────────────────────────────────────────────────────
- * PENDIENTE DE CONECTAR
+ * ESTADO DE CONEXIÓN
  *
- * Todo esto sale de la tabla de auditoría, no de las tablas de negocio: lo que
- * se lista son decisiones registradas, no el estado actual de las campañas.
+ * listarSupervisores / obtenerResumenDeSupervisores / obtenerActividad ya leen
+ * la tabla real `usuarios` (rol = "supervisor"): id, nombre y correo son
+ * reales. `conRolActivo` es un COUNT() real.
  *
- *   db.select().from(auditoria)
- *     .where(and(eq(auditoria.actorId, id), gte(auditoria.creadoEn, desde)))
- *     .orderBy(desc(auditoria.creadoEn))
+ * Lo que SIGUE en cero porque no existe la tabla de auditoría ni el modelo de
+ * asignación que los sustenta (puntos abiertos de dominio.md: #1 quién asigna
+ * Revisor de aportes, #2 qué es "Administrador de campaña", #12 reparto de
+ * campañas a supervisores):
+ *   - desde / ultimaActividad: no se guarda cuándo se asignó el rol ni hay
+ *     ninguna acción registrada todavía → null.
+ *   - campanasACargo: no existe asignación supervisor↔campaña en el esquema.
+ *   - aportesValidados / accionesEnRango / revertidas: no hay tabla de
+ *     auditoría; nadie ha "vetado", "pausado" ni "nombrado revisor" todavía
+ *     porque esos flujos no están construidos en ninguna otra pantalla.
+ *   - obtenerAccion: siempre null (no hay filas que buscar), así que
+ *     /usuarios/supervisores/[id]/revertir/[accionId] da 404 — correcto,
+ *     dado que no hay decisión que revertir.
  *
- * Dos cosas importantes:
- *
- * 1. El historial es de solo lectura. Una acción revertida NO se borra ni se
- *    edita: se marca con revertidaEn y se añade un registro nuevo de quién la
- *    revirtió y por qué. Si se borrara, la pantalla dejaría de servir para lo
- *    que existe.
- *
- * 2. "Acciones revertidas" cuenta reversiones, no acciones distintas. Si hace
- *    falta el otro número, es un count distinct sobre el id de la acción.
+ * Antes de construir eso hace falta: (a) una tabla de auditoría genérica y
+ * (b) los flujos reales que la alimenten (vetar participante, pausar/rechazar
+ * campaña desde el rol Supervisor, nombrar revisor) — hoy campanas/route.ts
+ * activa las campañas directo, sin pasar por "en_revision" ni por un
+ * Supervisor. Construir eso es una tarea aparte, no un simple cambio de query.
  * ────────────────────────────────────────────────────────────────────────────
  */
 
-const SUPERVISORES: Supervisor[] = [
-  {
-    id: "1042",
-    nombre: "Ana Ruiz",
-    correo: "ana@correo.com",
-    desde: new Date("2026-03-04T10:00:00Z"),
-    campanasACargo: 6,
-    aportesValidados: 412,
-    accionesEnRango: 21,
-    revertidas: 1,
-    ultimaActividad: new Date("2026-08-14T17:02:00Z"),
-  },
-  {
-    id: "2210",
-    nombre: "Mara Ortega",
-    correo: "mara@correo.com",
-    desde: new Date("2026-04-19T10:00:00Z"),
-    campanasACargo: 5,
-    aportesValidados: 268,
-    accionesEnRango: 17,
-    revertidas: 0,
-    ultimaActividad: new Date("2026-08-14T15:20:00Z"),
-  },
-  {
-    id: "1187",
-    nombre: "Diego Salas",
-    correo: "diego@correo.com",
-    desde: new Date("2026-06-02T10:00:00Z"),
-    campanasACargo: 4,
-    aportesValidados: 190,
-    accionesEnRango: 9,
-    revertidas: 1,
-    ultimaActividad: new Date("2026-08-13T00:04:00Z"),
-  },
-  {
-    id: "3301",
-    nombre: "Ismael Curiel",
-    correo: "ismael@correo.com",
-    desde: new Date("2026-07-07T10:00:00Z"),
-    campanasACargo: 3,
-    aportesValidados: 96,
-    accionesEnRango: 4,
-    revertidas: 1,
-    ultimaActividad: new Date("2026-08-11T21:38:00Z"),
-  },
-];
-
-const ACCIONES: Record<string, AccionDeSupervisor[]> = {
-  "1042": [
-    {
-      id: "2841",
-      tipo: "VETO_PARTICIPANTE",
-      sobre: "Mara Ortega · Fauna urbana en parques",
-      motivo:
-        "Aportes repetidos tras dos avisos. La misma fotografía enviada cuatro veces con distinta descripción.",
-      ejecutadaEn: new Date("2026-08-14T17:02:00Z"),
-      revertidaEn: null,
-      contexto: {
-        personaAfectada: "Mara Ortega",
-        campana: "Fauna urbana en parques",
-        aportesPrevios: 48,
-      },
-    },
-    {
-      id: "2836",
-      tipo: "PAUSO_CAMPANA",
-      sobre: "Murales del centro",
-      motivo:
-        "Sin aportes válidos en tres semanas. Conviene revisar la definición del tipo de dato antes de reanudar.",
-      ejecutadaEn: new Date("2026-08-13T22:40:00Z"),
-      revertidaEn: null,
-      contexto: {
-        campana: "Murales del centro",
-        creadorDeCampana: "Mara Ortega",
-        aportesPrevios: 27,
-        fechaDeCierre: "30 sep",
-      },
-    },
-    {
-      id: "2820",
-      tipo: "NOMBRO_REVISOR",
-      sobre: "Diego Salas · Censo de árboles urbanos",
-      motivo: "Constancia en la validación durante los últimos dos meses.",
-      ejecutadaEn: new Date("2026-08-12T15:15:00Z"),
-      revertidaEn: null,
-      contexto: {
-        personaAfectada: "Diego Salas",
-        campana: "Censo de árboles urbanos",
-      },
-    },
-    {
-      id: "2809",
-      tipo: "APLICO_STRIKE",
-      sobre: "Luis Márquez · Huertos comunitarios",
-      motivo: "Fotografía tomada fuera del área declarada de la campaña.",
-      ejecutadaEn: new Date("2026-08-11T23:22:00Z"),
-      revertidaEn: null,
-      contexto: {
-        personaAfectada: "Luis Márquez",
-        campana: "Huertos comunitarios",
-      },
-    },
-    {
-      id: "2790",
-      tipo: "RECHAZO_CAMPANA",
-      sobre: "Ruido nocturno en el centro",
-      motivo: "Meta desproporcionada al alcance declarado.",
-      ejecutadaEn: new Date("2026-08-09T16:08:00Z"),
-      revertidaEn: new Date("2026-08-10T18:00:00Z"),
-      contexto: {
-        campana: "Ruido nocturno en el centro",
-        creadorDeCampana: "Luis Márquez",
-      },
-    },
-  ],
+type FilaSupervisorDB = {
+  id: number;
+  nombre: string;
+  apellidos: string;
+  email: string;
 };
 
-const CAMPANAS: Record<
-  string,
-  { id: string; nombre: string; estado: "ACTIVA" | "PAUSADA" | "FINALIZADA" }[]
-> = {
-  "1042": [
-    { id: "17", nombre: "Censo de árboles urbanos", estado: "ACTIVA" },
-    { id: "21", nombre: "Huertos comunitarios", estado: "ACTIVA" },
-    { id: "24", nombre: "Rutas ciclistas", estado: "ACTIVA" },
-    { id: "26", nombre: "Murales del centro", estado: "PAUSADA" },
-    { id: "29", nombre: "Fauna urbana en parques", estado: "PAUSADA" },
-    { id: "12", nombre: "Mapa de bancas públicas", estado: "FINALIZADA" },
-  ],
-};
-
-export async function obtenerResumenDeSupervisores(): Promise<ResumenDeSupervisores> {
+function supervisorDesdeDB(row: FilaSupervisorDB): Supervisor {
   return {
-    conRolActivo: 12,
-    campanasACargo: 42,
-    accionesEjecutadas: 64,
-    accionesRevertidas: 3,
+    id: String(row.id),
+    nombre: `${row.nombre} ${row.apellidos}`.trim(),
+    correo: row.email,
+    desde: null,
+    campanasACargo: 0,
+    aportesValidados: 0,
+    accionesEnRango: 0,
+    revertidas: 0,
+    ultimaActividad: null,
   };
 }
 
-export async function listarSupervisores(q?: string): Promise<Supervisor[]> {
-  const t = (q ?? "").trim().toLowerCase();
-  if (!t) return SUPERVISORES;
-  return SUPERVISORES.filter((s) =>
-    `${s.nombre} ${s.correo}`.toLowerCase().includes(t),
-  );
+export async function obtenerResumenDeSupervisores(): Promise<ResumenDeSupervisores> {
+  try {
+    await ensureUsuariosTable();
+
+    const result = await pool.query<{ count: string }>(
+      `SELECT COUNT(*) FROM usuarios WHERE role @> '["supervisor"]'::jsonb`,
+    );
+
+    return {
+      conRolActivo: Number(result.rows[0]?.count ?? 0),
+      campanasACargo: 0,
+      accionesEjecutadas: 0,
+      accionesRevertidas: 0,
+    };
+  } catch (error) {
+    console.error("Error obteniendo resumen de supervisores", error);
+    return { conRolActivo: 0, campanasACargo: 0, accionesEjecutadas: 0, accionesRevertidas: 0 };
+  }
 }
 
-export async function obtenerActividad(
-  id: string,
-): Promise<ActividadDeSupervisor | null> {
-  const s = SUPERVISORES.find((x) => x.id === id);
-  if (!s) return null;
-  return { ...s, campanas: CAMPANAS[id] ?? [], acciones: ACCIONES[id] ?? [] };
+export async function listarSupervisores(q?: string): Promise<Supervisor[]> {
+  const t = (q ?? "").trim();
+
+  try {
+    await ensureUsuariosTable();
+
+    const condiciones = [`role @> '["supervisor"]'::jsonb`];
+    const valores: string[] = [];
+    if (t) {
+      valores.push(`%${t}%`);
+      condiciones.push(`(nombre ILIKE $1 OR apellidos ILIKE $1 OR email ILIKE $1)`);
+    }
+
+    const result = await pool.query<FilaSupervisorDB>(
+      `SELECT id, nombre, apellidos, email FROM usuarios
+       WHERE ${condiciones.join(" AND ")}
+       ORDER BY id DESC`,
+      valores,
+    );
+
+    return result.rows.map(supervisorDesdeDB);
+  } catch (error) {
+    console.error("Error listando supervisores", error);
+    return [];
+  }
+}
+
+export async function obtenerActividad(id: string): Promise<ActividadDeSupervisor | null> {
+  const numericId = Number(id);
+  if (!Number.isInteger(numericId)) return null;
+
+  try {
+    await ensureUsuariosTable();
+
+    const result = await pool.query<FilaSupervisorDB>(
+      `SELECT id, nombre, apellidos, email FROM usuarios
+       WHERE id = $1 AND role @> '["supervisor"]'::jsonb
+       LIMIT 1`,
+      [numericId],
+    );
+    const row = result.rows[0];
+    if (!row) return null;
+
+    // Sin tabla de auditoría ni asignación supervisor↔campaña (ver nota
+    // arriba): de verdad no tiene campañas ni decisiones que mostrar.
+    return { ...supervisorDesdeDB(row), campanas: [], acciones: [] };
+  } catch (error) {
+    console.error("Error obteniendo actividad de supervisor", error);
+    return null;
+  }
 }
 
 export async function obtenerAccion(
   supervisorId: string,
   accionId: string,
 ): Promise<AccionDeSupervisor | null> {
-  return (ACCIONES[supervisorId] ?? []).find((a) => a.id === accionId) ?? null;
+  // No existe tabla de auditoría todavía: ninguna acción de supervisor queda
+  // registrada, así que no hay nada que buscar (ver nota arriba).
+  void supervisorId;
+  void accionId;
+  return null;
 }

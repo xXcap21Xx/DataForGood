@@ -1,38 +1,8 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { saveUploadedFile } from "@/lib/minio";
+import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
-
-const ensureAportesTable = `
-  CREATE TABLE IF NOT EXISTS aportes (
-    id SERIAL PRIMARY KEY,
-    campaign_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
-    user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
-    participant_name VARCHAR(160) NOT NULL,
-    participant_email VARCHAR(200),
-    description TEXT NOT NULL,
-    file_type VARCHAR(20) NOT NULL,
-    file_path VARCHAR(500) NOT NULL,
-    file_original_name VARCHAR(255),
-    file_mime_type VARCHAR(100),
-    file_size_bytes INTEGER,
-    caracteristicas JSONB NOT NULL DEFAULT '[]'::jsonb,
-    status VARCHAR(20) NOT NULL DEFAULT 'pendiente',
-    rejection_reason TEXT,
-    first_pass_by VARCHAR(160),
-    submitted_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    reviewed_at TIMESTAMP,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-`;
-
-const ensureAportesColumns = `
-  ALTER TABLE aportes ADD COLUMN IF NOT EXISTS caracteristicas JSONB NOT NULL DEFAULT '[]'::jsonb;
-  ALTER TABLE aportes ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
-  ALTER TABLE aportes ADD COLUMN IF NOT EXISTS first_pass_by VARCHAR(160);
-  ALTER TABLE aportes ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
-`;
+import { saveUploadedFile } from "@/lib/minio";
 
 const ALLOWED_FILE_TYPES = new Set(["image/jpeg", "image/png"]);
 const MAX_FILE_SIZE = 10_000_000;
@@ -62,8 +32,7 @@ function mapAporte(row: Record<string, unknown>) {
 
 export async function GET(request: Request) {
   try {
-    await pool.query(ensureAportesTable);
-    await pool.query(ensureAportesColumns);
+    await ensureCoreSchema();
 
     const url = new URL(request.url);
     const campaignId = url.searchParams.get("campaignId");
@@ -73,26 +42,30 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "campaignId es obligatorio" }, { status: 400 });
     }
 
-    const user = mine ? await getSessionUser() : null;
-    if (mine) {
-      if (!user) {
-        return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
-      }
-
-      const result = await pool.query(
-        `SELECT * FROM aportes
-         WHERE campaign_id = $1 AND user_id = $2
-         ORDER BY submitted_at DESC`,
-        [campaignId, user.id]
-      );
-
-      return NextResponse.json({ data: result.rows.map(mapAporte) });
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
     }
 
-    const result = await pool.query(
-      `SELECT * FROM aportes WHERE campaign_id = $1 ORDER BY submitted_at DESC`,
-      [campaignId]
-    );
+    if (!mine) {
+      const campaignResult = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1 LIMIT 1`, [campaignId]);
+      if (campaignResult.rowCount === 0) {
+        return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
+      }
+      if (Number(campaignResult.rows[0].creator_id) !== Number(user.id)) {
+        return NextResponse.json({ error: "Solo quien creó la campaña puede ver todos sus aportes" }, { status: 403 });
+      }
+    }
+
+    const result = mine
+      ? await pool.query(
+          `SELECT * FROM aportes WHERE campaign_id = $1 AND user_id = $2 ORDER BY submitted_at DESC`,
+          [campaignId, user.id]
+        )
+      : await pool.query(
+          `SELECT * FROM aportes WHERE campaign_id = $1 ORDER BY submitted_at DESC`,
+          [campaignId]
+        );
 
     return NextResponse.json({ data: result.rows.map(mapAporte) });
   } catch (error) {
@@ -103,8 +76,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await pool.query(ensureAportesTable);
-    await pool.query(ensureAportesColumns);
+    await ensureCoreSchema();
 
     const user = await getSessionUser();
     if (!user) {

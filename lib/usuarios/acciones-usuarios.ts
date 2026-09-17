@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { pool } from "@/lib/db";
+import { ensureSancionesTable, ensureUsuariosTable } from "@/lib/db-schema";
 import { hasRootSession } from "@/lib/rootSession";
 import { normalizeRoles } from "@/lib/roles";
 import { CODIGO_DE_ROL, type RolAsignable } from "@/lib/usuarios/rol-asignable";
@@ -15,13 +16,15 @@ export type ResultadoDeAccion = { ok: true } | { ok: false; error: string };
  * ────────────────────────────────────────────────────────────────────────────
  * PENDIENTE DE CONECTAR
  *
- * asignarRol y revocarRol ya escriben de verdad en `usuarios.role`. Falta en
- * las cuatro acciones:
+ * Las cuatro acciones ya escriben de verdad (asignarRol/revocarRol en
+ * `usuarios.role`, aplicarSancion/restaurarAcceso en `sanciones`). Falta:
  *   1. El registro en auditoría: quién, cuándo, sobre quién y con qué motivo
  *      (no existe tabla de auditoría todavía).
- * Y en aplicarSancion / restaurarAcceso específicamente:
- *   2. La escritura real: no existe tabla de sanciones, así que siguen sin
- *      tocar la base (ver el TODO de cada una).
+ *   2. TODO(dominio): al tercer STRIKE no hay escalamiento automático a
+ *      baneo permanente ni bloqueo de correo — hoy hay que aplicar el baneo
+ *      a mano con tipo BANEO_DE_CAMPANA. El contador de strikes sí es real.
+ *   3. Notificar al usuario sancionado: no hay envío de notificaciones en
+ *      la app todavía.
  * ────────────────────────────────────────────────────────────────────────────
  */
 
@@ -41,28 +44,35 @@ export async function asignarRol(
     return { ok: false, error: "ID de usuario inválido." };
   }
 
-  const actual = await pool.query<{ role: string[] | null }>(
-    `SELECT role FROM usuarios WHERE id = $1`,
-    [numericId],
-  );
-  if (actual.rowCount === 0) {
-    return { ok: false, error: "El usuario no existe." };
+  try {
+    await ensureUsuariosTable();
+
+    const actual = await pool.query<{ role: string[] | null }>(
+      `SELECT role FROM usuarios WHERE id = $1`,
+      [numericId],
+    );
+    if (actual.rowCount === 0) {
+      return { ok: false, error: "El usuario no existe." };
+    }
+
+    const codigo = CODIGO_DE_ROL[rol];
+    const opuesto = codigo === "supervisor" ? "revisor" : "supervisor";
+    const rolesSinElOpuesto = (actual.rows[0].role ?? []).filter((r) => r !== opuesto);
+    const nuevosRoles = normalizeRoles([...rolesSinElOpuesto, codigo]);
+
+    await pool.query(`UPDATE usuarios SET role = $2::jsonb, updated_at = NOW() WHERE id = $1`, [
+      numericId,
+      JSON.stringify(nuevosRoles),
+    ]);
+
+    revalidatePath(`/usuarios/${usuarioId}/roles`);
+    revalidatePath(`/usuarios/${usuarioId}`);
+    revalidatePath("/usuarios");
+    return { ok: true };
+  } catch (error) {
+    console.error("Error asignando rol", error);
+    return { ok: false, error: "No se pudo asignar el rol." };
   }
-
-  const codigo = CODIGO_DE_ROL[rol];
-  const opuesto = codigo === "supervisor" ? "revisor" : "supervisor";
-  const rolesSinElOpuesto = (actual.rows[0].role ?? []).filter((r) => r !== opuesto);
-  const nuevosRoles = normalizeRoles([...rolesSinElOpuesto, codigo]);
-
-  await pool.query(`UPDATE usuarios SET role = $2::jsonb, updated_at = NOW() WHERE id = $1`, [
-    numericId,
-    JSON.stringify(nuevosRoles),
-  ]);
-
-  revalidatePath(`/usuarios/${usuarioId}/roles`);
-  revalidatePath(`/usuarios/${usuarioId}`);
-  revalidatePath("/usuarios");
-  return { ok: true };
 }
 
 export async function revocarRol(usuarioId: string): Promise<ResultadoDeAccion> {
@@ -73,29 +83,36 @@ export async function revocarRol(usuarioId: string): Promise<ResultadoDeAccion> 
     return { ok: false, error: "ID de usuario inválido." };
   }
 
-  const actual = await pool.query<{ role: string[] | null }>(
-    `SELECT role FROM usuarios WHERE id = $1`,
-    [numericId],
-  );
-  if (actual.rowCount === 0) {
-    return { ok: false, error: "El usuario no existe." };
+  try {
+    await ensureUsuariosTable();
+
+    const actual = await pool.query<{ role: string[] | null }>(
+      `SELECT role FROM usuarios WHERE id = $1`,
+      [numericId],
+    );
+    if (actual.rowCount === 0) {
+      return { ok: false, error: "El usuario no existe." };
+    }
+
+    // Revocar no detiene las campañas activas de esa persona: pasan a la
+    // tutela del supervisor del área (esa reasignación aún no existe).
+    const nuevosRoles = normalizeRoles(
+      (actual.rows[0].role ?? []).filter((r) => r !== "supervisor" && r !== "revisor"),
+    );
+
+    await pool.query(`UPDATE usuarios SET role = $2::jsonb, updated_at = NOW() WHERE id = $1`, [
+      numericId,
+      JSON.stringify(nuevosRoles),
+    ]);
+
+    revalidatePath(`/usuarios/${usuarioId}/roles`);
+    revalidatePath(`/usuarios/${usuarioId}`);
+    revalidatePath("/usuarios");
+    return { ok: true };
+  } catch (error) {
+    console.error("Error revocando rol", error);
+    return { ok: false, error: "No se pudo revocar el rol." };
   }
-
-  // Revocar no detiene las campañas activas de esa persona: pasan a la
-  // tutela del supervisor del área (esa reasignación aún no existe).
-  const nuevosRoles = normalizeRoles(
-    (actual.rows[0].role ?? []).filter((r) => r !== "supervisor" && r !== "revisor"),
-  );
-
-  await pool.query(`UPDATE usuarios SET role = $2::jsonb, updated_at = NOW() WHERE id = $1`, [
-    numericId,
-    JSON.stringify(nuevosRoles),
-  ]);
-
-  revalidatePath(`/usuarios/${usuarioId}/roles`);
-  revalidatePath(`/usuarios/${usuarioId}`);
-  revalidatePath("/usuarios");
-  return { ok: true };
 }
 
 export async function aplicarSancion(
@@ -103,6 +120,11 @@ export async function aplicarSancion(
   datos: { tipo: TipoDeSancion; detalle: string; dias?: number },
 ): Promise<ResultadoDeAccion> {
   await exigirSuperUsuario();
+
+  const numericId = Number(usuarioId);
+  if (!Number.isInteger(numericId)) {
+    return { ok: false, error: "ID de usuario inválido." };
+  }
 
   const detalle = datos.detalle.trim();
   if (detalle.length < 20) {
@@ -112,15 +134,28 @@ export async function aplicarSancion(
     return { ok: false, error: "Indica cuántos días dura la suspensión." };
   }
 
-  // TODO, en una transacción:
-  //   - registrar la sanción
-  //   - si es STRIKE, incrementar el contador y, al llegar al tercero,
-  //     ejecutar el baneo permanente y bloquear el correo
-  //   - notificar al usuario
-  //   - auditar
+  try {
+    await ensureUsuariosTable();
+    await ensureSancionesTable();
 
-  void usuarioId;
+    const usuario = await pool.query(`SELECT id FROM usuarios WHERE id = $1`, [numericId]);
+    if (usuario.rowCount === 0) {
+      return { ok: false, error: "El usuario no existe." };
+    }
+
+    await pool.query(
+      `INSERT INTO sanciones (usuario_id, tipo, detalle, dias)
+       VALUES ($1, $2, $3, $4)`,
+      [numericId, datos.tipo, detalle, datos.tipo === "SUSPENSION_TEMPORAL" ? datos.dias : null],
+    );
+  } catch (error) {
+    console.error("Error aplicando sanción", error);
+    return { ok: false, error: "No se pudo aplicar la sanción." };
+  }
+
   revalidatePath("/usuarios/sanciones");
+  revalidatePath(`/usuarios/${usuarioId}`);
+  revalidatePath("/usuarios");
   redirect("/usuarios/sanciones");
 }
 
@@ -129,11 +164,30 @@ export async function restaurarAcceso(
 ): Promise<ResultadoDeAccion> {
   await exigirSuperUsuario();
 
-  // TODO: levantar la restricción y auditarla.
-  // El contador de strikes NO se reinicia: se conserva para la escala de
-  // penalización, así que esto solo cambia el estado de la cuenta.
-  void sancionId;
+  const numericId = Number(sancionId);
+  if (!Number.isInteger(numericId)) {
+    return { ok: false, error: "ID de sanción inválido." };
+  }
+
+  try {
+    await ensureSancionesTable();
+
+    // El contador de strikes NO se reinicia: se conserva para la escala de
+    // penalización, así que esto solo cambia el estado de la cuenta.
+    const result = await pool.query(
+      `UPDATE sanciones SET activa = false, restaurada_en = NOW()
+       WHERE id = $1 AND activa = true`,
+      [numericId],
+    );
+    if (result.rowCount === 0) {
+      return { ok: false, error: "La sanción no existe o ya fue restaurada." };
+    }
+  } catch (error) {
+    console.error("Error restaurando acceso", error);
+    return { ok: false, error: "No se pudo restaurar el acceso." };
+  }
 
   revalidatePath("/usuarios/sanciones");
+  revalidatePath("/usuarios");
   return { ok: true };
 }

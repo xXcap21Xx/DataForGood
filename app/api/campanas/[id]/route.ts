@@ -1,48 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
+import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
-
-const ensureCampanasTable = `
-  CREATE TABLE IF NOT EXISTS campanas (
-    id SERIAL PRIMARY KEY,
-    creator_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
-    creator_name VARCHAR(120) NOT NULL,
-    name VARCHAR(200) NOT NULL,
-    description TEXT NOT NULL,
-    tematica VARCHAR(120) NOT NULL,
-    tag VARCHAR(120) NOT NULL,
-    status VARCHAR(50) NOT NULL DEFAULT 'borrador',
-    data_types JSONB NOT NULL DEFAULT '[]'::jsonb,
-    collection_mode VARCHAR(20) NOT NULL DEFAULT 'checklist',
-    checklist_opciones JSONB NOT NULL DEFAULT '[]'::jsonb,
-    goal_contributions INTEGER NOT NULL DEFAULT 0,
-    quota_per_user INTEGER NOT NULL DEFAULT 1,
-    current_contributions INTEGER NOT NULL DEFAULT 0,
-    approved_contributions INTEGER NOT NULL DEFAULT 0,
-    pending_contributions INTEGER NOT NULL DEFAULT 0,
-    rejected_contributions INTEGER NOT NULL DEFAULT 0,
-    participants INTEGER NOT NULL DEFAULT 0,
-    start_date DATE,
-    end_date DATE,
-    location_city VARCHAR(120),
-    location_state VARCHAR(120),
-    organizer VARCHAR(160),
-    xp_per_contribution INTEGER NOT NULL DEFAULT 0,
-    is_special BOOLEAN NOT NULL DEFAULT false,
-    days_remaining INTEGER,
-    has_reviewer_assigned BOOLEAN NOT NULL DEFAULT false,
-    share_token VARCHAR(80),
-    share_token_expires_at TIMESTAMP,
-    aportes JSONB NOT NULL DEFAULT '[]'::jsonb,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-`;
-
-const ensureCampanasColumns = `
-  ALTER TABLE campanas ADD COLUMN IF NOT EXISTS collection_mode VARCHAR(20) NOT NULL DEFAULT 'checklist';
-  ALTER TABLE campanas ADD COLUMN IF NOT EXISTS checklist_opciones JSONB NOT NULL DEFAULT '[]'::jsonb;
-`;
 
 function normalizeDataTypes(input: unknown): string[] {
   if (!Array.isArray(input)) {
@@ -126,8 +85,7 @@ function mapCampaign(row: Record<string, unknown>) {
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await pool.query(ensureCampanasTable);
-    await pool.query(ensureCampanasColumns);
+    await ensureCoreSchema();
 
     const { id } = await context.params;
     const user = await getSessionUser();
@@ -148,8 +106,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 // Actualización parcial (Insomnia: PATCH { "status": "activa" }, o cualquier subconjunto de campos editables)
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await pool.query(ensureCampanasTable);
-    await pool.query(ensureCampanasColumns);
+    await ensureCoreSchema();
 
     const { id } = await context.params;
     const user = await getSessionUser();
@@ -239,8 +196,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 // Reemplazo completo de los campos editables (Insomnia: PUT con el mismo shape que POST /api/campanas)
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await pool.query(ensureCampanasTable);
-    await pool.query(ensureCampanasColumns);
+    await ensureCoreSchema();
 
     const { id } = await context.params;
     const user = await getSessionUser();

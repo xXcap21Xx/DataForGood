@@ -1,42 +1,13 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-
-const ensureUsuariosTable = `
-  CREATE TABLE IF NOT EXISTS usuarios (
-    id SERIAL PRIMARY KEY,
-    nombre VARCHAR(120) NOT NULL,
-    apellidos VARCHAR(120) NOT NULL,
-    email VARCHAR(255) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    state VARCHAR(100),
-    city VARCHAR(100),
-    specialty VARCHAR(150),
-    intereses JSONB NOT NULL DEFAULT '[]'::jsonb,
-    role JSONB NOT NULL DEFAULT '["usuario"]'::jsonb,
-    xp_total INTEGER NOT NULL DEFAULT 0,
-    level INTEGER NOT NULL DEFAULT 1,
-    streak_days INTEGER NOT NULL DEFAULT 0,
-    created_at TIMESTAMP NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
-  );
-`;
-
-const ensureUsuariosColumns = `
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS nombre VARCHAR(120);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS apellidos VARCHAR(120);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS state VARCHAR(100);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS city VARCHAR(100);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS specialty VARCHAR(150);
-  ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS intereses JSONB NOT NULL DEFAULT '[]'::jsonb;
-`;
+import { ensureUsuariosTable } from "@/lib/db-schema";
 
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await pool.query(ensureUsuariosTable);
-    await pool.query(ensureUsuariosColumns);
+    await ensureUsuariosTable();
 
     const { id } = await context.params;
     const rawId = id;
@@ -92,8 +63,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await pool.query(ensureUsuariosTable);
-    await pool.query(ensureUsuariosColumns);
+    await ensureUsuariosTable();
 
     const { id } = await context.params;
     const rawId = id;
