@@ -16,6 +16,7 @@ export default function CampaignContributionsPage() {
   const [removedIds, setRemovedIds] = useState<string[]>([]);
   const [statusFilter, setStatusFilter] = useState("todos");
   const [error, setError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -65,6 +66,23 @@ export default function CampaignContributionsPage() {
   const canAdd = campaign.status === "activa" && visible.length < campaign.quotaPerUser;
   const isActive = campaign.status === "activa";
   const progress = campaign.quotaPerUser > 0 ? Math.round((visible.length / campaign.quotaPerUser) * 100) : 0;
+
+  async function deleteContribution(contributionId: string) {
+    setDeletingId(contributionId);
+    setError(null);
+
+    try {
+      const response = await fetch(`/api/aportes/${contributionId}`, { method: "DELETE" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo eliminar el aporte");
+      setRemovedIds((current) => [...current, contributionId]);
+      setItems((current) => current.filter((item) => item.id !== contributionId));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo eliminar el aporte");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -124,12 +142,12 @@ export default function CampaignContributionsPage() {
           {filteredItems.map((item) => (
             <div key={item.id}>
               <ContributionCard contribution={item} />
-              {item.status === "pendiente" && isActive && (
+              {item.status !== "aceptado" && (
                 <div className="-mt-2 rounded-b-lg border border-t-0 border-warn bg-warn-tint px-4 pb-3 pt-4">
-                  <button type="button" className="text-[12px] font-bold text-danger underline" onClick={() => setRemovedIds((current) => [...current, item.id])}>
-                    Eliminar aporte
+                  <button type="button" className="text-[12px] font-bold text-danger underline disabled:cursor-not-allowed disabled:opacity-50" disabled={deletingId === item.id} onClick={() => void deleteContribution(item.id)}>
+                    {deletingId === item.id ? "Eliminando..." : "Eliminar aporte"}
                   </button>
-                  <span className="ml-3 text-[11.5px] text-ink-2">Al eliminarlo recuperas el cupo en tu cuota.</span>
+                  <span className="ml-3 text-[11.5px] text-ink-2">Al eliminarlo desaparece del historial y recuperas el cupo en tu cuota.</span>
                 </div>
               )}
             </div>

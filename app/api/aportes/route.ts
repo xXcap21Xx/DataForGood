@@ -134,6 +134,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Esta campaña no está activa" }, { status: 400 });
     }
 
+    const banResult = await pool.query(
+      `SELECT 1 FROM campana_baneados WHERE campana_id = $1 AND usuario_id = $2 LIMIT 1`,
+      [campaignId, user.id]
+    );
+    if (banResult.rowCount) {
+      return NextResponse.json({ error: "No puedes aportar en esta campaña porque estás baneado de ella" }, { status: 403 });
+    }
+
     const campaignChecklistOpciones = Array.isArray(campaign.checklist_opciones) ? campaign.checklist_opciones : [];
     const caracteristicas =
       String(campaign.collection_mode ?? "checklist") === "checklist"

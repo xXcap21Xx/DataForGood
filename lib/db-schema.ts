@@ -180,6 +180,20 @@ export async function ensureCampanaRevisoresTable(): Promise<void> {
   `);
 }
 
+export async function ensureCampanaBaneadosTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS campana_baneados (
+      id SERIAL PRIMARY KEY,
+      campana_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      motivo TEXT NOT NULL,
+      baneado_por INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      UNIQUE (campana_id, usuario_id)
+    );
+  `);
+}
+
 export async function ensureNotificacionesTable(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS notificaciones (
@@ -265,6 +279,7 @@ export async function ensureCoreSchema(): Promise<void> {
   await ensureCampanasTable();
   await ensureCampanaSupervisoresTable();
   await ensureCampanaRevisoresTable();
+  await ensureCampanaBaneadosTable();
   await ensureNotificacionesTable();
   await ensureCampanasGuardadasTable();
   await ensureAportesTable();

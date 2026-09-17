@@ -26,6 +26,8 @@ export default function RevisionAportePage() {
   const [customReason, setCustomReason] = useState("");
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showBanForm, setShowBanForm] = useState(false);
+  const [banReason, setBanReason] = useState("");
 
   useEffect(() => {
     async function load() {
@@ -43,6 +45,8 @@ export default function RevisionAportePage() {
 
   if (loadError) return <p className="text-sm text-danger">{loadError}</p>;
   if (!item) return <p className="text-sm text-ink-2">Cargando...</p>;
+
+  const contributionId = item.id;
 
   async function review(status: "aceptado" | "rechazado", rejectionReason?: string) {
     setSubmitting(true);
@@ -69,6 +73,26 @@ export default function RevisionAportePage() {
   function confirmReject(e: React.FormEvent) {
     e.preventDefault();
     void review("rechazado", customReason.trim() || reason);
+  }
+
+  async function banUser(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      const response = await fetch(`/api/campanas/${params.id}/baneos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ contributionId, reason: banReason.trim() }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo banear al usuario");
+      setShowBanForm(false);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "No se pudo banear al usuario");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   const canReject = Boolean(reason) || customReason.trim().length > 0;
@@ -199,20 +223,39 @@ export default function RevisionAportePage() {
               </Button>
             </form>
           )}
+
+          {showBanForm && (
+            <form onSubmit={banUser} className="mb-4 rounded-lg border border-danger p-4">
+              <p className="mb-2 text-[13px] font-medium text-ink">Banear usuario de la campaña</p>
+              <Textarea
+                rows={3}
+                value={banReason}
+                onChange={(e) => setBanReason(e.target.value)}
+                placeholder="Explica por qué este usuario ya no puede participar en la campaña"
+                required
+              />
+              <div className="mt-3 flex gap-2">
+                <Button type="button" size="sm" onClick={() => setShowBanForm(false)}>Cancelar</Button>
+                <Button variant="danger" size="sm" type="submit" disabled={!banReason.trim() || submitting}>Confirmar baneo</Button>
+              </div>
+            </form>
+          )}
         </div>
       </div>
 
-      {!alreadyReviewed && (
+      {(item.userId !== null || !alreadyReviewed) && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-          <Button variant="danger" size="sm">
-            Banear de la campaña
+          <Button variant="danger" size="sm" onClick={() => setShowBanForm(true)} disabled={submitting || item.userId === null}>
+            Banear usuario de la campaña
           </Button>
-          <div className="flex gap-2">
-            <Button onClick={() => setShowRejectForm(true)} disabled={submitting}>Rechazar</Button>
-            <Button variant="primary" onClick={approve} disabled={submitting}>
-              Aprobar aporte
-            </Button>
-          </div>
+          {!alreadyReviewed && (
+            <div className="flex gap-2">
+              <Button onClick={() => setShowRejectForm(true)} disabled={submitting}>Rechazar</Button>
+              <Button variant="primary" onClick={approve} disabled={submitting}>
+                Aprobar aporte
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>

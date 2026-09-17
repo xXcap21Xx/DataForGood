@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import type { Contribution } from "@/types";
@@ -19,7 +20,6 @@ export default function RevisionesPage() {
   const [contributions, setContributions] = useState<Record<string, Contribution[]>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionId, setActionId] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -46,28 +46,6 @@ export default function RevisionesPage() {
 
     void load();
   }, []);
-
-  async function acceptContribution(contributionId: string) {
-    setActionId(contributionId);
-    setError(null);
-    const response = await fetch(`/api/aportes/${contributionId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "espera_final" }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      setError(payload.error ?? "No se pudo aceptar el aporte");
-    } else {
-      setContributions((current) => Object.fromEntries(
-        Object.entries(current).map(([campaignId, items]) => [
-          campaignId,
-          items.map((item) => item.id === contributionId ? { ...item, status: "espera_final", firstPassBy: "Tú" } : item),
-        ])
-      ));
-    }
-    setActionId(null);
-  }
 
   if (loading) return <div className="mx-auto max-w-4xl text-[13px] text-ink-2">Cargando campañas de revisión…</div>;
   if (error && campaigns.length === 0) return <div className="mx-auto max-w-4xl rounded-lg border border-danger/30 bg-danger-tint p-4 text-sm text-danger">{error}</div>;
@@ -108,9 +86,12 @@ export default function RevisionesPage() {
                           <p className="text-[13px] font-semibold text-ink">{item.participantName}</p>
                           <p className="mt-1 text-[12px] text-ink-2">{item.description}</p>
                         </div>
-                        <Button size="sm" variant="primary" disabled={actionId === item.id} onClick={() => void acceptContribution(item.id)}>
-                          {actionId === item.id ? "Aceptando…" : "Aceptar aporte"}
-                        </Button>
+                        <Link
+                          href={`/revisiones/${item.id}`}
+                          className="inline-flex items-center justify-center rounded-pill border border-line-2 bg-surface px-3.5 py-2 text-[12.5px] font-bold text-ink transition-colors hover:border-accent hover:text-accent"
+                        >
+                          Ver aporte
+                        </Link>
                       </div>
                     ))}
                   </div>

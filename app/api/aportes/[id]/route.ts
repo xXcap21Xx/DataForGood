@@ -69,7 +69,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 }
 
-// Uso previsto: quien creó la campaña aprueba o rechaza un aporte (Insomnia: PATCH { "status": "aceptado" } o { "status": "rechazado", "rejectionReason": "..." })
+// El revisor aceptado valida en primera instancia y el creador puede revisar el aporte.
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await ensureCoreSchema();
@@ -98,12 +98,8 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     const rejectionReason = body.rejectionReason ?? body.rejection_reason ?? null;
-    const isFinalDecision = status === "aceptado" || status === "rechazado";
-    if (isReviewer && !isCampaignCreator && (status !== "espera_final" || String(row.status) !== "pendiente")) {
-      return NextResponse.json({ error: "El revisor solo puede aceptar aportes pendientes en primera instancia" }, { status: 403 });
-    }
-    if (isFinalDecision && !isCampaignCreator) {
-      return NextResponse.json({ error: "Solo el creador puede tomar la decisión final" }, { status: 403 });
+    if (isReviewer && !isCampaignCreator && (status !== "aceptado" || String(row.status) !== "pendiente")) {
+      return NextResponse.json({ error: "El revisor solo puede aceptar aportes pendientes" }, { status: 403 });
     }
     if (status === "rechazado" && !String(rejectionReason ?? "").trim()) {
       return NextResponse.json({ error: "rejectionReason es obligatorio al rechazar" }, { status: 400 });
@@ -190,5 +186,60 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   } catch (error) {
     console.error("Error editando aporte", error);
     return NextResponse.json({ error: "No se pudo editar el aporte" }, { status: 500 });
+  }
+}
+
+export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const client = await pool.connect();
+
+  try {
+    await ensureCoreSchema();
+
+    const { id } = await context.params;
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+
+    const row = await loadAporteWithCampaign(id);
+    if (!row) return NextResponse.json({ error: "Aporte no encontrado" }, { status: 404 });
+
+    if (Number(row.user_id) !== Number(user.id)) {
+      return NextResponse.json({ error: "Solo quien envió el aporte puede eliminarlo" }, { status: 403 });
+    }
+
+    const previousStatus = String(row.status);
+    if (previousStatus === "aceptado") {
+      return NextResponse.json({ error: "Un aporte aceptado ya no se puede eliminar" }, { status: 400 });
+    }
+
+    await client.query("BEGIN");
+    await client.query(`DELETE FROM aportes WHERE id = $1 AND user_id = $2`, [id, user.id]);
+
+    const remainingUserContributions = await client.query(
+      `SELECT COUNT(*)::int AS count FROM aportes WHERE campaign_id = $1 AND user_id = $2`,
+      [row.campaign_id, user.id]
+    );
+    const participantDelta = Number(remainingUserContributions.rows[0].count) === 0 ? 1 : 0;
+    const pendingDelta = previousStatus === "pendiente" || previousStatus === "espera_final" ? 1 : 0;
+    const rejectedDelta = previousStatus === "rechazado" ? 1 : 0;
+
+    await client.query(
+      `UPDATE campanas SET
+        current_contributions = GREATEST(current_contributions - 1, 0),
+        pending_contributions = GREATEST(pending_contributions - $2, 0),
+        rejected_contributions = GREATEST(rejected_contributions - $3, 0),
+        participants = GREATEST(participants - $4, 0),
+        updated_at = NOW()
+       WHERE id = $1`,
+      [row.campaign_id, pendingDelta, rejectedDelta, participantDelta]
+    );
+    await client.query("COMMIT");
+
+    return NextResponse.json({ message: "Aporte eliminado" });
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => undefined);
+    console.error("Error eliminando aporte", error);
+    return NextResponse.json({ error: "No se pudo eliminar el aporte" }, { status: 500 });
+  } finally {
+    client.release();
   }
 }
