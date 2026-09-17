@@ -15,19 +15,30 @@ type UserCandidate = {
   role?: string[] | string;
 };
 
+type CampaignInfo = { id: string; name: string; creatorId: string };
+
 export default function AgregarRevisorPage() {
   const params = useParams<{ id: string }>();
-  const [campaign, setCampaign] = useState<{ name: string } | null>(null);
+  const [campaign, setCampaign] = useState<CampaignInfo | null>(null);
   const [users, setUsers] = useState<UserCandidate[]>([]);
   const [query, setQuery] = useState("");
   const [invitedId, setInvitedId] = useState<number | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadData() {
-      const campaignResponse = await fetch(`/api/campanas?id=${params.id}`);
+      const [campaignResponse, sessionResponse] = await Promise.all([
+        fetch(`/api/campanas?id=${params.id}`),
+        fetch("/api/auth/sesion", { cache: "no-store" }),
+      ]);
       if (campaignResponse.ok) {
         const campaignBody = await campaignResponse.json();
         setCampaign(campaignBody.data ?? null);
+      }
+      if (sessionResponse.ok) {
+        const sessionBody = await sessionResponse.json();
+        setCurrentUserId(sessionBody.data?.id ? Number(sessionBody.data.id) : null);
       }
 
       const usersResponse = await fetch("/api/usuarios");
@@ -47,13 +58,30 @@ export default function AgregarRevisorPage() {
   const filtered = users.filter((candidate) => {
     const fullName = `${candidate.nombre ?? ""} ${candidate.apellidos ?? ""}`.trim();
     const queryText = query.toLowerCase();
+    const isOwner = String(candidate.id) === String(campaign.creatorId) || candidate.id === currentUserId;
     return (
+      !isOwner &&
       fullName.toLowerCase().includes(queryText) ||
-      candidate.email.toLowerCase().includes(queryText)
+      (!isOwner && candidate.email.toLowerCase().includes(queryText))
     );
   });
 
   const invited = users.find((candidate) => candidate.id === invitedId);
+
+  async function invite(candidate: UserCandidate) {
+    setError(null);
+    const response = await fetch(`/api/campanas/${params.id}/revisores`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ usuarioId: candidate.id }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      setError(payload.error ?? "No se pudo enviar la invitación");
+      return;
+    }
+    setInvitedId(candidate.id);
+  }
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -84,6 +112,8 @@ export default function AgregarRevisorPage() {
         </div>
       )}
 
+      {error && <p className="mb-4 rounded border border-danger bg-danger-tint p-3 text-[12.5px] text-danger">{error}</p>}
+
       <div className="overflow-hidden rounded-lg border border-line">
         <table className="w-full text-left text-[13px]">
           <thead className="bg-sunken text-[11px] uppercase tracking-wide text-ink-3">
@@ -98,6 +128,8 @@ export default function AgregarRevisorPage() {
               const isInvited = candidate.id === invitedId;
               const roles = Array.isArray(candidate.role) ? candidate.role : candidate.role ? [candidate.role] : ["usuario"];
               const currentRole = roles.includes("supervisor") ? "Supervisor" : roles.includes("revisor") ? "Revisor de aportes" : "Usuario común";
+              const isSupervisor = roles.includes("supervisor");
+              const isReviewer = roles.includes("revisor");
 
               return (
                 <tr key={candidate.id} className="border-t border-line">
@@ -106,13 +138,13 @@ export default function AgregarRevisorPage() {
                     <p className="font-mono text-[11.5px] text-ink-3">{candidate.email}</p>
                   </td>
                   <td className="px-3 py-3">
-                    <Tag tone={isInvited ? "warn" : currentRole === "Supervisor" ? "ok" : "default"}>
+                    <Tag tone={isInvited ? "warn" : isSupervisor ? "ok" : "default"}>
                       {isInvited ? "Invitación pendiente" : currentRole}
                     </Tag>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <Button size="sm" disabled={isInvited} onClick={() => setInvitedId(candidate.id)}>
-                      {isInvited ? "Invitado" : "Invitar para revisar"}
+                    <Button size="sm" disabled={isInvited || isSupervisor || isReviewer} onClick={() => void invite(candidate)}>
+                      {isInvited ? "Invitado" : isSupervisor ? "No disponible" : isReviewer ? "Ya es revisor" : "Invitar para revisar"}
                     </Button>
                   </td>
                 </tr>

@@ -37,6 +37,7 @@ export async function GET(request: Request) {
     const url = new URL(request.url);
     const campaignId = url.searchParams.get("campaignId");
     const mine = url.searchParams.get("mine") === "true";
+    const reviewer = url.searchParams.get("reviewer") === "true";
 
     if (!campaignId) {
       return NextResponse.json({ error: "campaignId es obligatorio" }, { status: 400 });
@@ -48,12 +49,22 @@ export async function GET(request: Request) {
     }
 
     if (!mine) {
-      const campaignResult = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1 LIMIT 1`, [campaignId]);
+      const campaignResult = await pool.query(
+        `SELECT c.creator_id,
+                EXISTS (
+                  SELECT 1 FROM campana_revisores cr
+                  WHERE cr.campana_id = c.id AND cr.usuario_id = $2 AND cr.estado = 'aceptado'
+                ) AS is_reviewer
+         FROM campanas c WHERE c.id = $1 LIMIT 1`,
+        [campaignId, user.id]
+      );
       if (campaignResult.rowCount === 0) {
         return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
       }
-      if (Number(campaignResult.rows[0].creator_id) !== Number(user.id)) {
-        return NextResponse.json({ error: "Solo quien creó la campaña puede ver todos sus aportes" }, { status: 403 });
+      const isCreator = Number(campaignResult.rows[0].creator_id) === Number(user.id);
+      const isReviewer = Boolean(campaignResult.rows[0].is_reviewer);
+      if (!isCreator && !(reviewer && isReviewer)) {
+        return NextResponse.json({ error: "Solo quien creó la campaña o su revisor puede ver estos aportes" }, { status: 403 });
       }
     }
 

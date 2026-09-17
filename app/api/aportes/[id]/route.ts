@@ -53,7 +53,12 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const isOwner = Number(row.user_id) === Number(user.id);
     const isCampaignCreator = Number(row.campaign_creator_id) === Number(user.id);
-    if (!isOwner && !isCampaignCreator) {
+    const reviewerResult = await pool.query(
+      `SELECT 1 FROM campana_revisores WHERE campana_id = $1 AND usuario_id = $2 AND estado = 'aceptado' LIMIT 1`,
+      [row.campaign_id, user.id]
+    );
+    const isReviewer = (reviewerResult.rowCount ?? 0) > 0;
+    if (!isOwner && !isCampaignCreator && !isReviewer) {
       return NextResponse.json({ error: "No tienes permiso para ver este aporte" }, { status: 403 });
     }
 
@@ -76,8 +81,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const row = await loadAporteWithCampaign(id);
     if (!row) return NextResponse.json({ error: "Aporte no encontrado" }, { status: 404 });
 
-    if (Number(row.campaign_creator_id) !== Number(user.id)) {
-      return NextResponse.json({ error: "Solo quien creó la campaña puede revisar este aporte" }, { status: 403 });
+    const isCampaignCreator = Number(row.campaign_creator_id) === Number(user.id);
+    const reviewerResult = await pool.query(
+      `SELECT 1 FROM campana_revisores WHERE campana_id = $1 AND usuario_id = $2 AND estado = 'aceptado' LIMIT 1`,
+      [row.campaign_id, user.id]
+    );
+    const isReviewer = (reviewerResult.rowCount ?? 0) > 0;
+    if (!isCampaignCreator && !isReviewer) {
+      return NextResponse.json({ error: "Solo el creador o un revisor aceptado puede revisar este aporte" }, { status: 403 });
     }
 
     const body = await request.json().catch(() => ({}));
@@ -87,11 +98,20 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     const rejectionReason = body.rejectionReason ?? body.rejection_reason ?? null;
+    const isFinalDecision = status === "aceptado" || status === "rechazado";
+    if (isReviewer && !isCampaignCreator && (status !== "espera_final" || String(row.status) !== "pendiente")) {
+      return NextResponse.json({ error: "El revisor solo puede aceptar aportes pendientes en primera instancia" }, { status: 403 });
+    }
+    if (isFinalDecision && !isCampaignCreator) {
+      return NextResponse.json({ error: "Solo el creador puede tomar la decisión final" }, { status: 403 });
+    }
     if (status === "rechazado" && !String(rejectionReason ?? "").trim()) {
       return NextResponse.json({ error: "rejectionReason es obligatorio al rechazar" }, { status: 400 });
     }
 
-    const firstPassBy = body.firstPassBy ?? body.first_pass_by ?? row.first_pass_by ?? `${user.nombre} ${user.apellidos}`.trim();
+    const firstPassBy = isReviewer
+      ? `${user.nombre} ${user.apellidos}`.trim()
+      : body.firstPassBy ?? body.first_pass_by ?? row.first_pass_by ?? `${user.nombre} ${user.apellidos}`.trim();
     const previousStatus = String(row.status);
 
     const result = await pool.query(

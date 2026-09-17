@@ -166,6 +166,36 @@ export async function ensureCampanaSupervisoresTable(): Promise<void> {
   `);
 }
 
+export async function ensureCampanaRevisoresTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS campana_revisores (
+      id SERIAL PRIMARY KEY,
+      campana_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      estado VARCHAR(20) NOT NULL DEFAULT 'invitado' CHECK (estado IN ('invitado', 'aceptado', 'rechazado')),
+      invitado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      aceptado_en TIMESTAMPTZ,
+      UNIQUE (campana_id, usuario_id)
+    );
+  `);
+}
+
+export async function ensureNotificacionesTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notificaciones (
+      id SERIAL PRIMARY KEY,
+      usuario_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      tipo VARCHAR(50) NOT NULL,
+      titulo VARCHAR(180) NOT NULL,
+      mensaje TEXT NOT NULL,
+      campana_id INTEGER REFERENCES campanas(id) ON DELETE CASCADE,
+      metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+      leida_en TIMESTAMPTZ,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+  `);
+}
+
 export async function ensureCampanasGuardadasTable(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS campanas_guardadas (
@@ -234,6 +264,8 @@ export async function ensureCoreSchema(): Promise<void> {
   await ensureRootSessionsTable();
   await ensureCampanasTable();
   await ensureCampanaSupervisoresTable();
+  await ensureCampanaRevisoresTable();
+  await ensureNotificacionesTable();
   await ensureCampanasGuardadasTable();
   await ensureAportesTable();
   await ensureSancionesTable();

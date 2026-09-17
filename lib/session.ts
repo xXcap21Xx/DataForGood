@@ -2,7 +2,7 @@ import { randomBytes, createHash } from "crypto";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
-import { ensureSessionsTable, ensureUsuariosTable } from "@/lib/db-schema";
+import { ensureCampanaRevisoresTable, ensureCampanasTable, ensureSessionsTable, ensureUsuariosTable } from "@/lib/db-schema";
 
 const COOKIE_NAME = "session_token";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 días
@@ -31,6 +31,10 @@ function hashToken(token: string) {
 export async function createSession(usuarioId: number) {
   await ensureUsuariosTable();
   await ensureSessionsTable();
+  await ensureCampanasTable();
+  await ensureCampanaRevisoresTable();
+  await ensureCampanasTable();
+  await ensureCampanaRevisoresTable();
 
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
@@ -67,11 +71,15 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   const result = await pool.query(
     `SELECT u.id, u.nombre, u.apellidos, u.email, u.state, u.city, u.specialty,
             u.intereses, u.role, u.xp_total, u.level, u.streak_days, u.email_verificado,
-            (u.password_hash IS NOT NULL) AS tiene_contrasena
+          (u.password_hash IS NOT NULL) AS tiene_contrasena,
+          EXISTS (
+            SELECT 1 FROM campana_revisores cr
+            WHERE cr.usuario_id = u.id AND cr.estado = 'aceptado'
+          ) AS tiene_asignacion_revisor
      FROM sessions s
      JOIN usuarios u ON u.id = s.usuario_id
      WHERE s.token_hash = $1 AND s.expires_at > NOW()
-     LIMIT 1`,
+    LIMIT 1`,
     [tokenHash]
   );
 
@@ -79,7 +87,11 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
     return null;
   }
 
-  return result.rows[0] as SessionUser;
+  const sessionUser = result.rows[0] as SessionUser & { tiene_asignacion_revisor?: boolean };
+  if (sessionUser.tiene_asignacion_revisor && !sessionUser.role.includes("revisor")) {
+    sessionUser.role = [...sessionUser.role, "revisor"];
+  }
+  return sessionUser;
 });
 
 export async function destroySession() {

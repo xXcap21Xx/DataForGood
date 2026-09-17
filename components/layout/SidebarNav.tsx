@@ -48,6 +48,19 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
             Supervisión
           </Link>
         )}
+
+        {Array.isArray(usuario.role) && usuario.role.includes("revisor") && !usuario.role.includes("supervisor") && (
+          <Link
+            href="/revisiones"
+            className={`rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors ${
+              pathname.startsWith("/revisiones")
+                ? "bg-accent text-white"
+                : "text-ink-2 hover:bg-sunken hover:text-ink"
+            }`}
+          >
+            Revisor de aportes
+          </Link>
+        )}
       </nav>
 
       <div className="dashboard-sidebar-callout mt-6 rounded-lg bg-accent-deep p-4 text-white">
