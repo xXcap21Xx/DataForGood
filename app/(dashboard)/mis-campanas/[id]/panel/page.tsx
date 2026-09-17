@@ -1,21 +1,36 @@
+"use client";
+
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { getCampaignById } from "@/data/screensData";
+import { useEffect, useState } from "react";
+import { useParams } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import MetricCard from "@/components/ui/MetricCard";
 import ProgressBar from "@/components/ui/ProgressBar";
+import type { Campaign } from "@/types";
 
 const DAILY_COLLECTION = [30, 40, 52, 46, 66, 82, 75, 60, 70, 86, 96, 80, 91, 104];
 
-export default async function PanelCampanaPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const campaign = getCampaignById(id);
-  if (!campaign) notFound();
+export default function PanelCampanaPage() {
+  const params = useParams<{ id: string }>();
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
+
+  useEffect(() => {
+    async function loadCampaign() {
+      const response = await fetch(`/api/campanas?id=${params.id}`);
+      if (!response.ok) return;
+      const body = await response.json();
+      setCampaign(body.data ?? null);
+    }
+
+    if (params.id) loadCampaign();
+  }, [params.id]);
+
+  if (!campaign) {
+    return <p className="text-sm text-ink-2">Cargando campaña…</p>;
+  }
 
   const isFinished = campaign.status === "finalizada";
-  const pct = Math.round(
-    (campaign.currentContributions / campaign.goalContributions) * 100
-  );
+  const pct = campaign.goalContributions > 0 ? Math.round((campaign.currentContributions / campaign.goalContributions) * 100) : 0;
   const maxDaily = Math.max(...DAILY_COLLECTION);
 
   return (
@@ -130,7 +145,7 @@ export default async function PanelCampanaPage({ params }: { params: Promise<{ i
                 <span>
                   {campaign.currentContributions} de {campaign.goalContributions} aportes
                 </span>
-                <span>{campaign.daysRemaining} días restantes</span>
+                <span>{campaign.daysRemaining ?? 0} días restantes</span>
               </div>
               <div className="rounded-lg bg-sunken p-3.5 text-[12px] leading-relaxed text-ink-2">
                 Al ritmo actual, la meta se alcanza antes de la fecha de cierre.

@@ -86,6 +86,7 @@ export async function ensureCampanasTable(): Promise<void> {
       id SERIAL PRIMARY KEY,
       creator_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
       creator_name VARCHAR(120) NOT NULL,
+      supervisor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
       name VARCHAR(200) NOT NULL,
       description TEXT NOT NULL,
       tematica VARCHAR(120) NOT NULL,
@@ -121,6 +122,7 @@ export async function ensureCampanasTable(): Promise<void> {
   await pool.query(`
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS creator_id INTEGER;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS creator_name VARCHAR(120);
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS supervisor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS name VARCHAR(200);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS description TEXT;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS tematica VARCHAR(120);
@@ -148,6 +150,19 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token VARCHAR(80);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token_expires_at TIMESTAMP;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS aportes JSONB NOT NULL DEFAULT '[]'::jsonb;
+  `);
+}
+
+export async function ensureCampanaSupervisoresTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS campana_supervisores (
+      id SERIAL PRIMARY KEY,
+      campana_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+      supervisor_id INTEGER NOT NULL REFERENCES usuarios(id) ON DELETE CASCADE,
+      accion VARCHAR(30) NOT NULL CHECK (accion IN ('aceptada', 'rechazada', 'reportada', 'reasignada')),
+      motivo TEXT,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
   `);
 }
 
@@ -218,6 +233,7 @@ export async function ensureCoreSchema(): Promise<void> {
   await ensureSessionsTable();
   await ensureRootSessionsTable();
   await ensureCampanasTable();
+  await ensureCampanaSupervisoresTable();
   await ensureCampanasGuardadasTable();
   await ensureAportesTable();
   await ensureSancionesTable();

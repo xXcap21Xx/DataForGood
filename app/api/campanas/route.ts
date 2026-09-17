@@ -71,6 +71,8 @@ function mapCampaign(row: Record<string, unknown>) {
     id: String(row.id ?? ""),
     creatorId: String(row.creator_id ?? ""),
     creatorName: String(row.creator_name ?? ""),
+    supervisorId: row.supervisor_id != null ? String(row.supervisor_id) : null,
+    latestSupervisionAction: row.latest_supervision_action ? String(row.latest_supervision_action) : null,
     name: String(row.name ?? ""),
     description: String(row.description ?? ""),
     tematica: String(row.tematica ?? row.tag ?? ""),
@@ -109,12 +111,13 @@ export async function GET(request: Request) {
     const campaignId = url.searchParams.get("id");
     const mine = url.searchParams.get("mine") === "true";
     const available = url.searchParams.get("available") === "true";
+    const supervised = url.searchParams.get("supervised") === "true";
     // Campañas donde ya se aportó o que se guardaron: el conjunto que muestra "Mis aportes".
     const misAportes = url.searchParams.get("misAportes") === "true";
     // Siempre se intenta leer la sesión (aunque el modo no la exija) para poder marcar isSaved.
     const user = await getSessionUser();
 
-    if ((mine || available || misAportes) && !user) {
+    if ((mine || available || misAportes || supervised) && !user) {
       return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
     }
 
@@ -123,6 +126,26 @@ export async function GET(request: Request) {
       ...mapCampaign(row),
       isSaved: savedIds.has(Number(row.id)),
     });
+
+    if (supervised) {
+      const result = await pool.query(
+        `SELECT c.*,
+                latest_review.accion AS latest_supervision_action
+         FROM campanas c
+         LEFT JOIN LATERAL (
+           SELECT cs.accion
+           FROM campana_supervisores cs
+           WHERE cs.campana_id = c.id
+             AND cs.supervisor_id = $1
+           ORDER BY cs.created_at DESC, cs.id DESC
+           LIMIT 1
+         ) latest_review ON true
+         WHERE c.supervisor_id = $1
+         ORDER BY c.created_at DESC`,
+        [user!.id]
+      );
+      return NextResponse.json({ data: result.rows.map(conIsSaved) });
+    }
 
     if (campaignId) {
       const result = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [campaignId]);

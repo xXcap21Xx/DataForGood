@@ -1,23 +1,34 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { getCampaignById } from "@/data/screensData";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
+import type { Campaign } from "@/types";
 
 export default function CompartirCampanaPage() {
   const { id } = useParams<{ id: string }>();
-  const campaign = getCampaignById(id);
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [expired, setExpired] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  useEffect(() => {
+    async function loadCampaign() {
+      const response = await fetch(`/api/campanas?id=${id}`);
+      if (!response.ok) return;
+      const body = await response.json();
+      setCampaign(body.data ?? null);
+    }
+
+    if (id) loadCampaign();
+  }, [id]);
+
   if (!campaign) {
-    return <p className="text-sm text-ink-2">Campaña no encontrada.</p>;
+    return <p className="text-sm text-ink-2">Cargando campaña…</p>;
   }
 
-  const link = `dataforgood.mx/c/${campaign.shareToken ?? "------"}`;
+  const link = `dataforgood.mx/c/${campaign.shareToken || "------"}`;
 
   function copyLink() {
     navigator.clipboard?.writeText(`https://${link}`).catch(() => {});
@@ -101,7 +112,7 @@ export default function CompartirCampanaPage() {
               <>
                 <QrPlaceholder />
                 <span className="font-mono text-[11.5px] text-ink-3">
-                  {campaign.shareToken} · 512 × 512 px
+                  {campaign.shareToken || "token"} · 512 × 512 px
                 </span>
               </>
             )}

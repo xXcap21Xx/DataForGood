@@ -1,6 +1,5 @@
-// Tipos centrales del proyecto. Reflejan el mismo modelo de datos
-// que dataforgood_schema.sql (a implementar más adelante) — por ahora
-// se usan sobre datos mock en src/data/screensData.ts.
+// Tipos centrales del proyecto. Reflejan el modelo de datos del backend
+// y se usan para consumir la API real de campañas y usuarios.
 
 export type CampaignStatus =
   | "borrador"

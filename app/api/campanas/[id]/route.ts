@@ -112,6 +112,50 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
 
+    const body = await request.json().catch(() => ({}));
+    const accion = String(body.action ?? body.accion ?? "").trim().toLowerCase();
+    const allowedDecision = new Set(["aceptada", "rechazada", "reportada"]);
+
+    if (allowedDecision.has(accion)) {
+      const roles = Array.isArray(user.role) ? user.role : typeof user.role === "string" ? [user.role] : [];
+      if (!roles.includes("supervisor")) {
+        return NextResponse.json({ error: "Solo un supervisor puede decidir esta campaña" }, { status: 403 });
+      }
+
+      const existing = await pool.query(`SELECT id, status, creator_id FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+      if (existing.rowCount === 0) {
+        return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
+      }
+
+      const nextStatus = accion === "aceptada" ? "activa" : accion === "rechazada" ? "rechazada" : existing.rows[0].status;
+      const motivo = String(body.motivo ?? body.reason ?? "").trim() || null;
+
+      await pool.query(
+        `UPDATE campanas
+         SET status = $2,
+             supervisor_id = $3,
+             updated_at = NOW()
+         WHERE id = $1`,
+        [id, nextStatus, user.id]
+      );
+
+      await pool.query(
+        `INSERT INTO campana_supervisores (campana_id, supervisor_id, accion, motivo, created_at)
+         VALUES ($1, $2, $3, $4, NOW())`,
+        [id, user.id, accion, motivo]
+      );
+
+      const updated = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+      return NextResponse.json({
+        message: accion === "aceptada"
+          ? "Campaña aceptada y puesta en activo"
+          : accion === "rechazada"
+            ? "Campaña rechazada"
+            : "Campaña reportada",
+        data: mapCampaign(updated.rows[0]),
+      });
+    }
+
     const existing = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1 LIMIT 1`, [id]);
     if (existing.rowCount === 0) {
       return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
@@ -119,8 +163,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (Number(existing.rows[0].creator_id) !== Number(user.id)) {
       return NextResponse.json({ error: "Solo quien creó la campaña puede editarla" }, { status: 403 });
     }
-
-    const body = await request.json().catch(() => ({}));
 
     if ("status" in body && normalizeCampaignStatus(body.status) === null) {
       return NextResponse.json({ error: `status debe ser uno de: ${Array.from(ALLOWED_STATUS).join(", ")}` }, { status: 400 });

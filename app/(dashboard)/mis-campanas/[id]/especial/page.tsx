@@ -1,24 +1,35 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { getCampaignById } from "@/data/screensData";
 import { Field, Input } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
+import type { Campaign } from "@/types";
 
 const MAX_MULTIPLIER = 3;
 
 export default function CampanaEspecialPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
-  const campaign = getCampaignById(params.id);
+  const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [multiplier, setMultiplier] = useState(2);
   const [startDate, setStartDate] = useState("2026-08-15");
   const [endDate, setEndDate] = useState("2026-08-22");
 
+  useEffect(() => {
+    async function loadCampaign() {
+      const response = await fetch(`/api/campanas?id=${params.id}`);
+      if (!response.ok) return;
+      const body = await response.json();
+      setCampaign(body.data ?? null);
+    }
+
+    if (params.id) loadCampaign();
+  }, [params.id]);
+
   if (!campaign) {
-    return <p className="text-sm text-ink-2">Campaña no encontrada.</p>;
+    return <p className="text-sm text-ink-2">Cargando campaña…</p>;
   }
 
   function handlePublish() {

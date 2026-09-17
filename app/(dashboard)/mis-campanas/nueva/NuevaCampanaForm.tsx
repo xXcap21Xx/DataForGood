@@ -1,13 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Field, Input, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
-import { getCampaignById, getMyCampaigns } from "@/data/screensData";
-import type { CollectionMode, DataType } from "@/types";
+import type { Campaign, CollectionMode, DataType } from "@/types";
 
 const DEFAULT_CHECKLIST_OPCIONES = ["Especie del árbol", "Estado de salud aparente"];
 
@@ -34,9 +33,21 @@ export default function NuevaCampanaForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
-  const editingCampaign = editId ? getCampaignById(editId) : undefined;
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
 
-  const myCampaigns = useMemo(() => getMyCampaigns(), []);
+  useEffect(() => {
+    async function loadCampaigns() {
+      const response = await fetch("/api/campanas?mine=true");
+      if (!response.ok) return;
+      const body = await response.json();
+      setCampaigns(Array.isArray(body.data) ? body.data : []);
+    }
+
+    loadCampaigns();
+  }, []);
+
+  const editingCampaign = editId ? campaigns.find((campaign) => campaign.id === editId) : undefined;
+  const myCampaigns = useMemo(() => campaigns, [campaigns]);
   const activeCampaigns = myCampaigns.filter((c) => c.status === "activa");
   const limitReached = !editingCampaign && activeCampaigns.length >= MAX_ACTIVE_CAMPAIGNS;
 

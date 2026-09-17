@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field } from "@/components/ui/Input";
-import { currentUser } from "@/data/screensData";
 
 const INTERESTS = [
   "Medio ambiente",
@@ -16,12 +15,45 @@ const INTERESTS = [
   "Cultura",
 ];
 
+type SessionUser = {
+  id: number;
+  nombre: string;
+  apellidos: string;
+  state?: string | null;
+  city?: string | null;
+  specialty?: string | null;
+  intereses?: string[];
+};
+
 export default function BienvenidaPage() {
   const router = useRouter();
-  const [selected, setSelected] = useState<string[]>(currentUser.intereses ?? ["Medio ambiente", "Educación"]);
-  const [state, setState] = useState(currentUser.state ?? "Nayarit");
-  const [city, setCity] = useState(currentUser.city ?? "Tepic");
-  const [specialty, setSpecialty] = useState(currentUser.specialty ?? "Ingeniería de software");
+  const [user, setUser] = useState<SessionUser | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [state, setState] = useState("Nayarit");
+  const [city, setCity] = useState("Tepic");
+  const [specialty, setSpecialty] = useState("Ingeniería de software");
+
+  useEffect(() => {
+    async function loadUser() {
+      const response = await fetch("/api/auth/sesion");
+      if (!response.ok) {
+        router.push("/entrar");
+        return;
+      }
+
+      const body = await response.json();
+      const currentUser = body.data as SessionUser | undefined;
+      if (!currentUser) return;
+
+      setUser(currentUser);
+      setSelected(currentUser.intereses ?? ["Medio ambiente", "Educación"]);
+      setState(currentUser.state ?? "Nayarit");
+      setCity(currentUser.city ?? "Tepic");
+      setSpecialty(currentUser.specialty ?? "Ingeniería de software");
+    }
+
+    loadUser();
+  }, [router]);
 
   function toggleInterest(tag: string) {
     setSelected((prev) =>
@@ -30,8 +62,13 @@ export default function BienvenidaPage() {
   }
 
   async function finish() {
+    if (!user?.id) {
+      router.push("/campanas");
+      return;
+    }
+
     try {
-      await fetch(`/api/usuarios/${currentUser.id}`, {
+      await fetch(`/api/usuarios/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
