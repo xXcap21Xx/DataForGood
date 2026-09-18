@@ -148,7 +148,7 @@ type FilaUsuarioDB = {
 };
 
 /** Subconsulta agregada: una fila por usuario con sus sanciones resumidas. */
-const RESUMEN_DE_SANCIONES = `
+export const RESUMEN_DE_SANCIONES = `
   LEFT JOIN (
     SELECT
       usuario_id,
@@ -163,7 +163,7 @@ const RESUMEN_DE_SANCIONES = `
   ) rs ON rs.usuario_id = u.id
 `;
 
-function estadoDesdeSanciones(strikes: number, suspendida: boolean, baneada: boolean): EstadoDeCuenta {
+export function estadoDesdeSanciones(strikes: number, suspendida: boolean, baneada: boolean): EstadoDeCuenta {
   if (baneada) return "BANEADA";
   if (suspendida) return "SUSPENDIDA";
   if (strikes > 0) return "CON_STRIKES";

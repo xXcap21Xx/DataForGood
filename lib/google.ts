@@ -18,7 +18,11 @@ export function getGoogleAuthUrl(state: string) {
     access_type: "online",
     scope: ["openid", "email", "profile"],
     state,
-    prompt: "select_account",
+    // Sin `prompt`: Google solo pide elegir cuenta y conceder acceso la
+    // primera vez. Con sesión de Google activa y consentimiento ya dado,
+    // el resto de los inicios de sesión pasan directo sin mostrar nada de
+    // eso. Con `prompt: "select_account"` (como estaba antes) se forzaba
+    // ese paso en cada inicio de sesión, no solo en el primero.
   });
 }
 

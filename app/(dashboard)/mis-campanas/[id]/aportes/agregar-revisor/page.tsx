@@ -25,12 +25,17 @@ export default function AgregarRevisorPage() {
   const [invitedId, setInvitedId] = useState<number | null>(null);
   const [currentUserId, setCurrentUserId] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Estado de revisor DENTRO de esta campaña (campana_revisores), no el rol
+  // global del usuario: alguien puede ser revisor de otra campaña y seguir
+  // disponible para esta.
+  const [estadoPorUsuario, setEstadoPorUsuario] = useState<Map<number, string>>(new Map());
 
   useEffect(() => {
     async function loadData() {
-      const [campaignResponse, sessionResponse] = await Promise.all([
+      const [campaignResponse, sessionResponse, revisoresResponse] = await Promise.all([
         fetch(`/api/campanas?id=${params.id}`),
         fetch("/api/auth/sesion", { cache: "no-store" }),
+        fetch(`/api/campanas/${params.id}/revisores`),
       ]);
       if (campaignResponse.ok) {
         const campaignBody = await campaignResponse.json();
@@ -39,6 +44,11 @@ export default function AgregarRevisorPage() {
       if (sessionResponse.ok) {
         const sessionBody = await sessionResponse.json();
         setCurrentUserId(sessionBody.data?.id ? Number(sessionBody.data.id) : null);
+      }
+      if (revisoresResponse.ok) {
+        const revisoresBody = await revisoresResponse.json();
+        const filas = Array.isArray(revisoresBody.data) ? revisoresBody.data : [];
+        setEstadoPorUsuario(new Map(filas.map((f: { usuarioId: string; estado: string }) => [Number(f.usuarioId), f.estado])));
       }
 
       const usersResponse = await fetch("/api/usuarios");
@@ -81,6 +91,7 @@ export default function AgregarRevisorPage() {
       return;
     }
     setInvitedId(candidate.id);
+    setEstadoPorUsuario((prev) => new Map(prev).set(candidate.id, "invitado"));
   }
 
   return (
@@ -125,11 +136,18 @@ export default function AgregarRevisorPage() {
           </thead>
           <tbody>
             {filtered.map((candidate) => {
-              const isInvited = candidate.id === invitedId;
               const roles = Array.isArray(candidate.role) ? candidate.role : candidate.role ? [candidate.role] : ["usuario"];
-              const currentRole = roles.includes("supervisor") ? "Supervisor" : roles.includes("revisor") ? "Revisor de aportes" : "Usuario común";
               const isSupervisor = roles.includes("supervisor");
-              const isReviewer = roles.includes("revisor");
+              // Estado DENTRO de esta campaña (campana_revisores), no el rol
+              // global: ser revisor de otra campaña no debe bloquear esta.
+              const estadoAqui = estadoPorUsuario.get(candidate.id);
+              const isInvited = candidate.id === invitedId || estadoAqui === "invitado";
+              const yaAceptado = estadoAqui === "aceptado";
+              const currentRole = isSupervisor
+                ? "Supervisor"
+                : yaAceptado
+                  ? "Revisor de esta campaña"
+                  : "Usuario común";
 
               return (
                 <tr key={candidate.id} className="border-t border-line">
@@ -138,13 +156,23 @@ export default function AgregarRevisorPage() {
                     <p className="font-mono text-[11.5px] text-ink-3">{candidate.email}</p>
                   </td>
                   <td className="px-3 py-3">
-                    <Tag tone={isInvited ? "warn" : isSupervisor ? "ok" : "default"}>
+                    <Tag tone={isInvited ? "warn" : isSupervisor || yaAceptado ? "ok" : "default"}>
                       {isInvited ? "Invitación pendiente" : currentRole}
                     </Tag>
                   </td>
                   <td className="px-3 py-3 text-right">
-                    <Button size="sm" disabled={isInvited || isSupervisor || isReviewer} onClick={() => void invite(candidate)}>
-                      {isInvited ? "Invitado" : isSupervisor ? "No disponible" : isReviewer ? "Ya es revisor" : "Invitar para revisar"}
+                    <Button
+                      size="sm"
+                      disabled={isInvited || isSupervisor || yaAceptado}
+                      onClick={() => void invite(candidate)}
+                    >
+                      {isInvited
+                        ? "Invitado"
+                        : isSupervisor
+                          ? "No disponible"
+                          : yaAceptado
+                            ? "Ya es revisor"
+                            : "Invitar para revisar"}
                     </Button>
                   </td>
                 </tr>

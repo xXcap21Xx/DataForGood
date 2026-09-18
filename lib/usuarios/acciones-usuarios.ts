@@ -4,7 +4,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { pool } from "@/lib/db";
-import { ensureSancionesTable, ensureUsuariosTable } from "@/lib/db-schema";
+import {
+  ensureCampanaRevisoresTable,
+  ensureCampanasTable,
+  ensureSancionesTable,
+  ensureUsuariosTable,
+} from "@/lib/db-schema";
 import { hasRootSession } from "@/lib/rootSession";
 import { normalizeRoles } from "@/lib/roles";
 import { CODIGO_DE_ROL, type RolAsignable } from "@/lib/usuarios/rol-asignable";
@@ -33,11 +38,52 @@ async function exigirSuperUsuario(): Promise<void> {
   if (!autorizado) throw new Error("No autorizado");
 }
 
+/**
+ * `campana_revisores` (no `usuarios.role`) es la fuente real de si alguien
+ * es revisor: `lib/session.ts` reconstruye el rol "revisor" en cada sesión a
+ * partir de sus filas 'aceptado' ahí. Si solo se limpia `usuarios.role`, el
+ * rol vuelve a aparecer solo con el siguiente login. Se usa tanto al revocar
+ * el rol como al asignar Supervisor (son mutuamente excluyentes).
+ */
+async function retirarComoRevisorDeTodasLasCampanas(usuarioId: number): Promise<void> {
+  await ensureCampanaRevisoresTable();
+  await ensureCampanasTable();
+
+  const campanasAfectadas = await pool.query<{ campana_id: number }>(
+    `UPDATE campana_revisores SET estado = 'rechazado'
+     WHERE usuario_id = $1 AND estado = 'aceptado'
+     RETURNING campana_id`,
+    [usuarioId],
+  );
+
+  for (const fila of campanasAfectadas.rows) {
+    await pool.query(
+      `UPDATE campanas SET has_reviewer_assigned = EXISTS (
+         SELECT 1 FROM campana_revisores WHERE campana_id = $1 AND estado = 'aceptado'
+       ), updated_at = NOW()
+       WHERE id = $1`,
+      [fila.campana_id],
+    );
+  }
+}
+
 export async function asignarRol(
   usuarioId: string,
   rol: RolAsignable,
 ): Promise<ResultadoDeAccion> {
   await exigirSuperUsuario();
+
+  // El revisor de aportes ya no lo asigna el SuperUsuario: lo otorga el
+  // creador de una campaña al invitar, y la persona lo acepta desde sus
+  // notificaciones (ver POST /api/campanas/[id]/revisores). El SuperUsuario
+  // solo puede revocarlo (revocarRol).
+  if (rol === "REVISOR_DE_APORTES") {
+    return {
+      ok: false,
+      error:
+        "El rol de revisor de aportes ya no se asigna aquí: lo otorga el creador de una campaña al invitar.",
+    };
+  }
 
   const numericId = Number(usuarioId);
   if (!Number.isInteger(numericId)) {
@@ -56,14 +102,16 @@ export async function asignarRol(
     }
 
     const codigo = CODIGO_DE_ROL[rol];
-    const opuesto = codigo === "supervisor" ? "revisor" : "supervisor";
-    const rolesSinElOpuesto = (actual.rows[0].role ?? []).filter((r) => r !== opuesto);
-    const nuevosRoles = normalizeRoles([...rolesSinElOpuesto, codigo]);
+    const rolesSinRevisor = (actual.rows[0].role ?? []).filter((r) => r !== "revisor");
+    const nuevosRoles = normalizeRoles([...rolesSinRevisor, codigo]);
 
     await pool.query(`UPDATE usuarios SET role = $2::jsonb, updated_at = NOW() WHERE id = $1`, [
       numericId,
       JSON.stringify(nuevosRoles),
     ]);
+    // Supervisor y revisor son mutuamente excluyentes (normalizeRoles ya lo
+    // exige): si ya era revisor aceptado en alguna campaña, se le retira.
+    await retirarComoRevisorDeTodasLasCampanas(numericId);
 
     revalidatePath(`/usuarios/${usuarioId}/roles`);
     revalidatePath(`/usuarios/${usuarioId}`);
@@ -104,6 +152,9 @@ export async function revocarRol(usuarioId: string): Promise<ResultadoDeAccion> 
       numericId,
       JSON.stringify(nuevosRoles),
     ]);
+    // Si era revisor aceptado en alguna campaña, se le retira ahí también:
+    // si no, la sesión se lo vuelve a asignar solo con el siguiente login.
+    await retirarComoRevisorDeTodasLasCampanas(numericId);
 
     revalidatePath(`/usuarios/${usuarioId}/roles`);
     revalidatePath(`/usuarios/${usuarioId}`);

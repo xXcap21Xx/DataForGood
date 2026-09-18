@@ -3,17 +3,10 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
-import { Field } from "@/components/ui/Input";
-
-const INTERESTS = [
-  "Medio ambiente",
-  "Salud urbana",
-  "Educación",
-  "Infraestructura",
-  "Protección animal",
-  "Movilidad",
-  "Cultura",
-];
+import { Field, Input } from "@/components/ui/Input";
+import { TEMAS_DE_INTERES as INTERESTS } from "@/lib/intereses";
+import { ESPECIALIDADES, OTRA_ESPECIALIDAD, opcionesCon } from "@/lib/perfil-opciones";
+import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
 
 type SessionUser = {
   id: number;
@@ -29,9 +22,10 @@ export default function BienvenidaPage() {
   const router = useRouter();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
-  const [state, setState] = useState("Nayarit");
-  const [city, setCity] = useState("Tepic");
-  const [specialty, setSpecialty] = useState("Ingeniería de software");
+  const [state, setState] = useState("");
+  const [city, setCity] = useState("");
+  const [specialty, setSpecialty] = useState("");
+  const [especialidadPersonalizada, setEspecialidadPersonalizada] = useState(false);
 
   useEffect(() => {
     async function loadUser() {
@@ -45,11 +39,13 @@ export default function BienvenidaPage() {
       const currentUser = body.data as SessionUser | undefined;
       if (!currentUser) return;
 
+      const especialidad = currentUser.specialty ?? "";
       setUser(currentUser);
       setSelected(currentUser.intereses ?? ["Medio ambiente", "Educación"]);
-      setState(currentUser.state ?? "Nayarit");
-      setCity(currentUser.city ?? "Tepic");
-      setSpecialty(currentUser.specialty ?? "Ingeniería de software");
+      setState(currentUser.state ?? "");
+      setCity(currentUser.city ?? "");
+      setSpecialty(especialidad);
+      setEspecialidadPersonalizada(especialidad !== "" && !ESPECIALIDADES.includes(especialidad));
     }
 
     loadUser();
@@ -59,6 +55,22 @@ export default function BienvenidaPage() {
     setSelected((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
+  }
+
+  function cambiarEstado(nuevoEstado: string) {
+    setState(nuevoEstado);
+    // El municipio pertenece al estado anterior: no tiene sentido conservarlo.
+    setCity("");
+  }
+
+  function elegirEspecialidad(valor: string) {
+    if (valor === OTRA_ESPECIALIDAD) {
+      setEspecialidadPersonalizada(true);
+      setSpecialty("");
+    } else {
+      setEspecialidadPersonalizada(false);
+      setSpecialty(valor);
+    }
   }
 
   async function finish() {
@@ -111,24 +123,27 @@ export default function BienvenidaPage() {
       <Field label="Estado">
         <select
           value={state}
-          onChange={(e) => setState(e.target.value)}
+          onChange={(e) => cambiarEstado(e.target.value)}
           className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
         >
-          <option>Nayarit</option>
-          <option>Jalisco</option>
-          <option>Sinaloa</option>
+          <option value="">Selecciona un estado</option>
+          {opcionesCon(state, NOMBRES_DE_ESTADOS).map((opcion) => (
+            <option key={opcion}>{opcion}</option>
+          ))}
         </select>
       </Field>
 
-      <Field label="Ciudad">
+      <Field label="Municipio">
         <select
           value={city}
           onChange={(e) => setCity(e.target.value)}
-          className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
+          disabled={!state}
+          className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent disabled:opacity-50"
         >
-          <option>Tepic</option>
-          <option>Xalisco</option>
-          <option>Compostela</option>
+          <option value="">{state ? "Selecciona un municipio" : "Primero selecciona un estado"}</option>
+          {opcionesCon(city, municipiosDe(state)).map((opcion) => (
+            <option key={opcion}>{opcion}</option>
+          ))}
         </select>
       </Field>
 
@@ -137,14 +152,25 @@ export default function BienvenidaPage() {
         hint="Si más adelante te asignan el rol de supervisor, se usará para repartirte campañas de tu área."
       >
         <select
-          value={specialty}
-          onChange={(e) => setSpecialty(e.target.value)}
+          value={especialidadPersonalizada ? OTRA_ESPECIALIDAD : specialty}
+          onChange={(e) => elegirEspecialidad(e.target.value)}
           className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
         >
-          <option>Ingeniería de software</option>
-          <option>Biología</option>
-          <option>Trabajo social</option>
+          <option value="">Selecciona una especialidad</option>
+          {ESPECIALIDADES.map((opcion) => (
+            <option key={opcion}>{opcion}</option>
+          ))}
+          <option value={OTRA_ESPECIALIDAD}>Otra (especifica)</option>
         </select>
+        {especialidadPersonalizada && (
+          <Input
+            value={specialty}
+            onChange={(e) => setSpecialty(e.target.value)}
+            placeholder="Escribe tu especialidad"
+            maxLength={150}
+            className="mt-2"
+          />
+        )}
       </Field>
 
       <p className="mb-2 text-[13px] font-medium text-ink">¿Qué temas te interesan?</p>

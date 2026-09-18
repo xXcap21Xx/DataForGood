@@ -3,6 +3,39 @@ import { pool } from "@/lib/db";
 import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 
+// La invitación a revisor es por campaña (campana_revisores), no por el rol
+// global en usuarios.role: esta lista es lo que debe usar la pantalla de
+// "Agregar revisor" para saber a quién ya se invitó/aceptó en ESTA campaña,
+// en vez del rol global (eso bloqueaba invitar a alguien que ya es revisor
+// de OTRA campaña, o que tiene el rol por una asignación vieja).
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    await ensureCoreSchema();
+
+    const { id } = await context.params;
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+
+    const campaign = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+    if (campaign.rowCount === 0) return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
+    if (Number(campaign.rows[0].creator_id) !== Number(user.id)) {
+      return NextResponse.json({ error: "Solo el creador puede ver los revisores" }, { status: 403 });
+    }
+
+    const result = await pool.query<{ usuario_id: number; estado: string }>(
+      `SELECT usuario_id, estado FROM campana_revisores WHERE campana_id = $1`,
+      [id]
+    );
+
+    return NextResponse.json({
+      data: result.rows.map((row) => ({ usuarioId: String(row.usuario_id), estado: row.estado })),
+    });
+  } catch (error) {
+    console.error("Error listando revisores de la campaña", error);
+    return NextResponse.json({ error: "No se pudieron listar los revisores" }, { status: 500 });
+  }
+}
+
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     await ensureCoreSchema();

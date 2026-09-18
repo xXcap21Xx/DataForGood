@@ -92,6 +92,7 @@ function mapCampaign(row: Record<string, unknown>) {
     endDate: row.end_date ? new Date(String(row.end_date)).toISOString().slice(0, 10) : null,
     locationCity: String(row.location_city ?? ""),
     locationState: String(row.location_state ?? ""),
+    locationColonia: String(row.location_colonia ?? ""),
     organizer: String(row.organizer ?? ""),
     xpPerContribution: Number(row.xp_per_contribution ?? 0),
     isSpecial: Boolean(row.is_special),
@@ -237,6 +238,7 @@ export async function POST(request: Request) {
     const endDate = body.endDate ?? body.end_date ?? null;
     const locationCity = String(body.locationCity ?? body.location_city ?? "").trim();
     const locationState = String(body.locationState ?? body.location_state ?? "").trim();
+    const locationColonia = String(body.locationColonia ?? body.location_colonia ?? "").trim();
     const organizer = String(body.organizer ?? "").trim();
     const shareToken = String(body.shareToken ?? body.share_token ?? "").trim();
     const shareTokenExpiresAt = body.shareTokenExpiresAt ?? body.share_token_expires_at ?? null;
@@ -266,6 +268,7 @@ export async function POST(request: Request) {
         end_date,
         location_city,
         location_state,
+        location_colonia,
         organizer,
         xp_per_contribution,
         is_special,
@@ -276,7 +279,7 @@ export async function POST(request: Request) {
         aportes
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10::jsonb, $11, $12, $13, $14, $15,
-        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29::jsonb
+        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::jsonb
       ) RETURNING *`,
       [
         creatorId,
@@ -300,6 +303,7 @@ export async function POST(request: Request) {
         endDate,
         locationCity,
         locationState,
+        locationColonia,
         organizer,
         xpPerContribution,
         isSpecial,

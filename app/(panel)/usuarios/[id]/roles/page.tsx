@@ -9,6 +9,7 @@ import {
   Volver,
   formatearNumero,
 } from "@/components/sistema/ui";
+import Tag from "@/components/sistema/Tag";
 import {
   NOMBRE_DE_ROL,
   QUIEN_ASIGNA,
@@ -42,6 +43,7 @@ export default async function RolesPage({
   if (!u) notFound();
 
   const esSupervisor = u.rolVigente === "SUPERVISOR";
+  const esRevisor = u.rolVigente === "REVISOR_DE_APORTES";
   const detalle = u.rolVigente
     ? `${u.correo} · ${NOMBRE_DE_ROL[u.rolVigente]}${
         u.rolDesde ? ` desde ${formatearFecha(u.rolDesde)}` : ""
@@ -77,7 +79,13 @@ export default async function RolesPage({
                     <p className="text-[13.5px] font-semibold text-ink">{NOMBRE_DE_ROL[rol]}</p>
                     <p className="text-[12.5px] text-ink-3">{QUIEN_ASIGNA[rol]}</p>
                   </div>
-                  <BotonAsignar usuarioId={u.id} rol={rol} asignado={asignado} />
+                  {rol === "REVISOR_DE_APORTES" ? (
+                    <Tag tone={asignado ? "ok" : "default"}>
+                      {asignado ? "Asignado" : "Por invitación"}
+                    </Tag>
+                  ) : (
+                    <BotonAsignar usuarioId={u.id} rol={rol} asignado={asignado} />
+                  )}
                 </Tarjeta>
               );
             })}
@@ -92,6 +100,17 @@ export default async function RolesPage({
                 Se reparten por especialidad declarada; si no tiene, por sus
                 preferencias de interés.
               </p>
+            </>
+          ) : esRevisor ? (
+            <>
+              <TituloDeSeccion>Rol vigente</TituloDeSeccion>
+              <Tarjeta className="mb-4">
+                <p className="mb-1 text-[13.5px] font-semibold text-ink">Revisor de aportes</p>
+                <p className="text-[12.5px] text-ink-2">
+                  Aceptó una invitación de al menos una campaña. Revocar aquí lo
+                  retira de todas las campañas donde esté aceptado.
+                </p>
+              </Tarjeta>
             </>
           ) : (
             <>
@@ -133,6 +152,14 @@ export default async function RolesPage({
                   a la tutela del supervisor del área.
                 </Aviso>
                 <BotonRevocar usuarioId={u.id} rol="SUPERVISOR" />
+              </>
+            ) : esRevisor ? (
+              <>
+                <Aviso tono="aviso">
+                  Al revocar, deja de ser revisor en todas las campañas donde esté
+                  aceptado; el creador de cada una deberá invitar a alguien más.
+                </Aviso>
+                <BotonRevocar usuarioId={u.id} rol="REVISOR_DE_APORTES" />
               </>
             ) : u.strikes > 0 ? (
               <Aviso tono="aviso">

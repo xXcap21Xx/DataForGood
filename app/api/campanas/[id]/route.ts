@@ -72,6 +72,7 @@ function mapCampaign(row: Record<string, unknown>) {
     endDate: row.end_date ? new Date(String(row.end_date)).toISOString().slice(0, 10) : null,
     locationCity: String(row.location_city ?? ""),
     locationState: String(row.location_state ?? ""),
+    locationColonia: String(row.location_colonia ?? ""),
     organizer: String(row.organizer ?? ""),
     xpPerContribution: Number(row.xp_per_contribution ?? 0),
     isSpecial: Boolean(row.is_special),
@@ -181,6 +182,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const endDate = "endDate" in body || "end_date" in body ? (body.endDate ?? body.end_date ?? null) : undefined;
     const locationCity = "locationCity" in body || "location_city" in body ? String(body.locationCity ?? body.location_city ?? "").trim() : null;
     const locationState = "locationState" in body || "location_state" in body ? String(body.locationState ?? body.location_state ?? "").trim() : null;
+    const locationColonia = "locationColonia" in body || "location_colonia" in body ? String(body.locationColonia ?? body.location_colonia ?? "").trim() : null;
     const organizer = "organizer" in body ? String(body.organizer ?? "").trim() : null;
     const xpPerContribution = "xpPerContribution" in body || "xp_per_contribution" in body ? Number(body.xpPerContribution ?? body.xp_per_contribution) : null;
     const hasReviewerAssigned = "hasReviewerAssigned" in body || "has_reviewer_assigned" in body ? Boolean(body.hasReviewerAssigned ?? body.has_reviewer_assigned) : null;
@@ -199,11 +201,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         end_date = COALESCE($10, end_date),
         location_city = COALESCE($11, location_city),
         location_state = COALESCE($12, location_state),
-        organizer = COALESCE($13, organizer),
-        xp_per_contribution = COALESCE($14, xp_per_contribution),
-        has_reviewer_assigned = COALESCE($15, has_reviewer_assigned),
-        collection_mode = COALESCE($16, collection_mode),
-        checklist_opciones = COALESCE($17::jsonb, checklist_opciones),
+        location_colonia = COALESCE($13, location_colonia),
+        organizer = COALESCE($14, organizer),
+        xp_per_contribution = COALESCE($15, xp_per_contribution),
+        has_reviewer_assigned = COALESCE($16, has_reviewer_assigned),
+        collection_mode = COALESCE($17, collection_mode),
+        checklist_opciones = COALESCE($18::jsonb, checklist_opciones),
         updated_at = NOW()
       WHERE id = $1
       RETURNING *`,
@@ -220,6 +223,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         endDate === undefined ? null : endDate,
         locationCity,
         locationState,
+        locationColonia,
         organizer,
         xpPerContribution,
         hasReviewerAssigned,
@@ -278,6 +282,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const endDate = body.endDate ?? body.end_date ?? null;
     const locationCity = String(body.locationCity ?? body.location_city ?? "").trim();
     const locationState = String(body.locationState ?? body.location_state ?? "").trim();
+    const locationColonia = String(body.locationColonia ?? body.location_colonia ?? "").trim();
     const organizer = String(body.organizer ?? "").trim();
     const xpPerContribution = Number(body.xpPerContribution ?? body.xp_per_contribution ?? 0);
     const hasReviewerAssigned = Boolean(body.hasReviewerAssigned ?? body.has_reviewer_assigned ?? false);
@@ -296,11 +301,12 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         end_date = $10,
         location_city = $11,
         location_state = $12,
-        organizer = $13,
-        xp_per_contribution = $14,
-        has_reviewer_assigned = $15,
-        collection_mode = $16,
-        checklist_opciones = $17::jsonb,
+        location_colonia = $13,
+        organizer = $14,
+        xp_per_contribution = $15,
+        has_reviewer_assigned = $16,
+        collection_mode = $17,
+        checklist_opciones = $18::jsonb,
         updated_at = NOW()
       WHERE id = $1
       RETURNING *`,
@@ -317,6 +323,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         endDate,
         locationCity,
         locationState,
+        locationColonia,
         organizer,
         xpPerContribution,
         hasReviewerAssigned,
