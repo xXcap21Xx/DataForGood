@@ -61,6 +61,7 @@ export interface Campaign {
   endDate: string | null; // ISO date
   locationCity: string;
   locationState: string;
+  locationColonia?: string;
   organizer?: string;
   xpPerContribution: number;
   isSpecial?: boolean;

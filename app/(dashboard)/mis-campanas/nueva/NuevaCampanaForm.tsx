@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Field, Input, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Campaign, CollectionMode, DataType } from "@/types";
+import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
+import { opcionesCon } from "@/lib/perfil-opciones";
 
 const DEFAULT_CHECKLIST_OPCIONES = ["Especie del árbol", "Estado de salud aparente"];
 
@@ -30,33 +32,67 @@ const DATA_TYPES: { value: DataType; label: string }[] = [
 const MAX_ACTIVE_CAMPAIGNS = 5;
 
 export default function NuevaCampanaForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [cargando, setCargando] = useState(true);
 
   useEffect(() => {
+    let activo = true;
+
     async function loadCampaigns() {
-      const response = await fetch("/api/campanas?mine=true");
-      if (!response.ok) return;
-      const body = await response.json();
-      setCampaigns(Array.isArray(body.data) ? body.data : []);
+      try {
+        const response = await fetch("/api/campanas?mine=true");
+        if (!response.ok) return;
+        const body = await response.json();
+        if (activo) setCampaigns(Array.isArray(body.data) ? body.data : []);
+      } finally {
+        if (activo) setCargando(false);
+      }
     }
 
     loadCampaigns();
+    return () => {
+      activo = false;
+    };
   }, []);
 
   const editingCampaign = editId ? campaigns.find((campaign) => campaign.id === editId) : undefined;
-  const myCampaigns = useMemo(() => campaigns, [campaigns]);
-  const activeCampaigns = myCampaigns.filter((c) => c.status === "activa");
+  const activeCampaigns = campaigns.filter((c) => c.status === "activa");
   const limitReached = !editingCampaign && activeCampaigns.length >= MAX_ACTIVE_CAMPAIGNS;
+
+  // Mientras carga, no se monta el formulario: sus campos leen
+  // editingCampaign una sola vez, al montar (ver CampanaFormulario). Si se
+  // montara antes de que llegue la campaña a editar, abriría en blanco.
+  if (cargando) {
+    return <p className="text-[13px] text-ink-2">Cargando...</p>;
+  }
+
+  return (
+    <CampanaFormulario
+      key={editingCampaign?.id ?? "nueva"}
+      editingCampaign={editingCampaign}
+      activeCampaigns={activeCampaigns.length}
+      limitReached={limitReached}
+    />
+  );
+}
+
+function CampanaFormulario({
+  editingCampaign,
+  activeCampaigns,
+  limitReached,
+}: {
+  editingCampaign: Campaign | undefined;
+  activeCampaigns: number;
+  limitReached: boolean;
+}) {
+  const router = useRouter();
 
   const [name, setName] = useState(editingCampaign?.name ?? "");
   const [description, setDescription] = useState(editingCampaign?.description ?? "");
-  const [theme, setTheme] = useState(editingCampaign?.tag ?? THEMES[0]);
-  const [dataTypes, setDataTypes] = useState<DataType[]>(
-    editingCampaign?.dataTypes ?? ["foto"]
-  );
+  const [theme, setTheme] = useState(editingCampaign?.tag || THEMES[0]);
+  const [dataTypes, setDataTypes] = useState<DataType[]>(editingCampaign?.dataTypes ?? ["foto"]);
   const [collectionMode, setCollectionMode] = useState<CollectionMode>(
     editingCampaign?.collectionMode ?? "checklist"
   );
@@ -68,6 +104,17 @@ export default function NuevaCampanaForm() {
   const [quota, setQuota] = useState(String(editingCampaign?.quotaPerUser ?? 10));
   const [startDate, setStartDate] = useState(editingCampaign?.startDate ?? "");
   const [endDate, setEndDate] = useState(editingCampaign?.endDate ?? "");
+  const [locationState, setLocationState] = useState(editingCampaign?.locationState ?? "");
+  const [locationCity, setLocationCity] = useState(editingCampaign?.locationCity ?? "");
+  const [locationColonia, setLocationColonia] = useState(editingCampaign?.locationColonia ?? "");
+
+  function cambiarEstado(nuevoEstado: string) {
+    setLocationState(nuevoEstado);
+    // El municipio (y la colonia, que depende del municipio) pertenecen al
+    // estado anterior: no tiene sentido conservarlos.
+    setLocationCity("");
+    setLocationColonia("");
+  }
 
   function toggleDataType(type: DataType) {
     setDataTypes((prev) =>
@@ -89,9 +136,7 @@ export default function NuevaCampanaForm() {
   async function handleSubmit(e: React.FormEvent, asDraft: boolean) {
     e.preventDefault();
 
-    const payload = {
-      creatorId: 1,
-      creatorName: "Carlos P.",
+    const camposEditables = {
       name,
       description,
       tematica: theme,
@@ -102,42 +147,52 @@ export default function NuevaCampanaForm() {
       checklistOpciones: collectionMode === "checklist" ? checklistOpciones : [],
       goalContributions: Number(goal),
       quotaPerUser: Number(quota),
-      currentContributions: 0,
-      approvedContributions: 0,
-      pendingContributions: 0,
-      rejectedContributions: 0,
-      participants: 0,
       startDate,
       endDate,
-      locationCity: "Tepic",
-      locationState: "Nayarit",
-      organizer: "Ayuntamiento de Tepic",
-      xpPerContribution: 50,
-      isSpecial: false,
-      daysRemaining: null,
-      hasReviewerAssigned: false,
-      shareToken: "",
-      shareTokenExpiresAt: null,
-      aportes: [],
+      locationCity,
+      locationState,
+      locationColonia,
     };
 
     try {
-      const response = await fetch("/api/campanas", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+      // Editar manda PATCH a la campaña existente; antes siempre mandaba
+      // POST a /api/campanas, así que "editar" creaba una campaña nueva en
+      // vez de actualizar la que ya existía.
+      const response = editingCampaign
+        ? await fetch(`/api/campanas/${editingCampaign.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(camposEditables),
+          })
+        : await fetch("/api/campanas", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...camposEditables,
+              currentContributions: 0,
+              approvedContributions: 0,
+              pendingContributions: 0,
+              rejectedContributions: 0,
+              participants: 0,
+              organizer: "Ayuntamiento de Tepic",
+              xpPerContribution: 50,
+              isSpecial: false,
+              daysRemaining: null,
+              hasReviewerAssigned: false,
+              shareToken: "",
+              shareTokenExpiresAt: null,
+              aportes: [],
+            }),
+          });
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        throw new Error(body.error ?? "No se pudo crear la campaña");
+        throw new Error(body.error ?? (editingCampaign ? "No se pudo actualizar la campaña" : "No se pudo crear la campaña"));
       }
 
       router.push("/mis-campanas");
     } catch (error) {
-      console.error("Error creando campaña", error);
+      console.error(editingCampaign ? "Error actualizando campaña" : "Error creando campaña", error);
       router.push("/mis-campanas");
     }
   }
@@ -369,9 +424,46 @@ export default function NuevaCampanaForm() {
             </div>
           </Field>
         </div>
-        <Field label="Ubicación">
-          <Input value="Tepic, Nayarit" disabled className="max-w-xs bg-sunken" />
-        </Field>
+        <p className="mb-3 font-mono text-[12px] uppercase tracking-wide text-ink-3">
+          Ubicación
+        </p>
+        <div className="mb-6 grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="Estado">
+            <select
+              value={locationState}
+              onChange={(e) => cambiarEstado(e.target.value)}
+              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent"
+            >
+              <option value="">Selecciona un estado</option>
+              {opcionesCon(locationState, NOMBRES_DE_ESTADOS).map((opcion) => (
+                <option key={opcion}>{opcion}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Municipio">
+            <select
+              value={locationCity}
+              onChange={(e) => setLocationCity(e.target.value)}
+              disabled={!locationState}
+              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent disabled:opacity-50"
+            >
+              <option value="">
+                {locationState ? "Selecciona un municipio" : "Primero selecciona un estado"}
+              </option>
+              {opcionesCon(locationCity, municipiosDe(locationState)).map((opcion) => (
+                <option key={opcion}>{opcion}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Colonia (opcional)" hint="Para segmentar la campaña dentro del municipio.">
+            <Input
+              value={locationColonia}
+              onChange={(e) => setLocationColonia(e.target.value)}
+              maxLength={150}
+              placeholder="p. ej. Centro"
+            />
+          </Field>
+        </div>
 
         <div className="mb-6 max-w-lg rounded-lg bg-warn-tint p-4 text-[12.5px] text-warn">
           Al enviar, la campaña pasa a &quot;En revisión&quot; y no podrás editarla hasta que el
@@ -380,7 +472,7 @@ export default function NuevaCampanaForm() {
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <p className="font-mono text-[12.5px] text-ink-2">
-            {activeCampaigns.length} de {MAX_ACTIVE_CAMPAIGNS} campañas activas usadas
+            {activeCampaigns} de {MAX_ACTIVE_CAMPAIGNS} campañas activas usadas
           </p>
           <div className="flex gap-2.5">
             <Button type="submit" onClick={(e) => handleSubmit(e, true)}>

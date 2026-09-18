@@ -106,6 +106,7 @@ export async function ensureCampanasTable(): Promise<void> {
       end_date DATE,
       location_city VARCHAR(120),
       location_state VARCHAR(120),
+      location_colonia VARCHAR(150),
       organizer VARCHAR(160),
       xp_per_contribution INTEGER NOT NULL DEFAULT 0,
       is_special BOOLEAN NOT NULL DEFAULT false,
@@ -142,6 +143,7 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS end_date DATE;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_city VARCHAR(120);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_state VARCHAR(120);
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_colonia VARCHAR(150);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS organizer VARCHAR(160);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS xp_per_contribution INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS is_special BOOLEAN NOT NULL DEFAULT false;

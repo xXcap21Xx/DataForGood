@@ -8,21 +8,46 @@ import MetricCard from "@/components/ui/MetricCard";
 import ProgressBar from "@/components/ui/ProgressBar";
 import type { Campaign } from "@/types";
 
-const DAILY_COLLECTION = [30, 40, 52, 46, 66, 82, 75, 60, 70, 86, 96, 80, 91, 104];
+type DiaDeRecoleccion = { fecha: string; etiqueta: string; valor: number };
+type TipoDeAporte = { tipo: string; etiqueta: string; valor: number; porcentaje: number };
 
 export default function PanelCampanaPage() {
   const params = useParams<{ id: string }>();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [recoleccionDiaria, setRecoleccionDiaria] = useState<DiaDeRecoleccion[]>([]);
+  const [porTipo, setPorTipo] = useState<TipoDeAporte[]>([]);
 
   useEffect(() => {
+    let activo = true;
+
     async function loadCampaign() {
-      const response = await fetch(`/api/campanas?id=${params.id}`);
-      if (!response.ok) return;
-      const body = await response.json();
-      setCampaign(body.data ?? null);
+      const [campaignResponse, recoleccionResponse] = await Promise.all([
+        fetch(`/api/campanas?id=${params.id}`, { cache: "no-store" }),
+        fetch(`/api/campanas/${params.id}/recoleccion-diaria`, { cache: "no-store" }),
+      ]);
+      if (!activo) return;
+
+      if (campaignResponse.ok) {
+        const body = await campaignResponse.json();
+        setCampaign(body.data ?? null);
+      }
+      if (recoleccionResponse.ok) {
+        const body = await recoleccionResponse.json();
+        setRecoleccionDiaria(Array.isArray(body.data) ? body.data : []);
+        setPorTipo(Array.isArray(body.porTipo) ? body.porTipo : []);
+      }
     }
 
-    if (params.id) loadCampaign();
+    if (!params.id) return;
+    loadCampaign();
+
+    // El badge dice "en vivo": mientras la campaña siga activa, se refresca
+    // sola cada 3 s en vez de solo cargar una vez al entrar.
+    const intervalo = setInterval(loadCampaign, 3000);
+    return () => {
+      activo = false;
+      clearInterval(intervalo);
+    };
   }, [params.id]);
 
   if (!campaign) {
@@ -31,7 +56,7 @@ export default function PanelCampanaPage() {
 
   const isFinished = campaign.status === "finalizada";
   const pct = campaign.goalContributions > 0 ? Math.round((campaign.currentContributions / campaign.goalContributions) * 100) : 0;
-  const maxDaily = Math.max(...DAILY_COLLECTION);
+  const maxDaily = Math.max(...recoleccionDiaria.map((d) => d.valor), 1);
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -77,14 +102,28 @@ export default function PanelCampanaPage() {
 
       {!isFinished && (
         <>
-          <p className="mb-3 text-[12.5px] font-medium text-ink">Recolección diaria</p>
-          <div className="mb-8 flex h-32 items-end gap-1.5 border-b border-line">
-            {DAILY_COLLECTION.map((v, i) => (
+          <p className="mb-3 text-[12.5px] font-medium text-ink">
+            Recolección diaria <span className="text-ink-3">· últimos 14 días</span>
+          </p>
+          <div className="mb-1.5 flex h-32 items-end gap-1.5 border-b border-line">
+            {recoleccionDiaria.map((dia) => (
               <div
-                key={i}
+                key={dia.fecha}
+                title={`${dia.etiqueta}: ${dia.valor} aporte${dia.valor === 1 ? "" : "s"}`}
+                aria-label={`${dia.etiqueta}: ${dia.valor} aporte${dia.valor === 1 ? "" : "s"}`}
                 className="flex-1 rounded-t bg-accent"
-                style={{ height: `${(v / maxDaily) * 100}%` }}
+                style={{ height: `${(dia.valor / maxDaily) * 100}%`, minHeight: dia.valor > 0 ? 2 : 0 }}
               />
+            ))}
+          </div>
+          <div className="mb-8 flex gap-1.5">
+            {recoleccionDiaria.map((dia) => (
+              <span
+                key={dia.fecha}
+                className="flex-1 text-center font-mono text-[9px] text-ink-3"
+              >
+                {dia.etiqueta}
+              </span>
             ))}
           </div>
         </>
@@ -95,24 +134,22 @@ export default function PanelCampanaPage() {
           <p className="mb-3 text-[12.5px] font-medium text-ink">
             {isFinished ? "Resultado por tipo de dato" : "Por tipo de dato"}
           </p>
-          <div className="mb-2.5 flex items-center gap-2.5 text-[12.5px]">
-            <span className="w-16 flex-none text-ink-2">Foto</span>
-            <div className="flex-1">
-              <ProgressBar pct={92} />
-            </div>
-            <span className="w-8 text-right font-mono">
-              {Math.round(campaign.approvedContributions * 0.92)}
-            </span>
-          </div>
-          <div className="flex items-center gap-2.5 text-[12.5px]">
-            <span className="w-16 flex-none text-ink-2">Texto</span>
-            <div className="flex-1">
-              <ProgressBar pct={8} />
-            </div>
-            <span className="w-8 text-right font-mono">
-              {Math.round(campaign.approvedContributions * 0.08)}
-            </span>
-          </div>
+          {porTipo.length === 0 ? (
+            <p className="text-[12.5px] text-ink-2">Todavía no hay aportes aprobados.</p>
+          ) : (
+            porTipo.map((tipo, i) => (
+              <div
+                key={tipo.tipo}
+                className={`flex items-center gap-2.5 text-[12.5px] ${i < porTipo.length - 1 ? "mb-2.5" : ""}`}
+              >
+                <span className="w-16 flex-none text-ink-2">{tipo.etiqueta}</span>
+                <div className="flex-1">
+                  <ProgressBar pct={tipo.porcentaje} />
+                </div>
+                <span className="w-8 text-right font-mono">{tipo.valor}</span>
+              </div>
+            ))
+          )}
         </div>
 
         <div>

@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import Button from "@/components/ui/Button";
 import LogoutButton from "@/components/auth/LogoutButton";
 import { getSessionUser } from "@/lib/session";
+import PerfilForm from "./PerfilForm";
 
 const ROLE_LABELS: Record<string, string> = {
   usuario: "Usuario común",
@@ -34,11 +35,6 @@ export default async function CuentaPage() {
           <p className="mt-1 text-[13px] text-ink-2">
             Gestiona tus datos, preferencias y acceso a la plataforma.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" size="sm">
-            Guardar cambios
-          </Button>
         </div>
       </div>
 
@@ -77,74 +73,18 @@ export default async function CuentaPage() {
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="rounded-lg border border-line bg-surface p-5">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-                Perfil
-              </p>
-              <h2 className="mt-1 text-lg font-extrabold text-ink">
-                Datos personales
-              </h2>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-ink">
-                Nombre visible
-              </label>
-              <input
-                readOnly
-                value={`${currentUser.nombre ?? ""} ${currentUser.apellidos ?? ""}`.trim()}
-                className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-ink">
-                Correo electrónico
-              </label>
-              <input
-                readOnly
-                value={currentUser.email}
-                className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-ink">
-                  Estado
-                </label>
-                <input
-                  readOnly
-                  value={currentUser.state || "No especificado"}
-                  className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
-                />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-[13px] font-medium text-ink">
-                  Ciudad
-                </label>
-                <input
-                  readOnly
-                  value={currentUser.city || "No especificado"}
-                  className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
-                />
-              </div>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-[13px] font-medium text-ink">
-                Especialidad
-              </label>
-              <input
-                readOnly
-                value={currentUser.specialty || "Sin especialidad"}
-                className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none"
-              />
-            </div>
-          </div>
-        </section>
-
+        <PerfilForm
+          usuario={{
+            id: currentUser.id,
+            nombre: currentUser.nombre ?? "",
+            apellidos: currentUser.apellidos ?? "",
+            email: currentUser.email,
+            state: currentUser.state,
+            city: currentUser.city,
+            specialty: currentUser.specialty,
+            intereses: currentUser.intereses,
+          }}
+        >
         <section className="rounded-lg border border-line bg-surface p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -219,44 +159,8 @@ export default async function CuentaPage() {
             </div>
           </div>
         </section>
+        </PerfilForm>
       </div>
-
-      <section className="rounded-lg border border-line bg-surface p-5">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-              Mis intereses
-            </p>
-            <h2 className="mt-1 text-lg font-extrabold text-ink">
-              Temáticas que guían tus aportes
-            </h2>
-          </div>
-          <button className="rounded-pill border border-accent bg-accent px-4 py-2 text-[12px] font-bold text-white transition-colors hover:bg-accent-deep">
-            Agregar etiqueta
-          </button>
-        </div>
-
-        <div className="flex flex-wrap gap-2">
-          {currentUser.intereses.length === 0 ? (
-            <p className="text-[12.5px] text-ink-2">
-              Todavía no seleccionas ningún interés.
-            </p>
-          ) : (
-            currentUser.intereses.map((interest) => (
-              <span
-                key={interest}
-                className="inline-flex items-center gap-2 rounded-pill border border-accent bg-accent px-4 py-2 text-[12px] font-bold text-white"
-              >
-                {interest}
-                <span className="font-mono text-[11px]">×</span>
-              </span>
-            ))
-          )}
-        </div>
-        <p className="mt-3 text-[12.5px] text-ink-2">
-          Determinan qué campañas aparecen en “Sugeridas para ti”.
-        </p>
-      </section>
 
       <section className="rounded-lg border border-line bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -330,9 +234,6 @@ export default async function CuentaPage() {
             Volver a aportes
           </Button>
         </Link>
-        <Button variant="primary" size="sm">
-          Guardar configuración
-        </Button>
       </div>
     </div>
   );

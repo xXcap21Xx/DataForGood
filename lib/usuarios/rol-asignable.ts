@@ -17,7 +17,8 @@ export const NOMBRE_DE_ROL: Record<RolAsignable, string> = {
 
 export const QUIEN_ASIGNA: Record<RolAsignable, string> = {
   SUPERVISOR: "Solo lo asigna el SuperUsuario",
-  REVISOR_DE_APORTES: "Lo asigna el Supervisor o el SuperUsuario",
+  REVISOR_DE_APORTES:
+    "Lo asigna el creador de una campaña al invitar; el SuperUsuario solo puede revocarlo",
 };
 
 /** El código real que se guarda en la columna JSONB `usuarios.role`. */
