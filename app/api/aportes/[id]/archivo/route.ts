@@ -26,6 +26,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     }
 
     const row = result.rows[0];
+    const roles = Array.isArray(user.role) ? user.role.map(String) : [];
+    if (roles.includes("supervisor")) {
+      return NextResponse.json({ error: "Los supervisores no pueden ver ni descargar el archivo del aporte" }, { status: 403 });
+    }
     const isOwner = Number(row.user_id) === Number(user.id);
     const isCampaignCreator = Number(row.campaign_creator_id) === Number(user.id);
     const reviewer = await pool.query(

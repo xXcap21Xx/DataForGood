@@ -53,6 +53,7 @@ function mapCampaign(row: Record<string, unknown>) {
     id: String(row.id ?? ""),
     creatorId: String(row.creator_id ?? ""),
     creatorName: String(row.creator_name ?? ""),
+    supervisorId: row.supervisor_id != null ? String(row.supervisor_id) : null,
     name: String(row.name ?? ""),
     description: String(row.description ?? ""),
     tematica: String(row.tematica ?? row.tag ?? ""),
@@ -123,13 +124,16 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         return NextResponse.json({ error: "Solo un supervisor puede decidir esta campaña" }, { status: 403 });
       }
 
-      const existing = await pool.query(`SELECT id, status, creator_id FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+      const existing = await pool.query(`SELECT id, status, creator_id, name FROM campanas WHERE id = $1 LIMIT 1`, [id]);
       if (existing.rowCount === 0) {
         return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
       }
 
       const nextStatus = accion === "aceptada" ? "activa" : accion === "rechazada" ? "rechazada" : existing.rows[0].status;
       const motivo = String(body.motivo ?? body.reason ?? "").trim() || null;
+      if (accion === "rechazada" && !motivo) {
+        return NextResponse.json({ error: "El motivo es obligatorio al rechazar una campaña" }, { status: 400 });
+      }
 
       await pool.query(
         `UPDATE campanas
@@ -145,6 +149,21 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
          VALUES ($1, $2, $3, $4, NOW())`,
         [id, user.id, accion, motivo]
       );
+
+      if (accion === "rechazada") {
+        await pool.query(
+          `INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, campana_id, metadata)
+           VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
+          [
+            existing.rows[0].creator_id,
+            "campana_rechazada",
+            "Campaña rechazada",
+            `Tu campaña "${existing.rows[0].name}" fue rechazada. Motivo: ${motivo}`,
+            id,
+            JSON.stringify({ motivo }),
+          ]
+        );
+      }
 
       const updated = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [id]);
       return NextResponse.json({

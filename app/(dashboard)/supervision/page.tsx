@@ -18,13 +18,13 @@ type CampaignApiItem = {
   participants?: number;
 };
 
-type TabKey = "pending" | "supervised" | "flagged";
+type TabKey = "pending" | "supervised" | "finished" | "flagged";
 
 export default function SupervisionPage() {
   const [pendingCampaigns, setPendingCampaigns] = useState<CampaignApiItem[]>([]);
   const [supervisedCampaigns, setSupervisedCampaigns] = useState<CampaignApiItem[]>([]);
+  const [finishedCampaigns, setFinishedCampaigns] = useState<CampaignApiItem[]>([]);
   const [flaggedCampaigns, setFlaggedCampaigns] = useState<CampaignApiItem[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("pending");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,8 +51,6 @@ export default function SupervisionPage() {
         const sessionPayload = await sessionResponse.json().catch(() => ({ data: null }));
         const userId = sessionPayload?.data?.id ? String(sessionPayload.data.id) : null;
 
-        setCurrentUserId(userId);
-
         const rows = Array.isArray(campaignsPayload?.data) ? campaignsPayload.data : [];
         const supervisedRows = Array.isArray(supervisedPayload?.data) ? supervisedPayload.data : [];
         const visible = rows.filter((campaign: CampaignApiItem) => {
@@ -64,6 +62,7 @@ export default function SupervisionPage() {
         setPendingCampaigns(visible);
         const supervised = supervisedRows as CampaignApiItem[];
         setSupervisedCampaigns(supervised.filter((campaign) => String(campaign.status ?? "") === "activa"));
+        setFinishedCampaigns(supervised.filter((campaign) => String(campaign.status ?? "") === "finalizada"));
         setFlaggedCampaigns(supervised.filter((campaign) =>
           campaign.latestSupervisionAction === "reportada" || String(campaign.status ?? "") === "rechazada"
         ));
@@ -79,6 +78,7 @@ export default function SupervisionPage() {
 
   const pendingCount = useMemo(() => pendingCampaigns.length, [pendingCampaigns]);
   const supervisedCount = useMemo(() => supervisedCampaigns.length, [supervisedCampaigns]);
+  const finishedCount = useMemo(() => finishedCampaigns.length, [finishedCampaigns]);
   const flaggedCount = useMemo(() => flaggedCampaigns.length, [flaggedCampaigns]);
 
   const renderPendingList = () => (
@@ -196,6 +196,36 @@ export default function SupervisionPage() {
     </div>
   );
 
+  const renderFinishedList = () => (
+    <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-sm">
+      <div className="flex items-center justify-between border-b border-line bg-sunken px-4 py-3">
+        <p className="text-[13px] font-semibold text-ink">Campañas finalizadas</p>
+        <Tag>{finishedCount}</Tag>
+      </div>
+
+      {finishedCampaigns.length === 0 ? (
+        <div className="p-5 text-[13px] text-ink-2">Todavía no tienes campañas finalizadas.</div>
+      ) : (
+        <div className="divide-y divide-line">
+          {finishedCampaigns.map((campaign) => (
+            <div key={campaign.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
+              <div>
+                <h3 className="text-[15px] font-extrabold text-ink">{campaign.name}</h3>
+                <p className="text-[12.5px] text-ink-3">
+                  {campaign.creatorName || "Usuario"} · {campaign.tag || campaign.tematica || "Sin temática"}
+                </p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Tag>Finalizada</Tag>
+                <Link href={`/supervision/${campaign.id}`} className="font-bold text-accent">Ver detalle</Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+
   if (loading) {
     return <div className="mx-auto max-w-4xl text-[13px] text-ink-2">Cargando campañas por supervisar…</div>;
   }
@@ -210,10 +240,10 @@ export default function SupervisionPage() {
         <div>
           <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Supervisión</p>
           <h1 className="mt-2 text-2xl font-extrabold text-ink">
-            {activeTab === "pending" ? "Campañas por supervisar" : activeTab === "supervised" ? "Campañas supervisadas" : "Campañas reportadas / rechazadas"}
+            {activeTab === "pending" ? "Campañas por supervisar" : activeTab === "supervised" ? "Campañas supervisadas" : activeTab === "finished" ? "Campañas finalizadas" : "Campañas reportadas / rechazadas"}
           </h1>
           <p className="mt-1 text-[13px] text-ink-2">
-            {activeTab === "pending" ? `${pendingCount} esperando revisión` : activeTab === "supervised" ? `${supervisedCount} bajo supervisión` : `${flaggedCount} con incidencia`}
+            {activeTab === "pending" ? `${pendingCount} esperando revisión` : activeTab === "supervised" ? `${supervisedCount} bajo supervisión` : activeTab === "finished" ? `${finishedCount} finalizadas` : `${flaggedCount} con incidencia`}
           </p>
         </div>
         <span className="rounded-pill border border-line-2 bg-surface px-4 py-2 text-[12.5px] font-bold text-ink-2">Temática ▾</span>
@@ -243,9 +273,17 @@ export default function SupervisionPage() {
         >
           Campañas reportadas / rechazadas&nbsp; <span className="font-mono text-[11px]">{flaggedCount}</span>
         </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveTab("finished")}
+          className={activeTab === "finished" ? "rounded-pill bg-accent px-4 py-2 text-[12.5px] font-bold text-white shadow-sm" : "rounded-pill border border-line-2 bg-surface px-4 py-2 text-[12.5px] font-bold text-ink-2"}
+        >
+          Campañas finalizadas&nbsp; <span className="font-mono text-[11px]">{finishedCount}</span>
+        </button>
       </div>
 
-      {activeTab === "pending" ? renderPendingList() : activeTab === "supervised" ? renderSupervisedList() : renderFlaggedList()}
+      {activeTab === "pending" ? renderPendingList() : activeTab === "supervised" ? renderSupervisedList() : activeTab === "finished" ? renderFinishedList() : renderFlaggedList()}
     </div>
   );
 }
