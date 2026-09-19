@@ -31,6 +31,19 @@ const DATA_TYPES: { value: DataType; label: string }[] = [
 
 const MAX_ACTIVE_CAMPAIGNS = 5;
 
+const ESTADO_LABELS: Record<string, string> = {
+  borrador: "Borrador",
+  en_revision: "En revisión",
+  activa: "Activa",
+  pausada: "Pausada",
+  finalizada: "Finalizada",
+  rechazada: "Rechazada",
+};
+
+function labelEstado(status: string | undefined) {
+  return status ? ESTADO_LABELS[status] ?? status : "Borrador";
+}
+
 export default function NuevaCampanaForm() {
   const searchParams = useSearchParams();
   const editId = searchParams.get("edit");
@@ -89,6 +102,15 @@ function CampanaFormulario({
 }) {
   const router = useRouter();
 
+  // Reglas de edición por estado (dominio.md): una campaña en revisión o
+  // rechazada se puede editar por completo y reenviar; activa o pausada solo
+  // permite ajustar meta y fecha de finalización, sin tocar su estado;
+  // finalizada queda en solo lectura.
+  const status = editingCampaign?.status;
+  const soloLectura = status === "finalizada";
+  const edicionLimitada = status === "activa" || status === "pausada";
+  const edicionCompleta = !edicionLimitada && !soloLectura;
+
   const [name, setName] = useState(editingCampaign?.name ?? "");
   const [description, setDescription] = useState(editingCampaign?.description ?? "");
   const [theme, setTheme] = useState(editingCampaign?.tag || THEMES[0]);
@@ -107,6 +129,31 @@ function CampanaFormulario({
   const [locationState, setLocationState] = useState(editingCampaign?.locationState ?? "");
   const [locationCity, setLocationCity] = useState(editingCampaign?.locationCity ?? "");
   const [locationColonia, setLocationColonia] = useState(editingCampaign?.locationColonia ?? "");
+  const [reactivando, setReactivando] = useState(false);
+  const [reactivarError, setReactivarError] = useState<string | null>(null);
+
+  const limiteActivasAlcanzado = activeCampaigns >= MAX_ACTIVE_CAMPAIGNS;
+
+  async function handleReactivar() {
+    if (!editingCampaign || limiteActivasAlcanzado) return;
+    setReactivando(true);
+    setReactivarError(null);
+    try {
+      const response = await fetch(`/api/campanas/${editingCampaign.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "activa" }),
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? "No se pudo reactivar la campaña");
+      }
+      router.push("/mis-campanas");
+    } catch (error) {
+      setReactivarError(error instanceof Error ? error.message : "No se pudo reactivar la campaña");
+      setReactivando(false);
+    }
+  }
 
   function cambiarEstado(nuevoEstado: string) {
     setLocationState(nuevoEstado);
@@ -133,26 +180,75 @@ function CampanaFormulario({
     setChecklistOpciones((prev) => prev.filter((item) => item !== value));
   }
 
+  if (soloLectura) {
+    return (
+      <div className="mx-auto max-w-2xl">
+        <div className="mb-6 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-extrabold text-ink">{name}</h1>
+            <p className="mt-1 text-[13px] text-ink-2">
+              Esta campaña ya finalizó y queda en solo lectura: no se puede editar.
+            </p>
+          </div>
+          <Tag>Finalizada</Tag>
+        </div>
+
+        {limiteActivasAlcanzado && (
+          <div className="mb-4 max-w-lg rounded-lg bg-warn-tint p-4 text-[12.5px] text-warn">
+            Ya tienes {MAX_ACTIVE_CAMPAIGNS} campañas activas. Pausa o finaliza otra antes de
+            reactivar esta.
+          </div>
+        )}
+        {reactivarError && (
+          <div className="mb-4 max-w-lg rounded-lg bg-danger-tint p-4 text-[12.5px] text-danger">
+            {reactivarError}
+          </div>
+        )}
+
+        <div className="flex gap-2.5">
+          <Link href="/mis-campanas">
+            <Button>Volver a mis campañas</Button>
+          </Link>
+          <Button
+            variant="primary"
+            onClick={handleReactivar}
+            disabled={limiteActivasAlcanzado || reactivando}
+          >
+            {reactivando ? "Reactivando..." : "Reactivar campaña"}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   async function handleSubmit(e: React.FormEvent, asDraft: boolean) {
     e.preventDefault();
+    if (soloLectura) return;
 
-    const camposEditables = {
-      name,
-      description,
-      tematica: theme,
-      tag: theme,
-      status: asDraft ? "borrador" : "en_revision",
-      dataTypes,
-      collectionMode,
-      checklistOpciones: collectionMode === "checklist" ? checklistOpciones : [],
-      goalContributions: Number(goal),
-      quotaPerUser: Number(quota),
-      startDate,
-      endDate,
-      locationCity,
-      locationState,
-      locationColonia,
-    };
+    // Activa o pausada: solo se guardan meta y fecha de fin, y el estado no
+    // se manda, así la campaña se mantiene en el estado en el que estaba.
+    const camposEditables = edicionLimitada
+      ? {
+          goalContributions: Number(goal),
+          endDate,
+        }
+      : {
+          name,
+          description,
+          tematica: theme,
+          tag: theme,
+          status: asDraft ? "borrador" : "en_revision",
+          dataTypes,
+          collectionMode,
+          checklistOpciones: collectionMode === "checklist" ? checklistOpciones : [],
+          goalContributions: Number(goal),
+          quotaPerUser: Number(quota),
+          startDate,
+          endDate,
+          locationCity,
+          locationState,
+          locationColonia,
+        };
 
     try {
       // Editar manda PATCH a la campaña existente; antes siempre mandaba
@@ -197,7 +293,9 @@ function CampanaFormulario({
     }
   }
 
-  const canPublish = !limitReached && name && description && dataTypes.length > 0;
+  const canPublish = edicionLimitada
+    ? Boolean(goal) && Boolean(endDate)
+    : !limitReached && Boolean(name) && Boolean(description) && dataTypes.length > 0;
 
   return (
     <div className="mx-auto max-w-4xl">
@@ -207,11 +305,13 @@ function CampanaFormulario({
             {editingCampaign ? "Editar campaña" : "Nueva campaña"}
           </h1>
           <p className="mt-1 text-[13px] text-ink-2">
-            Completa los tres bloques y envíala a revisión
+            {edicionLimitada
+              ? "La campaña ya está en curso: solo puedes ajustar la meta de aportes y la fecha de finalización."
+              : "Completa los tres bloques y envíala a revisión"}
           </p>
         </div>
         <Tag tone={limitReached ? "danger" : "default"}>
-          {limitReached ? "Límite alcanzado" : "Borrador"}
+          {limitReached ? "Límite alcanzado" : editingCampaign ? labelEstado(status) : "Borrador"}
         </Tag>
       </div>
 
@@ -240,6 +340,8 @@ function CampanaFormulario({
                 onChange={(e) => setName(e.target.value)}
                 maxLength={80}
                 required
+                disabled={edicionLimitada}
+                className="disabled:cursor-not-allowed disabled:opacity-50"
               />
             </Field>
             <p className="mb-3 -mt-3 text-right font-mono text-[11px] text-ink-3">
@@ -254,8 +356,9 @@ function CampanaFormulario({
                 <button
                   key={t}
                   type="button"
+                  disabled={edicionLimitada}
                   onClick={() => setTheme(t)}
-                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     theme === t
                       ? "border-accent bg-accent text-white"
                       : "border-line-2 bg-surface text-ink-2 hover:border-accent"
@@ -278,6 +381,8 @@ function CampanaFormulario({
                 onChange={(e) => setDescription(e.target.value)}
                 maxLength={500}
                 required
+                disabled={edicionLimitada}
+                className="disabled:cursor-not-allowed disabled:opacity-50"
               />
             </Field>
             <p className="-mt-3 text-right font-mono text-[11px] text-ink-3">
@@ -299,8 +404,9 @@ function CampanaFormulario({
                 <button
                   key={dt.value}
                   type="button"
+                  disabled={edicionLimitada}
                   onClick={() => toggleDataType(dt.value)}
-                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     dataTypes.includes(dt.value)
                       ? "border-accent bg-accent text-white"
                       : "border-line-2 bg-surface text-ink-2 hover:border-accent"
@@ -327,7 +433,8 @@ function CampanaFormulario({
                   min={1}
                   value={quota}
                   onChange={(e) => setQuota(e.target.value)}
-                  className="font-mono"
+                  disabled={edicionLimitada}
+                  className="font-mono disabled:cursor-not-allowed disabled:opacity-50"
                 />
               </Field>
             </div>
@@ -342,8 +449,9 @@ function CampanaFormulario({
                 <button
                   key={mode}
                   type="button"
+                  disabled={edicionLimitada}
                   onClick={() => setCollectionMode(mode)}
-                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
                     collectionMode === mode
                       ? "border-accent bg-accent text-white"
                       : "border-line-2 bg-surface text-ink-2 hover:border-accent"
@@ -365,8 +473,9 @@ function CampanaFormulario({
                     </label>
                     <button
                       type="button"
+                      disabled={edicionLimitada}
                       onClick={() => removeChecklistOpcion(opcion)}
-                      className="text-[11.5px] font-medium text-danger"
+                      className="text-[11.5px] font-medium text-danger disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Quitar
                     </button>
@@ -385,12 +494,13 @@ function CampanaFormulario({
                     }}
                     maxLength={120}
                     placeholder="Nueva opción del checklist"
-                    className="w-full rounded border border-line-2 bg-surface px-3 py-2 text-[12.5px] text-ink outline-none focus:border-accent"
+                    disabled={edicionLimitada}
+                    className="w-full rounded border border-line-2 bg-surface px-3 py-2 text-[12.5px] text-ink outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <button
                     type="button"
                     onClick={addChecklistOpcion}
-                    disabled={!newOpcion.trim()}
+                    disabled={!newOpcion.trim() || edicionLimitada}
                     className="whitespace-nowrap text-[12.5px] font-medium text-accent disabled:opacity-40"
                   >
                     + Agregar opción
@@ -412,7 +522,8 @@ function CampanaFormulario({
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
                 required
-                className="font-mono"
+                disabled={edicionLimitada}
+                className="font-mono disabled:cursor-not-allowed disabled:opacity-50"
               />
               <Input
                 type="date"
@@ -432,7 +543,8 @@ function CampanaFormulario({
             <select
               value={locationState}
               onChange={(e) => cambiarEstado(e.target.value)}
-              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent"
+              disabled={edicionLimitada}
+              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">Selecciona un estado</option>
               {opcionesCon(locationState, NOMBRES_DE_ESTADOS).map((opcion) => (
@@ -444,8 +556,8 @@ function CampanaFormulario({
             <select
               value={locationCity}
               onChange={(e) => setLocationCity(e.target.value)}
-              disabled={!locationState}
-              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent disabled:opacity-50"
+              disabled={!locationState || edicionLimitada}
+              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               <option value="">
                 {locationState ? "Selecciona un municipio" : "Primero selecciona un estado"}
@@ -461,25 +573,38 @@ function CampanaFormulario({
               onChange={(e) => setLocationColonia(e.target.value)}
               maxLength={150}
               placeholder="p. ej. Centro"
+              disabled={edicionLimitada}
+              className="disabled:cursor-not-allowed disabled:opacity-50"
             />
           </Field>
         </div>
 
-        <div className="mb-6 max-w-lg rounded-lg bg-warn-tint p-4 text-[12.5px] text-warn">
-          Al enviar, la campaña pasa a &quot;En revisión&quot; y no podrás editarla hasta que el
-          supervisor responda.
-        </div>
+        {edicionCompleta && (
+          <div className="mb-6 max-w-lg rounded-lg bg-warn-tint p-4 text-[12.5px] text-warn">
+            {status === "en_revision" || status === "rechazada"
+              ? "Puedes editar la campaña y volver a enviarla a revisión mientras el supervisor no responda."
+              : "Al enviar, la campaña pasa a “En revisión”; podrás seguir editándola mientras el supervisor no responda."}
+          </div>
+        )}
+        {edicionLimitada && (
+          <div className="mb-6 max-w-lg rounded-lg bg-sunken p-4 text-[12.5px] text-ink-2">
+            La campaña está {status === "pausada" ? "pausada" : "activa"}: los cambios se
+            guardan y mantiene su estado actual.
+          </div>
+        )}
 
         <div className="flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
           <p className="font-mono text-[12.5px] text-ink-2">
             {activeCampaigns} de {MAX_ACTIVE_CAMPAIGNS} campañas activas usadas
           </p>
           <div className="flex gap-2.5">
-            <Button type="submit" onClick={(e) => handleSubmit(e, true)}>
-              Guardar borrador
-            </Button>
+            {!edicionLimitada && (
+              <Button type="submit" onClick={(e) => handleSubmit(e, true)}>
+                Guardar borrador
+              </Button>
+            )}
             <Button variant="primary" type="submit" disabled={!canPublish}>
-              Enviar a revisión
+              {edicionLimitada ? "Guardar cambios" : "Enviar a revisión"}
             </Button>
           </div>
         </div>

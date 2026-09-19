@@ -46,8 +46,12 @@ Fuentes: `mis-campanas`, `NuevaCampanaForm`, `campanas/[id]` y `panel`.
 
 - **Estados:** `borrador`, `en_revision`, `activa`, `pausada`, `finalizada` y `rechazada`.
 - **Transiciones permitidas:** Borrador → En revisión → Activa ⇄ Pausada → Finalizada. Desde En revisión también puede pasar a Rechazada.
-  - **Una campaña finalizada queda en solo lectura** y no puede reactivarse.
-  - **Al enviarla a revisión, no se puede editar** hasta que el supervisor responda.
+  - **Una campaña finalizada queda en solo lectura**, salvo el botón "Reactivar campaña" (vuelve a `activa`), disponible solo si la persona tiene menos de 5 campañas activas.
+  - **Edición según estado (`app/api/campanas/[id]/route.ts` PATCH, `NuevaCampanaForm`):**
+    - **Borrador, en revisión o rechazada:** se edita por completo (nombre, descripción, temática, tipos de dato, meta, cuota, vigencia, ubicación) y al reenviarla vuelve a quedar `en_revision`.
+    - **Activa o pausada:** solo se puede cambiar la meta de aportes y la fecha de finalización; el resto de los campos se rechaza (400) y el estado no cambia. También desde aquí el creador puede finalizarla (`PATCH { status: "finalizada" }` → error si trae más campos).
+    - **Finalizada:** de solo lectura para el resto de los campos; solo acepta un PATCH con `status: "activa"` y nada más, y lo rechaza (400) si ya tiene 5 campañas activas. Cualquier otro campo en un PATCH sobre una finalizada se rechaza (403).
+  - **Finalizar manualmente:** en `/mis-campanas` (activa o pausada) hay un botón "Finalizar campaña" que solo ve y puede usar el creador (la lista ya viene filtrada por `mine=true`); el servidor igual valida `creator_id` antes de aplicar el cambio. Es la única forma de llegar a `finalizada` hoy: no hay disparador automático por fecha de cierre.
 - **Límite:** máximo **5 campañas activas a la vez** por persona. Pasado ese número, solo se permite guardar como borrador.
 - **Formulario en tres bloques:**
   - **Datos básicos:** nombre (máx. 80), temática (una) y descripción (máx. 500).
