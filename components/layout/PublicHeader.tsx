@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Button from "@/components/ui/Button";
+import ButtonLink from "@/components/ui/ButtonLink";
 
 export default function PublicHeader() {
   return (
@@ -15,13 +15,16 @@ export default function PublicHeader() {
         <Link href="/campanas" className="hover:text-ink">
           Campañas
         </Link>
+        <Link href="/datos" className="hover:text-ink">
+          Datos abiertos
+        </Link>
         <Link href="/entrar" className="hover:text-ink">
           Iniciar sesión
         </Link>
       </nav>
-      <Button variant="primary" size="sm">
-        <Link href="/registro">Crear campaña</Link>
-      </Button>
+      <ButtonLink href="/registro" variant="primary" size="sm">
+        Crear campaña
+      </ButtonLink>
     </header>
   );
 }

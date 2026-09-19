@@ -21,6 +21,10 @@ const sizeClasses: Record<Size, string> = {
   md: "text-sm py-3 px-5",
 };
 
+export function buttonClasses(variant: Variant = "secondary", size: Size = "md", className = "") {
+  return `inline-flex items-center justify-center gap-2 rounded-pill border font-bold transition-colors disabled:opacity-45 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`;
+}
+
 export default function Button({
   variant = "secondary",
   size = "md",
@@ -29,10 +33,7 @@ export default function Button({
   ...rest
 }: ButtonProps) {
   return (
-    <button
-      className={`inline-flex items-center justify-center gap-2 rounded-pill border font-bold transition-colors disabled:opacity-45 disabled:cursor-not-allowed ${variantClasses[variant]} ${sizeClasses[size]} ${className}`}
-      {...rest}
-    >
+    <button className={buttonClasses(variant, size, className)} {...rest}>
       {children}
     </button>
   );

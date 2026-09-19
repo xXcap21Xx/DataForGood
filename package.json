@@ -11,6 +11,7 @@
   "dependencies": {
     "@types/bcryptjs": "^2.4.6",
     "@types/nodemailer": "^8.0.1",
+    "archiver": "^8.0.0",
     "bcryptjs": "^3.0.3",
     "google-auth-library": "^11.0.2",
     "minio": "^8.0.7",
@@ -22,6 +23,7 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/archiver": "^8.0.0",
     "@types/node": "^20",
     "@types/pg": "^8.14.0",
     "@types/react": "^19",

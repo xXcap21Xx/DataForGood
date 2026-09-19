@@ -11,7 +11,8 @@ Todo lo de este archivo sale de las pantallas, textos y datos simulados de la ra
 6. Enlace público y aportes anónimos
 7. Experiencia (XP) y campañas especiales
 8. Catálogos
-9. Contradicciones y puntos abiertos
+9. Datos abiertos
+10. Contradicciones y puntos abiertos
 
 ## 1. Cuentas y registro
 
@@ -115,7 +116,23 @@ Fuentes: `especial`, `campanas/[id]` y `mis-aportes`.
 
 Guárdalos en un solo lugar (tabla o constante compartida). Hoy están repetidos en varias pantallas.
 
-## 9. Contradicciones y puntos abiertos
+## 9. Datos abiertos
+
+Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
+
+- **Qué es un "conjunto de datos abierto":** hoy, simplemente una campaña con `status = 'finalizada'`, leída directo de `campanas` + `aportes` (`lib/open-data.ts`). No hay tabla ni paso de "publicar" propios todavía: se calcula en vivo.
+- **Qué se muestra y de dónde sale (todo real, sin datos inventados):**
+  - nombre, organizador, temática, tipos de dato, aportes aprobados, ubicación y fecha de cierre → columnas de `campanas`.
+  - **formatos** → `DISTINCT file_mime_type` de los aportes `aceptado` de la campaña, mapeado a una etiqueta corta (JPG, PNG, MP4...).
+  - **peso (tamaño)** → `SUM(file_size_bytes)` de esos mismos aportes.
+  - **descargas** → columna `campanas.downloads_count`; sube en cada ZIP generado por `GET /api/datos/[id]/descarga` (no cuando el navegador termina de bajarlo).
+  - **verificado** → `campanas.supervisor_id IS NOT NULL` (tuvo supervisor asignado antes de finalizar).
+  - **calidad (0-10)** → `aceptados / (aceptados + rechazados)` de la campaña, escalado a 0-10; `null` (se oculta) si todavía no hay dictámenes. **Decisión del equipo (2026-09):** fue la fórmula elegida entre varias opciones cuando se preguntó, a falta de una definición previa.
+  - **licencia** → valor fijo `"CC BY 4.0"` para todo el catálogo. **Decisión temporal del equipo (2026-09):** no hay campo por campaña ni selector en `NuevaCampanaForm`; si se necesita variar por campaña, hay que agregar la columna y el selector.
+- **Descarga real:** `GET /api/datos/[id]/descarga` arma un ZIP en memoria con `archiver` (paquete agregado para esto) leyendo los archivos de MinIO, los renombra `aporte-001.ext`, `aporte-002.ext`... (sin nombre ni correo de quien participó) y responde 404 si la campaña no está finalizada o no tiene archivos aceptados con `file_path`.
+- **Filtros del catálogo (`/datos`):** búsqueda de texto, temática y estado, de un solo valor cada uno (no multi-selección) y resueltos en SQL contra `campanas`. Orden por recientes, cobertura, descargas o calidad. Las facetas de temática/estado muestran conteos sobre el total de finalizadas, no recalculados por combinación de filtros.
+
+## 10. Contradicciones y puntos abiertos
 
 **No los resuelvas por tu cuenta.** Pregunta, o deja un TODO explícito y menciónalo.
 
@@ -132,3 +149,4 @@ Guárdalos en un solo lugar (tabla o constante compartida). Hoy están repetidos
 11. **La meta de la campaña** ¿cuenta aportes recibidos o solo aprobados? El panel usa ambos.
 12. **Reparto de campañas a supervisores** por especialidad: ¿automático o manual?
 13. **"Actualiza cada 3 s" en el panel:** polling o websockets.
+14. **Publicación de datos abiertos.** ¿Quién dispara la publicación al finalizar una campaña (automática o manual) y qué anonimización explícita aplica sobre los aportes más allá de excluir nombre/correo del ZIP? *Resuelto parcialmente (2026-09): calidad, licencia y descarga real ya están definidas, ver § 9. Sigue abierto si "finalizar" debe congelar/copiar los datos en vez de leerlos en vivo de `campanas`/`aportes`.*
