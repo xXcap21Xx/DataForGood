@@ -115,6 +115,7 @@ export async function ensureCampanasTable(): Promise<void> {
       share_token VARCHAR(80),
       share_token_expires_at TIMESTAMP,
       aportes JSONB NOT NULL DEFAULT '[]'::jsonb,
+      downloads_count INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
@@ -152,6 +153,7 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token VARCHAR(80);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token_expires_at TIMESTAMP;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS aportes JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS downloads_count INTEGER NOT NULL DEFAULT 0;
   `);
 }
 
