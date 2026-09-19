@@ -23,6 +23,8 @@ const ALLOWED_STATUS = new Set([
   "rechazada",
 ]);
 
+const MAX_ACTIVE_CAMPAIGNS = 5;
+
 function normalizeCampaignStatus(input: unknown): string | null {
   const value = String(input ?? "").trim().toLowerCase();
   return ALLOWED_STATUS.has(value) ? value : null;
@@ -176,12 +178,54 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       });
     }
 
-    const existing = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+    const existing = await pool.query(`SELECT creator_id, status FROM campanas WHERE id = $1 LIMIT 1`, [id]);
     if (existing.rowCount === 0) {
       return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
     }
     if (Number(existing.rows[0].creator_id) !== Number(user.id)) {
       return NextResponse.json({ error: "Solo quien creó la campaña puede editarla" }, { status: 403 });
+    }
+
+    const currentStatus = String(existing.rows[0].status ?? "borrador");
+
+    // Reglas de edición por estado: una finalizada es de solo lectura salvo
+    // para reactivarla (solo status: "activa", sin tocar más campos, y con
+    // cupo libre de campañas activas); una activa o pausada solo deja tocar
+    // meta y fecha de fin (sin cambiar su estado); borrador, en_revision y
+    // rechazada se editan por completo.
+    if (currentStatus === "finalizada") {
+      const soloReactiva = Object.keys(body).length === 1 && normalizeCampaignStatus(body.status) === "activa";
+      if (!soloReactiva) {
+        return NextResponse.json({ error: "Una campaña finalizada es de solo lectura y no se puede editar" }, { status: 403 });
+      }
+
+      const activas = await pool.query(
+        `SELECT COUNT(*)::int AS count FROM campanas WHERE creator_id = $1 AND status = 'activa'`,
+        [user.id]
+      );
+      if (Number(activas.rows[0].count) >= MAX_ACTIVE_CAMPAIGNS) {
+        return NextResponse.json(
+          { error: `Ya tienes ${MAX_ACTIVE_CAMPAIGNS} campañas activas; pausa o finaliza otra antes de reactivar esta` },
+          { status: 400 }
+        );
+      }
+      // Cae al UPDATE genérico de abajo, que solo aplicará status = "activa".
+    }
+
+    if (currentStatus === "activa" || currentStatus === "pausada") {
+      // El creador puede finalizarla desde aquí (botón "Finalizar campaña"),
+      // sin tocar ningún otro campo a la vez.
+      const soloFinaliza = Object.keys(body).length === 1 && normalizeCampaignStatus(body.status) === "finalizada";
+      if (!soloFinaliza) {
+        const camposPermitidos = new Set(["goalContributions", "goal_contributions", "endDate", "end_date"]);
+        const camposNoPermitidos = Object.keys(body).filter((key) => !camposPermitidos.has(key));
+        if (camposNoPermitidos.length > 0) {
+          return NextResponse.json(
+            { error: "Con la campaña activa o pausada solo puedes editar la meta de aportes y la fecha de finalización" },
+            { status: 400 }
+          );
+        }
+      }
     }
 
     if ("status" in body && normalizeCampaignStatus(body.status) === null) {

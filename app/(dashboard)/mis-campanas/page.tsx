@@ -7,17 +7,168 @@ import Tag from "@/components/ui/Tag";
 import ProgressBar from "@/components/ui/ProgressBar";
 import type { Campaign, CampaignStatus } from "@/types";
 
-const labels: Record<CampaignStatus, string> = { borrador: "Borrador", en_revision: "En revision", activa: "Activa", pausada: "Pausada", finalizada: "Finalizada", rechazada: "Rechazada" };
+const labels: Record<CampaignStatus, string> = {
+  borrador: "Borrador",
+  en_revision: "En revision",
+  activa: "Activa",
+  pausada: "Pausada",
+  finalizada: "Finalizada",
+  rechazada: "Rechazada",
+};
 
 function mapCampaign(row: Record<string, unknown>): Campaign {
   const status = String(row.status ?? "borrador") as CampaignStatus;
-  return { id: String(row.id ?? ""), creatorId: String(row.creatorId ?? ""), creatorName: String(row.creatorName ?? ""), name: String(row.name ?? ""), description: String(row.description ?? ""), tag: String(row.tag ?? ""), tematica: String(row.tematica ?? ""), status: labels[status] ? status : "borrador", dataTypes: Array.isArray(row.dataTypes) ? row.dataTypes as Campaign["dataTypes"] : [], goalContributions: Number(row.goalContributions ?? 0), quotaPerUser: Number(row.quotaPerUser ?? 1), currentContributions: Number(row.currentContributions ?? 0), approvedContributions: Number(row.approvedContributions ?? 0), pendingContributions: Number(row.pendingContributions ?? 0), rejectedContributions: Number(row.rejectedContributions ?? 0), participants: Number(row.participants ?? 0), startDate: row.startDate as string | null, endDate: row.endDate as string | null, locationCity: String(row.locationCity ?? ""), locationState: String(row.locationState ?? ""), xpPerContribution: Number(row.xpPerContribution ?? 0), daysRemaining: row.daysRemaining as number | null, hasReviewerAssigned: Boolean(row.hasReviewerAssigned) };
+  return {
+    id: String(row.id ?? ""),
+    creatorId: String(row.creatorId ?? ""),
+    creatorName: String(row.creatorName ?? ""),
+    name: String(row.name ?? ""),
+    description: String(row.description ?? ""),
+    tag: String(row.tag ?? ""),
+    tematica: String(row.tematica ?? ""),
+    status: labels[status] ? status : "borrador",
+    dataTypes: Array.isArray(row.dataTypes) ? (row.dataTypes as Campaign["dataTypes"]) : [],
+    goalContributions: Number(row.goalContributions ?? 0),
+    quotaPerUser: Number(row.quotaPerUser ?? 1),
+    currentContributions: Number(row.currentContributions ?? 0),
+    approvedContributions: Number(row.approvedContributions ?? 0),
+    pendingContributions: Number(row.pendingContributions ?? 0),
+    rejectedContributions: Number(row.rejectedContributions ?? 0),
+    participants: Number(row.participants ?? 0),
+    startDate: row.startDate as string | null,
+    endDate: row.endDate as string | null,
+    locationCity: String(row.locationCity ?? ""),
+    locationState: String(row.locationState ?? ""),
+    xpPerContribution: Number(row.xpPerContribution ?? 0),
+    daysRemaining: row.daysRemaining as number | null,
+    hasReviewerAssigned: Boolean(row.hasReviewerAssigned),
+  };
 }
 
 export default function MisCampanasPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [error, setError] = useState<string | null>(null);
-  useEffect(() => { void fetch("/api/campanas?mine=true", { cache: "no-store" }).then(async (response) => { const payload = await response.json(); if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campanas"); setCampaigns((Array.isArray(payload.data) ? payload.data : []).map((item: unknown) => mapCampaign(item as Record<string, unknown>))); }).catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudieron cargar las campanas")); }, []);
+  const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
+  const [finalizarError, setFinalizarError] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    void fetch("/api/campanas?mine=true", { cache: "no-store" })
+      .then(async (response) => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campanas");
+        setCampaigns(
+          (Array.isArray(payload.data) ? payload.data : []).map((item: unknown) =>
+            mapCampaign(item as Record<string, unknown>)
+          )
+        );
+      })
+      .catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudieron cargar las campanas"));
+  }, []);
+
   const count = (status: CampaignStatus) => campaigns.filter((campaign) => campaign.status === status).length;
-  return <div className="mx-auto max-w-5xl"><div className="mb-2 flex items-start justify-between gap-4"><div><h1 className="text-2xl font-extrabold text-ink">Mis campanas</h1><p className="mt-1 text-[13px] text-ink-2">Administra las campanas que has creado.</p></div><Link href="/mis-campanas/nueva"><Button variant="primary" size="sm">Nueva campana</Button></Link></div><div className="mb-5 mt-4 flex flex-wrap gap-2"><Tag tone="on">Todas {campaigns.length}</Tag><Tag tone="warn">En revision {count("en_revision")}</Tag><Tag>Finalizadas {count("finalizada")}</Tag><Tag>Activas {count("activa")}</Tag></div>{error ? <p className="rounded-lg bg-danger-tint p-4 text-sm text-danger">{error}</p> : campaigns.length === 0 ? <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">Cargando o no tienes campanas creadas.</p> : <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">{campaigns.map((campaign) => { const pct = campaign.goalContributions ? Math.min(100, Math.round(campaign.currentContributions / campaign.goalContributions * 100)) : 0; return <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4"><div className="mb-1 flex items-start justify-between gap-2"><p className="text-[13.5px] font-medium text-ink">{campaign.name}</p><Tag tone={campaign.status === "activa" ? "ok" : "default"}>{labels[campaign.status]}</Tag></div><p className="mb-2.5 font-mono text-[11.5px] text-ink-2">{campaign.startDate ?? "Sin fecha"} - {campaign.endDate ?? "Sin fecha"}</p><ProgressBar pct={campaign.status === "finalizada" ? 100 : pct} tone={campaign.status === "finalizada" ? "ok" : "accent"} /><p className="my-2.5 font-mono text-[12px] text-ink-2">{campaign.currentContributions} / {campaign.goalContributions} - {campaign.pendingContributions} aportes pendientes</p><div className="flex flex-wrap gap-1.5"><Link href={`/mis-campanas/${campaign.id}/aportes`}><Button variant="primary" size="sm">Revisar aportes</Button></Link><Link href={`/mis-campanas/${campaign.id}/panel`}><Button size="sm">Panel</Button></Link><Link href={`/mis-campanas/nueva?edit=${campaign.id}`}><Button size="sm">Editar</Button></Link></div></div>; })}</div>}</div>;
+
+  // Solo el creador ve esta pantalla (viene de mine=true): no hace falta
+  // revisar rol ni dueño aparte, ya está filtrado por sesión.
+  async function finalizarCampana(id: string) {
+    if (!window.confirm("¿Finalizar esta campaña? Dejará de aceptar aportes nuevos.")) return;
+
+    setFinalizandoId(id);
+    setFinalizarError((prev) => ({ ...prev, [id]: "" }));
+    try {
+      const response = await fetch(`/api/campanas/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "finalizada" }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo finalizar la campaña");
+      setCampaigns((prev) => prev.map((c) => (c.id === id ? { ...c, status: "finalizada" } : c)));
+    } catch (cause) {
+      setFinalizarError((prev) => ({
+        ...prev,
+        [id]: cause instanceof Error ? cause.message : "No se pudo finalizar la campaña",
+      }));
+    } finally {
+      setFinalizandoId(null);
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-5xl">
+      <div className="mb-2 flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-ink">Mis campanas</h1>
+          <p className="mt-1 text-[13px] text-ink-2">Administra las campanas que has creado.</p>
+        </div>
+        <Link href="/mis-campanas/nueva">
+          <Button variant="primary" size="sm">Nueva campana</Button>
+        </Link>
+      </div>
+
+      <div className="mb-5 mt-4 flex flex-wrap gap-2">
+        <Tag tone="on">Todas {campaigns.length}</Tag>
+        <Tag tone="warn">En revision {count("en_revision")}</Tag>
+        <Tag>Finalizadas {count("finalizada")}</Tag>
+        <Tag>Activas {count("activa")}</Tag>
+      </div>
+
+      {error ? (
+        <p className="rounded-lg bg-danger-tint p-4 text-sm text-danger">{error}</p>
+      ) : campaigns.length === 0 ? (
+        <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">Cargando o no tienes campanas creadas.</p>
+      ) : (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {campaigns.map((campaign) => {
+            const pct = campaign.goalContributions
+              ? Math.min(100, Math.round((campaign.currentContributions / campaign.goalContributions) * 100))
+              : 0;
+            const puedeFinalizar = campaign.status === "activa" || campaign.status === "pausada";
+
+            return (
+              <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4">
+                <div className="mb-1 flex items-start justify-between gap-2">
+                  <p className="text-[13.5px] font-medium text-ink">{campaign.name}</p>
+                  <Tag tone={campaign.status === "activa" ? "ok" : "default"}>{labels[campaign.status]}</Tag>
+                </div>
+                <p className="mb-2.5 font-mono text-[11.5px] text-ink-2">
+                  {campaign.startDate ?? "Sin fecha"} - {campaign.endDate ?? "Sin fecha"}
+                </p>
+                <ProgressBar
+                  pct={campaign.status === "finalizada" ? 100 : pct}
+                  tone={campaign.status === "finalizada" ? "ok" : "accent"}
+                />
+                <p className="my-2.5 font-mono text-[12px] text-ink-2">
+                  {campaign.currentContributions} / {campaign.goalContributions} - {campaign.pendingContributions} aportes pendientes
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  <Link href={`/mis-campanas/${campaign.id}/aportes`}>
+                    <Button variant="primary" size="sm">Revisar aportes</Button>
+                  </Link>
+                  <Link href={`/mis-campanas/${campaign.id}/panel`}>
+                    <Button size="sm">Panel</Button>
+                  </Link>
+                  <Link href={`/mis-campanas/nueva?edit=${campaign.id}`}>
+                    <Button size="sm">Editar</Button>
+                  </Link>
+                  {puedeFinalizar && (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      disabled={finalizandoId === campaign.id}
+                      onClick={() => finalizarCampana(campaign.id)}
+                    >
+                      {finalizandoId === campaign.id ? "Finalizando..." : "Finalizar campaña"}
+                    </Button>
+                  )}
+                </div>
+                {finalizarError[campaign.id] && (
+                  <p className="mt-2 text-[11.5px] text-danger">{finalizarError[campaign.id]}</p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
