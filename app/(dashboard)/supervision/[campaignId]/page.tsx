@@ -123,10 +123,18 @@ export default function CampaignDetailPage() {
     pausada: { label: "Pausada", tone: "default" },
   } as const;
 
+  const parseDateOnly = (date: string | null | undefined) => {
+    if (!date) return null;
+    const [year, month, day] = date.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  };
+
   const currentStatus = statusMap[String(campaign.status ?? "en_revision") as keyof typeof statusMap] ?? { label: "En revisión", tone: "warn" };
-  const formatDate = (date: string | null | undefined) => date
-    ? new Date(date).toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" })
-    : "sin fecha";
+  const formatDate = (date: string | null | undefined) => {
+    const parsed = parseDateOnly(date);
+    return parsed ? parsed.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" }) : "sin fecha";
+  };
   const dataTypes = Array.isArray(campaign.dataTypes) && campaign.dataTypes.length > 0 ? campaign.dataTypes : ["texto"];
   const location = [campaign.locationColonia, campaign.locationCity, campaign.locationState].filter(Boolean).join(", ") || "Sin ubicación";
 

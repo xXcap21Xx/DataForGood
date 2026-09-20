@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
+import { calculateCampaignDaysRemaining, normalizeCampaignDate } from "@/lib/campaign-date";
 
 function normalizeDataTypes(input: unknown): string[] {
   if (!Array.isArray(input)) {
@@ -71,15 +72,15 @@ function mapCampaign(row: Record<string, unknown>) {
     pendingContributions: Number(row.pending_contributions ?? 0),
     rejectedContributions: Number(row.rejected_contributions ?? 0),
     participants: Number(row.participants ?? 0),
-    startDate: row.start_date ? new Date(String(row.start_date)).toISOString().slice(0, 10) : null,
-    endDate: row.end_date ? new Date(String(row.end_date)).toISOString().slice(0, 10) : null,
+    startDate: normalizeCampaignDate(row.start_date),
+    endDate: normalizeCampaignDate(row.end_date),
     locationCity: String(row.location_city ?? ""),
     locationState: String(row.location_state ?? ""),
     locationColonia: String(row.location_colonia ?? ""),
     organizer: String(row.organizer ?? ""),
     xpPerContribution: Number(row.xp_per_contribution ?? 0),
     isSpecial: Boolean(row.is_special),
-    daysRemaining: row.days_remaining ?? null,
+    daysRemaining: calculateCampaignDaysRemaining(row.end_date ?? row.endDate),
     hasReviewerAssigned: Boolean(row.has_reviewer_assigned),
     shareToken: String(row.share_token ?? ""),
     shareTokenExpiresAt: row.share_token_expires_at ? new Date(String(row.share_token_expires_at)).toISOString() : undefined,

@@ -5,17 +5,30 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import Button from "@/components/ui/Button";
 import type { Campaign } from "@/types";
 
+function parseDateOnly(value: string | null | undefined) {
+  if (!value) return null;
+  const [year, month, day] = value.split("-").map(Number);
+  if (!year || !month || !day) return null;
+  return new Date(year, month - 1, day);
+}
+
 function formatDateRange(start: string | null, end: string | null) {
   if (!start || !end) return "Sin fecha definida";
   const opts: Intl.DateTimeFormatOptions = { day: "numeric", month: "short", year: "numeric" };
-  const s = new Date(start).toLocaleDateString("es-MX", opts);
-  const e = new Date(end).toLocaleDateString("es-MX", opts);
+  const s = parseDateOnly(start)?.toLocaleDateString("es-MX", opts) ?? start;
+  const e = parseDateOnly(end)?.toLocaleDateString("es-MX", opts) ?? end;
   return `${s} – ${e}`;
 }
 
 export default function CampaignCard({ campaign }: { campaign: Campaign }) {
+  const remainingDays = Number.isFinite(campaign.daysRemaining) ? Math.max(0, Number(campaign.daysRemaining)) : 0;
   const pct = Math.round((campaign.currentContributions / campaign.goalContributions) * 100);
   const isActive = campaign.status === "activa";
+  const closeDate = campaign.endDate ? parseDateOnly(campaign.endDate)?.toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }) : "Sin fecha";
 
   return (
     <Card className="flex flex-col gap-3">
@@ -30,6 +43,9 @@ export default function CampaignCard({ campaign }: { campaign: Campaign }) {
         <p className="mt-1.5 font-mono text-[11px] text-ink-2">
           {formatDateRange(campaign.startDate, campaign.endDate)}
         </p>
+        <p className="mt-1 font-mono text-[11px] text-ink-2">
+          Cierre: {closeDate} · {remainingDays} días restantes
+        </p>
       </div>
 
       <ProgressBar pct={isActive ? pct : 0} />
@@ -43,7 +59,7 @@ export default function CampaignCard({ campaign }: { campaign: Campaign }) {
         </div>
         <div>
           <p className="font-mono text-[15px] font-bold text-ink">
-            {campaign.daysRemaining ?? "—"}
+            {remainingDays}
           </p>
           <p className="text-[11px] text-ink-3">días restantes</p>
         </div>

@@ -54,9 +54,22 @@ export default function CampaignDetailPage() {
   if (error) return <p className="text-sm text-danger">{error}</p>;
   if (!campaign) return <p className="text-sm text-ink-2">Cargando campaña...</p>;
 
+  const parseDateOnly = (date: string | null | undefined) => {
+    if (!date) return null;
+    const [year, month, day] = date.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  };
+
   const pct = Math.round(
     (campaign.currentContributions / campaign.goalContributions) * 100
   );
+  const closeDate = campaign.endDate ? parseDateOnly(campaign.endDate)?.toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }) : "Sin fecha";
+  const remainingDays = Number.isFinite(campaign.daysRemaining) ? Math.max(0, Number(campaign.daysRemaining)) : 0;
 
   return (
     <div className="mx-auto grid max-w-5xl grid-cols-1 gap-6 lg:grid-cols-[1fr_320px]">
@@ -84,18 +97,21 @@ export default function CampaignDetailPage() {
             {campaign.locationCity}, {campaign.locationState}
           </span>
           <span>
-            {campaign.startDate && new Date(campaign.startDate).toLocaleDateString("es-MX", {
+            {campaign.startDate && parseDateOnly(campaign.startDate)?.toLocaleDateString("es-MX", {
               day: "numeric",
               month: "short",
             })}{" "}
             –{" "}
-            {campaign.endDate && new Date(campaign.endDate).toLocaleDateString("es-MX", {
+            {campaign.endDate && parseDateOnly(campaign.endDate)?.toLocaleDateString("es-MX", {
               day: "numeric",
               month: "short",
               year: "numeric",
             })}
           </span>
         </div>
+        <p className="mb-4 font-mono text-[12px] text-ink-2">
+          Fecha de cierre: {closeDate} · Días restantes: {remainingDays}
+        </p>
 
         <div className="mb-6 rounded-lg bg-accent-deep p-5 text-white">
           <p className="text-base font-bold">Tu observación suma conocimiento</p>

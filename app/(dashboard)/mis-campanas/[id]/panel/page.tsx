@@ -54,6 +54,13 @@ export default function PanelCampanaPage() {
     return <p className="text-sm text-ink-2">Cargando campaña…</p>;
   }
 
+  const parseDateOnly = (date: string | null | undefined) => {
+    if (!date) return null;
+    const [year, month, day] = date.split("-").map(Number);
+    if (!year || !month || !day) return null;
+    return new Date(year, month - 1, day);
+  };
+
   const isFinished = campaign.status === "finalizada";
   const pct = campaign.goalContributions > 0 ? Math.round((campaign.currentContributions / campaign.goalContributions) * 100) : 0;
   const maxDaily = Math.max(...recoleccionDiaria.map((d) => d.valor), 1);
@@ -71,12 +78,12 @@ export default function PanelCampanaPage() {
         <div>
           <h1 className="text-xl font-extrabold text-ink">{campaign.name}</h1>
           <p className="mt-1 font-mono text-[13px] text-ink-2">
-            {campaign.startDate && new Date(campaign.startDate).toLocaleDateString("es-MX", {
+            {campaign.startDate && parseDateOnly(campaign.startDate)?.toLocaleDateString("es-MX", {
               day: "numeric",
               month: "short",
             })}{" "}
             –{" "}
-            {campaign.endDate && new Date(campaign.endDate).toLocaleDateString("es-MX", {
+            {campaign.endDate && parseDateOnly(campaign.endDate)?.toLocaleDateString("es-MX", {
               day: "numeric",
               month: "short",
               year: "numeric",
@@ -167,7 +174,7 @@ export default function PanelCampanaPage() {
               <div className="flex justify-between">
                 <span className="text-ink-2">Cerrada el</span>
                 <span className="font-mono font-medium text-ink">
-                  {campaign.endDate && new Date(campaign.endDate).toLocaleDateString("es-MX", {
+                  {campaign.endDate && parseDateOnly(campaign.endDate)?.toLocaleDateString("es-MX", {
                     day: "numeric",
                     month: "short",
                     year: "numeric",

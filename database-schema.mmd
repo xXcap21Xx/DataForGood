@@ -1,0 +1,189 @@
+%% DataForGood - esquema actual de PostgreSQL
+%% Fuente: lib/db-schema.ts
+%% Visualizacion Mermaid ER: https://mermaid.live
+
+erDiagram
+    USUARIOS {
+        int id PK
+        varchar nombre
+        varchar apellidos
+        varchar email UK
+        varchar password_hash
+        varchar state
+        varchar city
+        varchar specialty
+        jsonb intereses
+        jsonb role
+        int xp_total
+        int level
+        int streak_days
+        boolean email_verificado
+        int failed_login_attempts
+        timestamptz locked_until
+        varchar google_id UK
+        varchar verification_code_hash
+        timestamptz verification_code_expires_at
+        int verification_attempts
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    SESSIONS {
+        int id PK
+        varchar token_hash UK
+        int usuario_id FK
+        timestamp created_at
+        timestamptz expires_at
+    }
+
+    ROOT_SESSIONS {
+        int id PK
+        varchar token_hash UK
+        timestamp created_at
+        timestamptz expires_at
+    }
+
+    CAMPANAS {
+        int id PK
+        int creator_id FK
+        varchar creator_name
+        int supervisor_id FK
+        varchar name
+        text description
+        varchar tematica
+        varchar tag
+        varchar status
+        jsonb data_types
+        varchar collection_mode
+        jsonb checklist_opciones
+        int goal_contributions
+        int quota_per_user
+        int current_contributions
+        int approved_contributions
+        int pending_contributions
+        int rejected_contributions
+        int participants
+        date start_date
+        date end_date
+        varchar location_city
+        varchar location_state
+        varchar organizer
+        int xp_per_contribution
+        boolean is_special
+        int days_remaining
+        boolean has_reviewer_assigned
+        varchar share_token
+        timestamp share_token_expires_at
+        jsonb aportes
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    CAMPANA_SUPERVISORES {
+        int id PK
+        int campana_id FK
+        int supervisor_id FK
+        varchar accion
+        text motivo
+        timestamptz created_at
+    }
+
+    CAMPANA_REVISORES {
+        int id PK
+        int campana_id FK
+        int usuario_id FK
+        varchar estado
+        timestamptz invitado_en
+        timestamptz aceptado_en
+    }
+
+    CAMPANA_BANEADOS {
+        int id PK
+        int campana_id FK
+        int usuario_id FK
+        text motivo
+        int baneado_por FK
+        timestamptz created_at
+    }
+
+    NOTIFICACIONES {
+        int id PK
+        int usuario_id FK
+        varchar tipo
+        varchar titulo
+        text mensaje
+        int campana_id FK
+        jsonb metadata
+        timestamptz leida_en
+        timestamptz created_at
+    }
+
+    CAMPANAS_GUARDADAS {
+        int id PK
+        int usuario_id FK
+        int campana_id FK
+        timestamp created_at
+    }
+
+    APORTES {
+        int id PK
+        int campaign_id FK
+        int user_id FK
+        varchar participant_name
+        varchar participant_email
+        text description
+        varchar file_type
+        varchar file_path
+        varchar file_original_name
+        varchar file_mime_type
+        int file_size_bytes
+        jsonb caracteristicas
+        varchar status
+        text rejection_reason
+        varchar first_pass_by
+        timestamp submitted_at
+        timestamp reviewed_at
+        timestamp created_at
+        timestamp updated_at
+    }
+
+    SANCIONES {
+        int id PK
+        int usuario_id FK
+        varchar tipo
+        text detalle
+        int dias
+        timestamptz aplicada_en
+        varchar aplicada_por
+        boolean activa
+        timestamptz restaurada_en
+    }
+
+    USUARIOS ||--o{ SESSIONS : "inicia sesion"
+    USUARIOS ||--o{ CAMPANAS : "crea"
+    USUARIOS o|--o{ CAMPANAS : "supervisa"
+    USUARIOS ||--o{ CAMPANA_SUPERVISORES : "realiza acciones"
+    CAMPANAS ||--o{ CAMPANA_SUPERVISORES : "tiene historial"
+    USUARIOS ||--o{ CAMPANA_REVISORES : "es revisor"
+    CAMPANAS ||--o{ CAMPANA_REVISORES : "asigna revisores"
+    USUARIOS ||--o{ CAMPANA_BANEADOS : "es baneado"
+    USUARIOS ||--o{ CAMPANA_BANEADOS : "banea"
+    CAMPANAS ||--o{ CAMPANA_BANEADOS : "restringe usuarios"
+    USUARIOS ||--o{ NOTIFICACIONES : "recibe"
+    CAMPANAS o|--o{ NOTIFICACIONES : "origina"
+    USUARIOS ||--o{ CAMPANAS_GUARDADAS : "guarda"
+    CAMPANAS ||--o{ CAMPANAS_GUARDADAS : "es guardada"
+    USUARIOS o|--o{ APORTES : "envia"
+    CAMPANAS ||--o{ APORTES : "recibe"
+    USUARIOS ||--o{ SANCIONES : "recibe sanciones"
+
+    %% ROOT_SESSIONS no tiene FK: representa sesiones del SuperUsuario.
+    %% APORTES.first_pass_by guarda el nombre del revisor, no una FK.
+    %% CAMPANAS.aportes es un JSONB legado; la relacion normalizada es APORTES.
+
+    %% Estados documentados:
+    %% CAMPANAS.status: borrador | en_revision | activa | pausada | finalizada | rechazada
+    %% CAMPANA_REVISORES.estado: invitado | aceptado | rechazado
+    %% CAMPANA_SUPERVISORES.accion: aceptada | rechazada | reportada | reasignada
+    %% APORTES.status: pendiente | espera_final | aceptado | rechazado
+    %% SANCIONES.tipo: STRIKE | BANEO_DE_CAMPANA | SUSPENSION_TEMPORAL
