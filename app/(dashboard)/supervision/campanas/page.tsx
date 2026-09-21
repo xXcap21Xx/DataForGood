@@ -31,7 +31,10 @@ export default function SupervisedCampaignsPage() {
 
         const payload = await response.json();
         const rows = Array.isArray(payload?.data) ? payload.data : [];
-        setCampaigns(rows.filter((campaign: CampaignRow) => String(campaign.status ?? "") === "activa"));
+        setCampaigns(rows.filter((campaign: CampaignRow) => {
+          const status = String(campaign.status ?? "");
+          return status === "activa" || status === "aceptada";
+        }));
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "No se pudieron cargar las campañas");
       } finally {
@@ -72,7 +75,7 @@ export default function SupervisedCampaignsPage() {
               return (
                 <tr key={campaign.id} className="border-b border-line last:border-0">
                   <td className="py-4"><p className="font-bold text-ink">{campaign.name}</p><p className="text-[12px] text-ink-3">{campaign.tag || campaign.tematica || "Sin temática"}</p></td>
-                  <td><Tag tone={campaign.status === "activa" ? "ok" : "warn"}>{campaign.status === "activa" ? "Activa" : campaign.status}</Tag></td>
+                  <td><Tag tone={campaign.status === "activa" ? "ok" : "warn"}>{campaign.status === "activa" ? "Activa" : campaign.status === "aceptada" ? "Aceptada" : campaign.status}</Tag></td>
                   <td className="w-44"><div className="h-2 overflow-hidden rounded-pill bg-sunken"><div className="h-full rounded-pill bg-ok" style={{ width: percent }} /></div><p className="mt-1 font-mono text-[11px] text-ink-3">{progress}</p></td>
                   <td className="font-mono text-ink-2">{Number(campaign.participants ?? 0)}</td>
                   <td><div className="flex justify-end gap-2"><Link href={`/supervision/${campaign.id}/usuarios`} className="rounded-pill border border-line-2 px-3 py-1.5 text-[12px] font-bold text-ink-2 hover:border-accent">Usuarios</Link><Link href={`/supervision/${campaign.id}/panel`} className="rounded-pill border border-line-2 px-3 py-1.5 text-[12px] font-bold text-ink-2 hover:border-accent">Panel</Link></div></td>

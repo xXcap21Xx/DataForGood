@@ -1,8 +1,10 @@
+import { pool } from "@/lib/db";
+
 /**
- * Convierte fechas de campa?a a una fecha de calendario, sin aplicar UTC.
+ * Convierte fechas de campaña a una fecha de calendario, sin aplicar UTC.
  * PostgreSQL puede entregar una columna DATE como Date; convertirla
  * directamente con `String(value).slice(0, 10)` produce textos como
- * "Tue Sep 22", que no son ISO y terminan mostrando 0 d?as restantes.
+ * "Tue Sep 22", que no son ISO y terminan mostrando 0 días restantes.
  */
 function dateOnlyFromParts(year: number, month: number, day: number): string | null {
   const date = new Date(year, month - 1, day);
@@ -30,11 +32,99 @@ export function normalizeCampaignDate(value: unknown): string | null {
     return dateOnlyFromParts(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
   }
 
-  // Compatibilidad con registros existentes que el driver devolvi? como
-  // "Tue Sep 22 2026 ...". La respuesta p?blica siempre vuelve a ser ISO.
+  // Compatibilidad con registros existentes que el driver devolvió como
+  // "Tue Sep 22 2026 ...". La respuesta pública siempre vuelve a ser ISO.
   const parsed = new Date(raw);
   if (Number.isNaN(parsed.getTime())) return null;
   return dateOnlyFromParts(parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate());
+}
+
+const DEFAULT_TIME = "00:00";
+
+/**
+ * Normaliza "HH:MM" o "HH:MM:SS[.ffffff]" (Postgres TIME, con fracción de
+ * segundo cuando el valor viene de una expresión como CURRENT_TIME) a
+ * "HH:MM"; null si falta o es inválida.
+ */
+export function normalizeCampaignTime(value: unknown): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const match = raw.match(/^(\d{1,2}):(\d{2})(?::\d{2}(?:\.\d+)?)?$/);
+  if (!match) return null;
+
+  const hour = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return null;
+
+  return `${hour.toString().padStart(2, "0")}:${minute.toString().padStart(2, "0")}`;
+}
+
+/**
+ * Combina fecha + hora de una campaña en un Date local. Sin hora, se asume
+ * "00:00" (medianoche local) para que una campaña sin hora definida se
+ * comporte exactamente como antes de agregar start_time/end_time: activa o
+ * finaliza en cuanto empieza ese día de calendario.
+ */
+function campaignMoment(dateValue: unknown, timeValue: unknown): Date | null {
+  const dateOnly = normalizeCampaignDate(dateValue);
+  if (!dateOnly) return null;
+
+  const time = normalizeCampaignTime(timeValue) ?? DEFAULT_TIME;
+  const [year, month, day] = dateOnly.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  return new Date(year, month - 1, day, hour, minute, 0, 0);
+}
+
+/**
+ * true si la fecha/hora de inicio ya llegó (o no tiene fecha definida).
+ * Compara contra la hora local del proceso de Node, no contra NOW() de
+ * Postgres, para no repetir el desfase de huso horario ya documentado.
+ */
+export function hasCampaignStarted(dateValue: unknown, timeValue?: unknown): boolean {
+  const moment = campaignMoment(dateValue, timeValue);
+  if (!moment) return true;
+  return moment.getTime() <= Date.now();
+}
+
+/** "YYYY-MM-DD HH:MM:SS" en hora local, para comparar contra columnas DATE+TIME en SQL sin usar NOW()/CURRENT_TIMESTAMP de Postgres. */
+function nowLocalTimestampParam(): string {
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, "0");
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+
+/**
+ * Activa las campañas "aceptada" (supervisor ya la aprobó, pero con fecha/hora
+ * de inicio futura) cuya fecha y hora de inicio ya llegaron. No hay cron ni
+ * cola en este proyecto (ver AGENTS.md del repo), así que se ejecuta de forma
+ * perezosa en cada lectura de campañas, igual que calculateCampaignDaysRemaining.
+ * Sin start_time, COALESCE la deja en 00:00 (mismo comportamiento que antes).
+ */
+export async function activateScheduledCampaigns(): Promise<void> {
+  await pool.query(
+    `UPDATE campanas SET status = 'activa', updated_at = NOW()
+     WHERE status = 'aceptada'
+       AND (start_date::timestamp + COALESCE(start_time, TIME '00:00:00')) <= $1::timestamp`,
+    [nowLocalTimestampParam()]
+  );
+}
+
+/**
+ * Finaliza las campañas "activa" cuya fecha y hora de fin ya llegaron, con el
+ * mismo mecanismo perezoso que activateScheduledCampaigns. Una campaña sin
+ * end_date no se toca: forzar el cierre de una campaña sin fecha definida
+ * sería un comportamiento inesperado. Sin end_time, COALESCE la deja en
+ * 00:00 (mismo comportamiento que antes de agregar la hora).
+ */
+export async function finalizeExpiredCampaigns(): Promise<void> {
+  await pool.query(
+    `UPDATE campanas SET status = 'finalizada', updated_at = NOW()
+     WHERE status = 'activa'
+       AND end_date IS NOT NULL
+       AND (end_date::timestamp + COALESCE(end_time, TIME '00:00:00')) <= $1::timestamp`,
+    [nowLocalTimestampParam()]
+  );
 }
 
 export function calculateCampaignDaysRemaining(value: unknown): number | null {

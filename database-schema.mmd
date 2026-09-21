@@ -64,7 +64,9 @@ erDiagram
         int rejected_contributions
         int participants
         date start_date
+        time start_time
         date end_date
+        time end_time
         varchar location_city
         varchar location_state
         varchar organizer
@@ -73,7 +75,7 @@ erDiagram
         int days_remaining
         boolean has_reviewer_assigned
         varchar share_token
-        timestamp share_token_expires_at
+        timestamptz share_token_expires_at
         jsonb aportes
         timestamp created_at
         timestamp updated_at

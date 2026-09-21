@@ -61,7 +61,10 @@ export default function SupervisionPage() {
 
         setPendingCampaigns(visible);
         const supervised = supervisedRows as CampaignApiItem[];
-        setSupervisedCampaigns(supervised.filter((campaign) => String(campaign.status ?? "") === "activa"));
+        setSupervisedCampaigns(supervised.filter((campaign) => {
+          const status = String(campaign.status ?? "");
+          return status === "activa" || status === "aceptada";
+        }));
         setFinishedCampaigns(supervised.filter((campaign) => String(campaign.status ?? "") === "finalizada"));
         setFlaggedCampaigns(supervised.filter((campaign) =>
           campaign.latestSupervisionAction === "reportada" || String(campaign.status ?? "") === "rechazada"
@@ -139,7 +142,7 @@ export default function SupervisionPage() {
                     <h3 className="text-[15px] font-extrabold text-ink">{campaign.name}</h3>
                     <p className="text-[12.5px] text-ink-3">{campaign.tag || campaign.tematica || "Sin temática"}</p>
                   </div>
-                  <Tag tone="ok">Activa</Tag>
+                  <Tag tone={campaign.status === "activa" ? "ok" : "warn"}>{campaign.status === "activa" ? "Activa" : "Aceptada"}</Tag>
                 </div>
 
                 <div className="flex items-center justify-between gap-4 text-[12px] text-ink-2">

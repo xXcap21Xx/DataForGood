@@ -103,7 +103,9 @@ export async function ensureCampanasTable(): Promise<void> {
       rejected_contributions INTEGER NOT NULL DEFAULT 0,
       participants INTEGER NOT NULL DEFAULT 0,
       start_date DATE,
+      start_time TIME,
       end_date DATE,
+      end_time TIME,
       location_city VARCHAR(120),
       location_state VARCHAR(120),
       location_colonia VARCHAR(150),
@@ -113,7 +115,7 @@ export async function ensureCampanasTable(): Promise<void> {
       days_remaining INTEGER,
       has_reviewer_assigned BOOLEAN NOT NULL DEFAULT false,
       share_token VARCHAR(80),
-      share_token_expires_at TIMESTAMP,
+      share_token_expires_at TIMESTAMPTZ,
       aportes JSONB NOT NULL DEFAULT '[]'::jsonb,
       downloads_count INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -141,7 +143,9 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS rejected_contributions INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS participants INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS start_date DATE;
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS start_time TIME;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS end_date DATE;
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS end_time TIME;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_city VARCHAR(120);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_state VARCHAR(120);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_colonia VARCHAR(150);
@@ -151,7 +155,7 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS days_remaining INTEGER;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS has_reviewer_assigned BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token VARCHAR(80);
-    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token_expires_at TIMESTAMP;
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token_expires_at TIMESTAMPTZ;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS aportes JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS downloads_count INTEGER NOT NULL DEFAULT 0;
   `);

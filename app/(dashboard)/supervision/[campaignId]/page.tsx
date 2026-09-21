@@ -116,6 +116,7 @@ export default function CampaignDetailPage() {
 
   const statusMap = {
     en_revision: { label: "En revisión", tone: "warn" },
+    aceptada: { label: "Aceptada", tone: "warn" },
     activa: { label: "Activa", tone: "ok" },
     rechazada: { label: "Rechazada", tone: "danger" },
     borrador: { label: "Borrador", tone: "default" },

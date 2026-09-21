@@ -34,6 +34,7 @@ const MAX_ACTIVE_CAMPAIGNS = 5;
 const ESTADO_LABELS: Record<string, string> = {
   borrador: "Borrador",
   en_revision: "En revisión",
+  aceptada: "Aceptada",
   activa: "Activa",
   pausada: "Pausada",
   finalizada: "Finalizada",
@@ -103,12 +104,13 @@ function CampanaFormulario({
   const router = useRouter();
 
   // Reglas de edición por estado (dominio.md): una campaña en revisión o
-  // rechazada se puede editar por completo y reenviar; activa o pausada solo
-  // permite ajustar meta y fecha de finalización, sin tocar su estado;
-  // finalizada queda en solo lectura.
+  // rechazada se puede editar por completo y reenviar; activa, pausada o
+  // aceptada (aprobada, esperando su fecha de inicio) solo permiten ajustar
+  // meta y fecha de finalización, sin tocar su estado; finalizada queda en
+  // solo lectura.
   const status = editingCampaign?.status;
   const soloLectura = status === "finalizada";
-  const edicionLimitada = status === "activa" || status === "pausada";
+  const edicionLimitada = status === "activa" || status === "pausada" || status === "aceptada";
   const edicionCompleta = !edicionLimitada && !soloLectura;
 
   const [name, setName] = useState(editingCampaign?.name ?? "");
@@ -125,12 +127,15 @@ function CampanaFormulario({
   const [goal, setGoal] = useState(String(editingCampaign?.goalContributions ?? 500));
   const [quota, setQuota] = useState(String(editingCampaign?.quotaPerUser ?? 10));
   const [startDate, setStartDate] = useState(editingCampaign?.startDate ?? "");
+  const [startTime, setStartTime] = useState(editingCampaign?.startTime ?? "");
   const [endDate, setEndDate] = useState(editingCampaign?.endDate ?? "");
+  const [endTime, setEndTime] = useState(editingCampaign?.endTime ?? "");
   const [locationState, setLocationState] = useState(editingCampaign?.locationState ?? "");
   const [locationCity, setLocationCity] = useState(editingCampaign?.locationCity ?? "");
   const [locationColonia, setLocationColonia] = useState(editingCampaign?.locationColonia ?? "");
   const [reactivando, setReactivando] = useState(false);
   const [reactivarError, setReactivarError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const limiteActivasAlcanzado = activeCampaigns >= MAX_ACTIVE_CAMPAIGNS;
 
@@ -221,16 +226,54 @@ function CampanaFormulario({
     );
   }
 
+  // Solo se exige completo al enviar a revisión o al editar una campaña ya
+  // aceptada/activa/pausada: un borrador puede quedar a medias a propósito
+  // (es justo lo que permite seguir bajo el límite de 5 campañas activas).
+  function validar(asDraft: boolean): string | null {
+    if (edicionLimitada) {
+      if (!Number(goal) || Number(goal) <= 0) return "La meta de aportes debe ser mayor a 0";
+      if (!endDate) return "Falta la fecha de finalización";
+      return null;
+    }
+
+    if (asDraft) return null;
+
+    if (!name.trim()) return "Falta el nombre de la campaña";
+    if (!description.trim()) return "Falta la descripción";
+    if (dataTypes.length === 0) return "Selecciona al menos un tipo de dato";
+    if (!goal || Number(goal) <= 0) return "La meta de aportes debe ser mayor a 0";
+    if (!quota || Number(quota) <= 0) return "La cuota por persona debe ser mayor a 0";
+    if (collectionMode === "checklist" && checklistOpciones.length === 0) {
+      return "Agrega al menos una opción al checklist";
+    }
+    if (!startDate) return "Falta la fecha de inicio";
+    if (!endDate) return "Falta la fecha de finalización";
+    if (endDate < startDate) return "La fecha de finalización no puede ser anterior a la de inicio";
+    if (!locationState) return "Selecciona un estado";
+    if (!locationCity) return "Selecciona un municipio";
+
+    return null;
+  }
+
   async function handleSubmit(e: React.FormEvent, asDraft: boolean) {
     e.preventDefault();
     if (soloLectura) return;
 
-    // Activa o pausada: solo se guardan meta y fecha de fin, y el estado no
-    // se manda, así la campaña se mantiene en el estado en el que estaba.
+    const error = validar(asDraft);
+    if (error) {
+      setFormError(error);
+      return;
+    }
+    setFormError(null);
+
+    // Activa, pausada o aceptada: solo se guardan meta y fecha/hora de fin,
+    // y el estado no se manda, así la campaña se mantiene en el estado en el
+    // que estaba.
     const camposEditables = edicionLimitada
       ? {
           goalContributions: Number(goal),
           endDate,
+          endTime: endTime || null,
         }
       : {
           name,
@@ -244,7 +287,9 @@ function CampanaFormulario({
           goalContributions: Number(goal),
           quotaPerUser: Number(quota),
           startDate,
+          startTime: startTime || null,
           endDate,
+          endTime: endTime || null,
           locationCity,
           locationState,
           locationColonia,
@@ -289,7 +334,7 @@ function CampanaFormulario({
       router.push("/mis-campanas");
     } catch (error) {
       console.error(editingCampaign ? "Error actualizando campaña" : "Error creando campaña", error);
-      router.push("/mis-campanas");
+      setFormError(error instanceof Error ? error.message : "No se pudo guardar la campaña");
     }
   }
 
@@ -306,7 +351,9 @@ function CampanaFormulario({
           </h1>
           <p className="mt-1 text-[13px] text-ink-2">
             {edicionLimitada
-              ? "La campaña ya está en curso: solo puedes ajustar la meta de aportes y la fecha de finalización."
+              ? status === "aceptada"
+                ? "La campaña ya fue aceptada y espera su fecha de inicio: solo puedes ajustar la meta de aportes y la fecha/hora de finalización."
+                : "La campaña ya está en curso: solo puedes ajustar la meta de aportes y la fecha/hora de finalización."
               : "Completa los tres bloques y envíala a revisión"}
           </p>
         </div>
@@ -418,21 +465,23 @@ function CampanaFormulario({
             </div>
 
             <div className="flex gap-3">
-              <Field label="Meta total">
+              <Field label="Meta total" required>
                 <Input
                   type="number"
                   min={1}
                   value={goal}
                   onChange={(e) => setGoal(e.target.value)}
+                  required
                   className="font-mono"
                 />
               </Field>
-              <Field label="Cuota por persona">
+              <Field label="Cuota por persona" required>
                 <Input
                   type="number"
                   min={1}
                   value={quota}
                   onChange={(e) => setQuota(e.target.value)}
+                  required={!edicionLimitada}
                   disabled={edicionLimitada}
                   className="font-mono disabled:cursor-not-allowed disabled:opacity-50"
                 />
@@ -515,23 +564,40 @@ function CampanaFormulario({
           3 · Vigencia
         </p>
         <div className="mb-2 max-w-md">
-          <Field label="Vigencia" required>
-            <div className="flex gap-3">
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                required
-                disabled={edicionLimitada}
-                className="font-mono disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                required
-                className="font-mono"
-              />
+          <Field label="Vigencia" required hint="La hora es opcional: sin hora, la campaña activa o finaliza desde el inicio de ese día.">
+            <div className="flex flex-wrap gap-3">
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  required
+                  disabled={edicionLimitada}
+                  className="font-mono disabled:cursor-not-allowed disabled:opacity-50"
+                />
+                <Input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  disabled={edicionLimitada}
+                  className="font-mono disabled:cursor-not-allowed disabled:opacity-50"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  required
+                  className="font-mono"
+                />
+                <Input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  className="font-mono"
+                />
+              </div>
             </div>
           </Field>
         </div>
@@ -539,10 +605,11 @@ function CampanaFormulario({
           Ubicación
         </p>
         <div className="mb-6 grid max-w-3xl grid-cols-1 gap-4 sm:grid-cols-3">
-          <Field label="Estado">
+          <Field label="Estado" required>
             <select
               value={locationState}
               onChange={(e) => cambiarEstado(e.target.value)}
+              required={!edicionLimitada}
               disabled={edicionLimitada}
               className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -552,10 +619,11 @@ function CampanaFormulario({
               ))}
             </select>
           </Field>
-          <Field label="Municipio">
+          <Field label="Municipio" required>
             <select
               value={locationCity}
               onChange={(e) => setLocationCity(e.target.value)}
+              required={!edicionLimitada}
               disabled={!locationState || edicionLimitada}
               className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
@@ -588,8 +656,13 @@ function CampanaFormulario({
         )}
         {edicionLimitada && (
           <div className="mb-6 max-w-lg rounded-lg bg-sunken p-4 text-[12.5px] text-ink-2">
-            La campaña está {status === "pausada" ? "pausada" : "activa"}: los cambios se
+            La campaña está {status === "pausada" ? "pausada" : status === "aceptada" ? "aceptada" : "activa"}: los cambios se
             guardan y mantiene su estado actual.
+          </div>
+        )}
+        {formError && (
+          <div className="mb-6 max-w-lg rounded-lg border border-danger bg-danger-tint p-4 text-[12.5px] text-danger">
+            {formError}
           </div>
         )}
 
