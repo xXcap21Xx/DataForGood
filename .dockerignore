@@ -1,0 +1,17 @@
+node_modules
+.next
+.git
+.claude
+.vscode
+
+# nunca deben llegar a una capa de la imagen
+.env
+.env.*
+
+*.md
+*.log
+npm-debug.log*
+.DS_Store
+Dockerfile
+.dockerignore
+docker-compose*.yml

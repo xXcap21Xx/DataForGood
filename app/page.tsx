@@ -46,23 +46,40 @@ interface CifrasReales {
   organizaciones: number;
 }
 
-/** Tracción real de la plataforma: sin "+" ni cifras redondeadas, son conteos exactos de la BD. */
+const CIFRAS_VACIAS: CifrasReales = {
+  campanasCreadas: 0,
+  participantes: 0,
+  datosRecolectados: 0,
+  organizaciones: 0,
+};
+
+/**
+ * Tracción real de la plataforma: sin "+" ni cifras redondeadas, son conteos
+ * exactos de la BD. Esta página se prerrenderiza en el build (revalidate =
+ * 300) y ese build corre sin Postgres disponible (imagen de Docker, sin la
+ * red de docker-compose); igual que contarFilas en metricas.ts, si la BD no
+ * responde se muestra en 0 en vez de tumbar el build o la página.
+ */
 async function obtenerCifras(): Promise<CifrasReales> {
-  await ensureCoreSchema();
-  const result = await pool.query(`
-    SELECT
-      (SELECT COUNT(*)::int FROM campanas) AS campanas_creadas,
-      (SELECT COUNT(DISTINCT user_id)::int FROM aportes WHERE user_id IS NOT NULL) AS participantes,
-      (SELECT COUNT(*)::int FROM aportes) AS datos_recolectados,
-      (SELECT COUNT(DISTINCT creator_id)::int FROM campanas) AS organizaciones
-  `);
-  const row = result.rows[0] ?? {};
-  return {
-    campanasCreadas: Number(row.campanas_creadas ?? 0),
-    participantes: Number(row.participantes ?? 0),
-    datosRecolectados: Number(row.datos_recolectados ?? 0),
-    organizaciones: Number(row.organizaciones ?? 0),
-  };
+  try {
+    await ensureCoreSchema();
+    const result = await pool.query(`
+      SELECT
+        (SELECT COUNT(*)::int FROM campanas) AS campanas_creadas,
+        (SELECT COUNT(DISTINCT user_id)::int FROM aportes WHERE user_id IS NOT NULL) AS participantes,
+        (SELECT COUNT(*)::int FROM aportes) AS datos_recolectados,
+        (SELECT COUNT(DISTINCT creator_id)::int FROM campanas) AS organizaciones
+    `);
+    const row = result.rows[0] ?? {};
+    return {
+      campanasCreadas: Number(row.campanas_creadas ?? 0),
+      participantes: Number(row.participantes ?? 0),
+      datosRecolectados: Number(row.datos_recolectados ?? 0),
+      organizaciones: Number(row.organizaciones ?? 0),
+    };
+  } catch {
+    return CIFRAS_VACIAS;
+  }
 }
 
 interface CampanaDestacada {
@@ -76,22 +93,26 @@ interface CampanaDestacada {
 
 /** Campañas activas con más participación, para la vitrina de la landing. */
 async function obtenerCampanasDestacadas(): Promise<CampanaDestacada[]> {
-  await ensureCoreSchema();
-  const result = await pool.query(
-    `SELECT id, name, COALESCE(NULLIF(tag, ''), tematica) AS tag, current_contributions, goal_contributions, participants
-     FROM campanas
-     WHERE status = 'activa'
-     ORDER BY participants DESC, current_contributions DESC
-     LIMIT 3`
-  );
-  return result.rows.map((row) => ({
-    id: String(row.id),
-    name: String(row.name ?? ""),
-    tag: String(row.tag ?? ""),
-    currentContributions: Number(row.current_contributions ?? 0),
-    goalContributions: Number(row.goal_contributions ?? 0),
-    participants: Number(row.participants ?? 0),
-  }));
+  try {
+    await ensureCoreSchema();
+    const result = await pool.query(
+      `SELECT id, name, COALESCE(NULLIF(tag, ''), tematica) AS tag, current_contributions, goal_contributions, participants
+       FROM campanas
+       WHERE status = 'activa'
+       ORDER BY participants DESC, current_contributions DESC
+       LIMIT 3`
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      name: String(row.name ?? ""),
+      tag: String(row.tag ?? ""),
+      currentContributions: Number(row.current_contributions ?? 0),
+      goalContributions: Number(row.goal_contributions ?? 0),
+      participants: Number(row.participants ?? 0),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 interface AporteReciente {
@@ -120,21 +141,25 @@ function comoHashtag(texto: string): string {
  * contenido todavía sin revisar en la página pública.
  */
 async function obtenerAportesRecientes(): Promise<AporteReciente[]> {
-  await ensureCoreSchema();
-  const result = await pool.query(
-    `SELECT a.id, COALESCE(NULLIF(c.tag, ''), c.tematica) AS tag, a.description, a.submitted_at
-     FROM aportes a
-     JOIN campanas c ON c.id = a.campaign_id
-     WHERE a.status = 'aceptado' AND c.status IN ('activa', 'pausada', 'finalizada')
-     ORDER BY a.submitted_at DESC
-     LIMIT 4`
-  );
-  return result.rows.map((row) => ({
-    id: String(row.id),
-    tag: String(row.tag ?? ""),
-    description: String(row.description ?? ""),
-    submittedAt: row.submitted_at ? new Date(String(row.submitted_at)).toISOString() : new Date().toISOString(),
-  }));
+  try {
+    await ensureCoreSchema();
+    const result = await pool.query(
+      `SELECT a.id, COALESCE(NULLIF(c.tag, ''), c.tematica) AS tag, a.description, a.submitted_at
+       FROM aportes a
+       JOIN campanas c ON c.id = a.campaign_id
+       WHERE a.status = 'aceptado' AND c.status IN ('activa', 'pausada', 'finalizada')
+       ORDER BY a.submitted_at DESC
+       LIMIT 4`
+    );
+    return result.rows.map((row) => ({
+      id: String(row.id),
+      tag: String(row.tag ?? ""),
+      description: String(row.description ?? ""),
+      submittedAt: row.submitted_at ? new Date(String(row.submitted_at)).toISOString() : new Date().toISOString(),
+    }));
+  } catch {
+    return [];
+  }
 }
 
 export default async function LandingPage() {

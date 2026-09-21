@@ -146,44 +146,56 @@ const ORDER_SQL: Record<OpenDataOrder, string> = {
   calidad: "(c.approved_contributions::float / NULLIF(c.approved_contributions + c.rejected_contributions, 0)) DESC NULLS LAST",
 };
 
+// La landing (app/page.tsx) llama estas dos con revalidate = 300, así que se
+// prerrenderizan en el build sin Postgres disponible (imagen de Docker);
+// igual que contarFilas en metricas.ts, si la BD no responde se devuelve
+// vacío en vez de tumbar el build o la página.
 export async function buscarConjuntosAbiertos(
   filtros: OpenDataFilters
 ): Promise<{ conjuntos: OpenDataset[] }> {
-  await ensureCoreSchema();
+  try {
+    await ensureCoreSchema();
 
-  const condiciones = ["c.status = 'finalizada'"];
-  const valores: unknown[] = [];
+    const condiciones = ["c.status = 'finalizada'"];
+    const valores: unknown[] = [];
 
-  const q = filtros.q?.trim();
-  if (q) {
-    valores.push(`%${q}%`);
-    const p = `$${valores.length}`;
-    condiciones.push(`(c.name ILIKE ${p} OR c.description ILIKE ${p} OR c.organizer ILIKE ${p} OR c.creator_name ILIKE ${p})`);
+    const q = filtros.q?.trim();
+    if (q) {
+      valores.push(`%${q}%`);
+      const p = `$${valores.length}`;
+      condiciones.push(`(c.name ILIKE ${p} OR c.description ILIKE ${p} OR c.organizer ILIKE ${p} OR c.creator_name ILIKE ${p})`);
+    }
+    if (filtros.tematica) {
+      valores.push(filtros.tematica);
+      condiciones.push(`c.tematica = $${valores.length}`);
+    }
+    if (filtros.locationState) {
+      valores.push(filtros.locationState);
+      condiciones.push(`c.location_state = $${valores.length}`);
+    }
+
+    const orderBy = ORDER_SQL[filtros.orden ?? "recientes"];
+
+    const result = await pool.query(
+      `${SELECT} WHERE ${condiciones.join(" AND ")} ORDER BY ${orderBy}`,
+      valores
+    );
+
+    return { conjuntos: result.rows.map(mapDataset) };
+  } catch {
+    return { conjuntos: [] };
   }
-  if (filtros.tematica) {
-    valores.push(filtros.tematica);
-    condiciones.push(`c.tematica = $${valores.length}`);
-  }
-  if (filtros.locationState) {
-    valores.push(filtros.locationState);
-    condiciones.push(`c.location_state = $${valores.length}`);
-  }
-
-  const orderBy = ORDER_SQL[filtros.orden ?? "recientes"];
-
-  const result = await pool.query(
-    `${SELECT} WHERE ${condiciones.join(" AND ")} ORDER BY ${orderBy}`,
-    valores
-  );
-
-  return { conjuntos: result.rows.map(mapDataset) };
 }
 
 /** Total de conjuntos publicados, sin filtros: para distinguir "catálogo vacío" de "sin resultados para este filtro". */
 export async function contarConjuntosPublicados(): Promise<number> {
-  await ensureCoreSchema();
-  const result = await pool.query(`SELECT COUNT(*)::int AS total FROM campanas WHERE status = 'finalizada'`);
-  return Number(result.rows[0]?.total ?? 0);
+  try {
+    await ensureCoreSchema();
+    const result = await pool.query(`SELECT COUNT(*)::int AS total FROM campanas WHERE status = 'finalizada'`);
+    return Number(result.rows[0]?.total ?? 0);
+  } catch {
+    return 0;
+  }
 }
 
 export async function obtenerConjuntoAbierto(id: string): Promise<OpenDataset | null> {

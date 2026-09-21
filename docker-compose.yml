@@ -28,5 +28,40 @@ services:
     volumes:
       - C:/minio/data:/data
 
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: app
+    restart: always
+    # Secretos (Gmail, Google OAuth, ROOT_PASSWORD_HASH...) salen del .env de
+    # la raíz (copia de .env.local; ambos gitignored). Se referencian uno por
+    # uno con ${VAR} en vez de con env_file: Compose SÍ interpola "${...}"
+    # dentro de los valores de un env_file de servicio, lo que corrompe el
+    # hash bcrypt de ROOT_PASSWORD_HASH (sus "\$" no son la convención de
+    # escape de Compose, que es "$$"); el .env de proyecto que carga solo
+    # para sustituir variables en este archivo no tiene ese problema.
+    environment:
+      GMAIL_USER: ${GMAIL_USER}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      ROOT_USER_ID: ${ROOT_USER_ID}
+      ROOT_PASSWORD_HASH: ${ROOT_PASSWORD_HASH}
+      MINIO_BUCKET: ${MINIO_BUCKET}
+      DATABASE_URL: postgresql://tu_usuario:tu_password_segura@postgres:5432/mi_base_de_datos
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_ACCESS_KEY: admin
+      MINIO_SECRET_KEY: admin12345
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - minio
+
 volumes:
   postgres_data:
