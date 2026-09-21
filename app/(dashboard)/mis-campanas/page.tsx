@@ -10,6 +10,7 @@ import type { Campaign, CampaignStatus } from "@/types";
 const labels: Record<CampaignStatus, string> = {
   borrador: "Borrador",
   en_revision: "En revision",
+  aceptada: "Aceptada",
   activa: "Activa",
   pausada: "Pausada",
   finalizada: "Finalizada",
@@ -108,6 +109,7 @@ export default function MisCampanasPage() {
       <div className="mb-5 mt-4 flex flex-wrap gap-2">
         <Tag tone="on">Todas {campaigns.length}</Tag>
         <Tag tone="warn">En revision {count("en_revision")}</Tag>
+        <Tag tone="warn">Aceptadas {count("aceptada")}</Tag>
         <Tag>Finalizadas {count("finalizada")}</Tag>
         <Tag>Activas {count("activa")}</Tag>
       </div>
@@ -128,7 +130,7 @@ export default function MisCampanasPage() {
               <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4">
                 <div className="mb-1 flex items-start justify-between gap-2">
                   <p className="text-[13.5px] font-medium text-ink">{campaign.name}</p>
-                  <Tag tone={campaign.status === "activa" ? "ok" : "default"}>{labels[campaign.status]}</Tag>
+                  <Tag tone={campaign.status === "activa" ? "ok" : campaign.status === "aceptada" ? "warn" : "default"}>{labels[campaign.status]}</Tag>
                 </div>
                 <p className="mb-2.5 font-mono text-[11.5px] text-ink-2">
                   {campaign.startDate ?? "Sin fecha"} - {campaign.endDate ?? "Sin fecha"}

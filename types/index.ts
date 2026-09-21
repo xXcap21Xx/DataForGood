@@ -4,6 +4,7 @@
 export type CampaignStatus =
   | "borrador"
   | "en_revision"
+  | "aceptada" // supervisor ya la aprobó, esperando a que llegue su fecha de inicio
   | "activa"
   | "pausada"
   | "finalizada"
@@ -58,7 +59,9 @@ export interface Campaign {
   rejectedContributions: number;
   participants: number;
   startDate: string | null; // ISO date
+  startTime?: string | null; // "HH:MM", opcional
   endDate: string | null; // ISO date
+  endTime?: string | null; // "HH:MM", opcional
   locationCity: string;
   locationState: string;
   locationColonia?: string;
@@ -72,6 +75,8 @@ export interface Campaign {
   contributions?: Contribution[];
   /** Si el usuario en sesión la guardó. Ausente cuando no hay sesión. */
   isSaved?: boolean;
+  /** Aportes del usuario en sesión a esta campaña. Solo viene en /api/campanas?misAportes=true. */
+  myContributionsCount?: number;
 }
 
 export interface Contribution {

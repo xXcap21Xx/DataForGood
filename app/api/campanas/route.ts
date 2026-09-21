@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
-import { calculateCampaignDaysRemaining, normalizeCampaignDate } from "@/lib/campaign-date";
+import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
 async function obtenerIdsGuardados(usuarioId: number): Promise<Set<number>> {
   const result = await pool.query<{ campana_id: number }>(
@@ -90,7 +90,9 @@ function mapCampaign(row: Record<string, unknown>) {
     rejectedContributions: Number(row.rejected_contributions ?? 0),
     participants: Number(row.participants ?? 0),
     startDate: normalizeCampaignDate(row.start_date),
+    startTime: normalizeCampaignTime(row.start_time),
     endDate: normalizeCampaignDate(row.end_date),
+    endTime: normalizeCampaignTime(row.end_time),
     locationCity: String(row.location_city ?? ""),
     locationState: String(row.location_state ?? ""),
     locationColonia: String(row.location_colonia ?? ""),
@@ -100,8 +102,9 @@ function mapCampaign(row: Record<string, unknown>) {
     daysRemaining: calculateCampaignDaysRemaining(row.end_date ?? row.endDate),
     hasReviewerAssigned: Boolean(row.has_reviewer_assigned),
     shareToken: String(row.share_token ?? ""),
-    shareTokenExpiresAt: row.share_token_expires_at ? new Date(String(row.share_token_expires_at)).toISOString() : undefined,
+    shareTokenExpiresAt: row.share_token_expires_at ? new Date(row.share_token_expires_at as string).toISOString() : undefined,
     contributions: aportes,
+    myContributionsCount: row.mis_aportes_count != null ? Number(row.mis_aportes_count) : undefined,
   };
 }
 
@@ -118,6 +121,9 @@ export async function GET(request: Request) {
     const misAportes = url.searchParams.get("misAportes") === "true";
     // Siempre se intenta leer la sesión (aunque el modo no la exija) para poder marcar isSaved.
     const user = await getSessionUser();
+
+    await activateScheduledCampaigns();
+    await finalizeExpiredCampaigns();
 
     if ((mine || available || misAportes || supervised) && !user) {
       return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -162,7 +168,9 @@ export async function GET(request: Request) {
         ? await pool.query(`SELECT * FROM campanas WHERE creator_id <> $1 AND status = 'activa' ORDER BY created_at DESC`, [user!.id])
         : misAportes
           ? await pool.query(
-              `SELECT * FROM campanas
+              `SELECT campanas.*,
+                      (SELECT COUNT(*)::int FROM aportes a2 WHERE a2.campaign_id = campanas.id AND a2.user_id = $1) AS mis_aportes_count
+               FROM campanas
                WHERE creator_id <> $1
                  AND (
                    EXISTS (SELECT 1 FROM aportes a WHERE a.campaign_id = campanas.id AND a.user_id = $1)
@@ -235,14 +243,49 @@ export async function POST(request: Request) {
     const isSpecial = Boolean(body.isSpecial ?? body.is_special ?? false);
     const hasReviewerAssigned = Boolean(body.hasReviewerAssigned ?? body.has_reviewer_assigned ?? false);
 
-    const startDate = body.startDate ?? body.start_date ?? null;
-    const endDate = body.endDate ?? body.end_date ?? null;
+    const startDate = normalizeCampaignDate(body.startDate ?? body.start_date);
+    const startTime = normalizeCampaignTime(body.startTime ?? body.start_time);
+    const endDate = normalizeCampaignDate(body.endDate ?? body.end_date);
+    const endTime = normalizeCampaignTime(body.endTime ?? body.end_time);
     const locationCity = String(body.locationCity ?? body.location_city ?? "").trim();
     const locationState = String(body.locationState ?? body.location_state ?? "").trim();
     const locationColonia = String(body.locationColonia ?? body.location_colonia ?? "").trim();
     const organizer = String(body.organizer ?? "").trim();
     const shareToken = String(body.shareToken ?? body.share_token ?? "").trim();
     const shareTokenExpiresAt = body.shareTokenExpiresAt ?? body.share_token_expires_at ?? null;
+
+    // Un borrador puede quedar incompleto a propósito; para cualquier otro
+    // estado (en_revision, activa...) sí se exigen los campos importantes,
+    // igual que ya hace NuevaCampanaForm en el cliente.
+    if (status !== "borrador") {
+      if (dataTypes.length === 0) {
+        return NextResponse.json({ error: "Selecciona al menos un tipo de dato" }, { status: 400 });
+      }
+      if (!goalContributions || goalContributions <= 0) {
+        return NextResponse.json({ error: "La meta de aportes debe ser mayor a 0" }, { status: 400 });
+      }
+      if (!quotaPerUser || quotaPerUser <= 0) {
+        return NextResponse.json({ error: "La cuota por persona debe ser mayor a 0" }, { status: 400 });
+      }
+      if (collectionMode === "checklist" && checklistOpciones.length === 0) {
+        return NextResponse.json({ error: "Agrega al menos una opción al checklist" }, { status: 400 });
+      }
+      if (!startDate) {
+        return NextResponse.json({ error: "La fecha de inicio es obligatoria" }, { status: 400 });
+      }
+      if (!endDate) {
+        return NextResponse.json({ error: "La fecha de finalización es obligatoria" }, { status: 400 });
+      }
+      if (endDate < startDate) {
+        return NextResponse.json({ error: "La fecha de finalización no puede ser anterior a la de inicio" }, { status: 400 });
+      }
+      if (!locationState) {
+        return NextResponse.json({ error: "Selecciona un estado" }, { status: 400 });
+      }
+      if (!locationCity) {
+        return NextResponse.json({ error: "Selecciona un municipio" }, { status: 400 });
+      }
+    }
 
     const aportes = Array.isArray(body.aportes) ? body.aportes : [];
 
@@ -277,10 +320,12 @@ export async function POST(request: Request) {
         has_reviewer_assigned,
         share_token,
         share_token_expires_at,
-        aportes
+        aportes,
+        start_time,
+        end_time
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10::jsonb, $11, $12, $13, $14, $15,
-        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::jsonb
+        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::jsonb, $31, $32
       ) RETURNING *`,
       [
         creatorId,
@@ -313,6 +358,8 @@ export async function POST(request: Request) {
         shareToken,
         shareTokenExpiresAt,
         JSON.stringify(aportes),
+        startTime,
+        endTime,
       ]
     );
 

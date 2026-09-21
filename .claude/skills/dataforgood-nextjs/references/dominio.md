@@ -45,14 +45,17 @@ Fuentes: texto informativo de `/entrar` y la pantalla `agregar-revisor`.
 
 Fuentes: `mis-campanas`, `NuevaCampanaForm`, `campanas/[id]` y `panel`.
 
-- **Estados:** `borrador`, `en_revision`, `activa`, `pausada`, `finalizada` y `rechazada`.
-- **Transiciones permitidas:** Borrador → En revisión → Activa ⇄ Pausada → Finalizada. Desde En revisión también puede pasar a Rechazada.
+- **Estados:** `borrador`, `en_revision`, `aceptada`, `activa`, `pausada`, `finalizada` y `rechazada`.
+- **Transiciones permitidas:** Borrador → En revisión → Aceptada → Activa ⇄ Pausada → Finalizada. Desde En revisión también puede pasar a Rechazada.
+  - **Aceptación con fecha de inicio futura (`app/api/campanas/[id]/route.ts` PATCH, decisión `aceptada`):** si el supervisor acepta una campaña cuya `start_date` es posterior a hoy, el estado de la campaña queda `aceptada` en vez de pasar directo a `activa`. Se activa sola cuando llega esa fecha — sin cron ni cola (no hay en el proyecto, ver `AGENTS.md`): `activateScheduledCampaigns` (`lib/campaign-date.ts`) corre en cada lectura de `/api/campanas` y hace `UPDATE ... WHERE status = 'aceptada' AND start_date <= hoy`, comparando fechas en JS (no `CURRENT_DATE` de Postgres) para no repetir el desfase de huso horario ya documentado arriba. Si la campaña no tiene `start_date`, se activa de inmediato como antes. Mientras está `aceptada` no aparece en `/campanas`, no acepta aportes y no cuenta para el límite de 5 activas — se edita igual que una `activa`/`pausada` (solo meta y fecha de fin, sin el atajo de "finalizar" porque todavía no arrancó a recolectar).
   - **Una campaña finalizada queda en solo lectura**, salvo el botón "Reactivar campaña" (vuelve a `activa`), disponible solo si la persona tiene menos de 5 campañas activas.
   - **Edición según estado (`app/api/campanas/[id]/route.ts` PATCH, `NuevaCampanaForm`):**
     - **Borrador, en revisión o rechazada:** se edita por completo (nombre, descripción, temática, tipos de dato, meta, cuota, vigencia, ubicación) y al reenviarla vuelve a quedar `en_revision`.
     - **Activa o pausada:** solo se puede cambiar la meta de aportes y la fecha de finalización; el resto de los campos se rechaza (400) y el estado no cambia. También desde aquí el creador puede finalizarla (`PATCH { status: "finalizada" }` → error si trae más campos).
+    - **Aceptada:** igual que activa/pausada, solo meta y fecha de finalización (400 con cualquier otro campo), pero sin el atajo de finalizar (todavía no empezó a recolectar aportes).
     - **Finalizada:** de solo lectura para el resto de los campos; solo acepta un PATCH con `status: "activa"` y nada más, y lo rechaza (400) si ya tiene 5 campañas activas. Cualquier otro campo en un PATCH sobre una finalizada se rechaza (403).
-  - **Finalizar manualmente:** en `/mis-campanas` (activa o pausada) hay un botón "Finalizar campaña" que solo ve y puede usar el creador (la lista ya viene filtrada por `mine=true`); el servidor igual valida `creator_id` antes de aplicar el cambio. Es la única forma de llegar a `finalizada` hoy: no hay disparador automático por fecha de cierre.
+  - **Finalizar manualmente:** en `/mis-campanas` (activa o pausada) hay un botón "Finalizar campaña" que solo ve y puede usar el creador (la lista ya viene filtrada por `mine=true`); el servidor igual valida `creator_id` antes de aplicar el cambio.
+  - **Finalizar automáticamente por fecha de cierre (`finalizeExpiredCampaigns`, `lib/campaign-date.ts`):** una campaña `activa` cuyo `end_date` ya llegó pasa sola a `finalizada`, con el mismo mecanismo perezoso que `activateScheduledCampaigns` (sin cron ni cola, corre en cada lectura de `/api/campanas`, comparando fechas en JS). Una `pausada` no se finaliza sola por fecha: solo el botón manual la cierra.
 - **Límite:** máximo **5 campañas activas a la vez** por persona. Pasado ese número, solo se permite guardar como borrador.
 - **Formulario en tres bloques:**
   - **Datos básicos:** nombre (máx. 80), temática (una) y descripción (máx. 500).
