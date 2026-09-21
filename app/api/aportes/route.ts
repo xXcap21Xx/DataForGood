@@ -27,6 +27,7 @@ function mapAporte(row: Record<string, unknown>) {
     submittedAt: row.submitted_at ? new Date(String(row.submitted_at)).toISOString() : new Date().toISOString(),
     rejectionReason: row.rejection_reason ? String(row.rejection_reason) : undefined,
     firstPassBy: row.first_pass_by ? String(row.first_pass_by) : undefined,
+    firstPassByUserId: row.first_pass_by_user_id != null ? String(row.first_pass_by_user_id) : undefined,
   };
 }
 
@@ -73,6 +74,14 @@ export async function GET(request: Request) {
           `SELECT * FROM aportes WHERE campaign_id = $1 AND user_id = $2 ORDER BY submitted_at DESC`,
           [campaignId, user.id]
         )
+      : reviewer
+        ? await pool.query(
+            `SELECT * FROM aportes
+             WHERE campaign_id = $1
+               AND (status = 'pendiente' OR first_pass_by_user_id = $2)
+             ORDER BY submitted_at DESC`,
+            [campaignId, user.id]
+          )
       : await pool.query(
           `SELECT * FROM aportes WHERE campaign_id = $1 ORDER BY submitted_at DESC`,
           [campaignId]

@@ -25,6 +25,7 @@ function mapAporte(row: Record<string, unknown>) {
     submittedAt: row.submitted_at ? new Date(String(row.submitted_at)).toISOString() : new Date().toISOString(),
     rejectionReason: row.rejection_reason ? String(row.rejection_reason) : undefined,
     firstPassBy: row.first_pass_by ? String(row.first_pass_by) : undefined,
+    firstPassByUserId: row.first_pass_by_user_id != null ? String(row.first_pass_by_user_id) : undefined,
   };
 }
 
@@ -115,11 +116,18 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         status = $2,
         rejection_reason = $3,
         first_pass_by = $4,
+        first_pass_by_user_id = $5,
         reviewed_at = NOW(),
         updated_at = NOW()
       WHERE id = $1
       RETURNING *`,
-      [id, status, status === "rechazado" ? String(rejectionReason).trim() : null, firstPassBy]
+      [
+        id,
+        status,
+        status === "rechazado" ? String(rejectionReason).trim() : null,
+        firstPassBy,
+        isReviewer ? user.id : row.first_pass_by_user_id,
+      ]
     );
 
     const wasPending = previousStatus === "pendiente" || previousStatus === "espera_final";

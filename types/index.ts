@@ -89,6 +89,7 @@ export interface Contribution {
   submittedAt: string; // ISO datetime
   rejectionReason?: string;
   firstPassBy?: string; // nombre del revisor que dio la primera instancia
+  firstPassByUserId?: string;
 }
 
 export interface ReviewerCandidate {

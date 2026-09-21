@@ -13,7 +13,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
 
     const result = await pool.query(
-      `SELECT a.user_id, a.file_path, a.file_mime_type, a.campaign_id, c.creator_id AS campaign_creator_id
+      `SELECT a.user_id, a.file_path, a.file_mime_type, a.campaign_id, a.status, a.first_pass_by_user_id, c.creator_id AS campaign_creator_id
        FROM aportes a
        JOIN campanas c ON c.id = a.campaign_id
        WHERE a.id = $1
@@ -36,7 +36,11 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       `SELECT 1 FROM campana_revisores WHERE campana_id = $1 AND usuario_id = $2 AND estado = 'aceptado' LIMIT 1`,
       [row.campaign_id, user.id]
     );
-    if (!isOwner && !isCampaignCreator && reviewer.rowCount === 0) {
+    const isAssignedReviewer = reviewer.rowCount !== 0;
+    const canViewAsReviewer = isAssignedReviewer && (
+      String(row.status) === "pendiente" || Number(row.first_pass_by_user_id) === Number(user.id)
+    );
+    if (!isOwner && !isCampaignCreator && !canViewAsReviewer) {
       return NextResponse.json({ error: "No tienes permiso para ver este archivo" }, { status: 403 });
     }
 
