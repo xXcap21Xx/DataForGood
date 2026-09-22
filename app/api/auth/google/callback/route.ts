@@ -4,6 +4,7 @@ import { pool } from "@/lib/db";
 import { ensureUsuariosTable } from "@/lib/db-schema";
 import { createSession } from "@/lib/session";
 import { exchangeCodeForProfile } from "@/lib/google";
+import { absoluteUrl } from "@/lib/app-url";
 
 const STATE_COOKIE = "google_oauth_state";
 
@@ -19,7 +20,7 @@ export async function GET(request: Request) {
     cookieStore.delete(STATE_COOKIE);
 
     if (!code || !state || !expectedState || state !== expectedState) {
-      return NextResponse.redirect(new URL("/entrar?error=google", request.url));
+      return NextResponse.redirect(absoluteUrl("/entrar?error=google"));
     }
 
     const profile = await exchangeCodeForProfile(code);
@@ -51,9 +52,9 @@ export async function GET(request: Request) {
 
     await createSession(usuarioId);
 
-    return NextResponse.redirect(new URL("/campanas", request.url));
+    return NextResponse.redirect(absoluteUrl("/campanas"));
   } catch (error) {
     console.error(error);
-    return NextResponse.redirect(new URL("/entrar?error=google", request.url));
+    return NextResponse.redirect(absoluteUrl("/entrar?error=google"));
   }
 }

@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";
 import { getGoogleAuthUrl } from "@/lib/google";
+import { absoluteUrl } from "@/lib/app-url";
 
 const STATE_COOKIE = "google_oauth_state";
 
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const state = randomBytes(16).toString("hex");
     const url = getGoogleAuthUrl(state);
@@ -22,6 +23,6 @@ export async function GET(request: Request) {
     return NextResponse.redirect(url);
   } catch (error) {
     console.error(error);
-    return NextResponse.redirect(new URL("/entrar?error=google", request.url));
+    return NextResponse.redirect(absoluteUrl("/entrar?error=google"));
   }
 }
