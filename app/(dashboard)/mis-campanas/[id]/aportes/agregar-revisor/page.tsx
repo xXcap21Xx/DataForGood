@@ -140,13 +140,15 @@ export default function AgregarRevisorPage() {
               const isSupervisor = roles.includes("supervisor");
               // Estado DENTRO de esta campaña (campana_revisores), no el rol
               // global: ser revisor de otra campaña no debe bloquear esta.
+              // Un supervisor sí puede invitarse: los roles ya no son
+              // mutuamente excluyentes.
               const estadoAqui = estadoPorUsuario.get(candidate.id);
               const isInvited = candidate.id === invitedId || estadoAqui === "invitado";
               const yaAceptado = estadoAqui === "aceptado";
-              const currentRole = isSupervisor
-                ? "Supervisor"
-                : yaAceptado
-                  ? "Revisor de esta campaña"
+              const currentRole = yaAceptado
+                ? "Revisor de esta campaña"
+                : isSupervisor
+                  ? "Supervisor"
                   : "Usuario común";
 
               return (
@@ -156,23 +158,17 @@ export default function AgregarRevisorPage() {
                     <p className="font-mono text-[11.5px] text-ink-3">{candidate.email}</p>
                   </td>
                   <td className="px-3 py-3">
-                    <Tag tone={isInvited ? "warn" : isSupervisor || yaAceptado ? "ok" : "default"}>
+                    <Tag tone={isInvited ? "warn" : yaAceptado ? "ok" : "default"}>
                       {isInvited ? "Invitación pendiente" : currentRole}
                     </Tag>
                   </td>
                   <td className="px-3 py-3 text-right">
                     <Button
                       size="sm"
-                      disabled={isInvited || isSupervisor || yaAceptado}
+                      disabled={isInvited || yaAceptado}
                       onClick={() => void invite(candidate)}
                     >
-                      {isInvited
-                        ? "Invitado"
-                        : isSupervisor
-                          ? "No disponible"
-                          : yaAceptado
-                            ? "Ya es revisor"
-                            : "Invitar para revisar"}
+                      {isInvited ? "Invitado" : yaAceptado ? "Ya es revisor" : "Invitar para revisar"}
                     </Button>
                   </td>
                 </tr>

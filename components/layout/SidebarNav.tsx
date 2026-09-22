@@ -49,7 +49,7 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
           </Link>
         )}
 
-        {Array.isArray(usuario.role) && usuario.role.includes("revisor") && !usuario.role.includes("supervisor") && (
+        {Array.isArray(usuario.role) && usuario.role.includes("revisor") && (
           <Link
             href="/revisiones"
             className={`rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors ${

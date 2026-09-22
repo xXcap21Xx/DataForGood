@@ -7,7 +7,7 @@ import {
 } from "@/lib/db-schema";
 import {
   nombreDeRolPrincipal,
-  rolVigenteDesde,
+  rolesVigentesDesde,
   type RolAsignable,
 } from "@/lib/usuarios/rol-asignable";
 import type { TonoDeEtiqueta } from "@/lib/usuarios/supervisores";
@@ -37,7 +37,8 @@ export type Usuario = FilaDeUsuario & {
   campanasCreadas: number;
   aportesEnviados: number;
   aportesAceptados: number;
-  rolVigente: RolAsignable | null;
+  /** Puede tener cero, uno o los dos roles delegados a la vez. */
+  rolesVigentes: RolAsignable[];
   rolDesde: Date | null;
   interesesDeclarados: { tema: string; campanas: number }[];
   historialDeStrikes: { motivo: string; fecha: Date; campana: string }[];
@@ -349,7 +350,7 @@ export async function obtenerUsuario(id: string): Promise<Usuario | null> {
       campanasCreadas,
       aportesEnviados,
       aportesAceptados,
-      rolVigente: rolVigenteDesde(row.role ?? []),
+      rolesVigentes: rolesVigentesDesde(row.role ?? []),
       rolDesde: null,
       interesesDeclarados: (row.intereses ?? []).map((tema) => ({ tema, campanas: 0 })),
       historialDeStrikes,

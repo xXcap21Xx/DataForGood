@@ -42,13 +42,14 @@ export default async function RolesPage({
   const u = await obtenerUsuario(id);
   if (!u) notFound();
 
-  const esSupervisor = u.rolVigente === "SUPERVISOR";
-  const esRevisor = u.rolVigente === "REVISOR_DE_APORTES";
-  const detalle = u.rolVigente
-    ? `${u.correo} · ${NOMBRE_DE_ROL[u.rolVigente]}${
-        u.rolDesde ? ` desde ${formatearFecha(u.rolDesde)}` : ""
-      }`
-    : `${u.correo} · actualmente usuario común`;
+  const esSupervisor = u.rolesVigentes.includes("SUPERVISOR");
+  const esRevisor = u.rolesVigentes.includes("REVISOR_DE_APORTES");
+  const detalle =
+    u.rolesVigentes.length > 0
+      ? `${u.correo} · ${u.rolesVigentes.map((r) => NOMBRE_DE_ROL[r]).join(" y ")}${
+          u.rolDesde ? ` desde ${formatearFecha(u.rolDesde)}` : ""
+        }`
+      : `${u.correo} · actualmente usuario común`;
 
   return (
     <div>
@@ -67,7 +68,7 @@ export default async function RolesPage({
           <TituloDeSeccion>Asignar rol</TituloDeSeccion>
           <div className="mb-4 flex flex-col gap-2">
             {ASIGNABLES.map((rol) => {
-              const asignado = u.rolVigente === rol;
+              const asignado = u.rolesVigentes.includes(rol);
               return (
                 <Tarjeta
                   key={rol}
@@ -93,7 +94,7 @@ export default async function RolesPage({
         </section>
 
         <section>
-          {esSupervisor ? (
+          {esSupervisor && (
             <>
               <TituloDeSeccion>Campañas bajo supervisión</TituloDeSeccion>
               <p className="mb-2.5 text-[13px] text-ink-2">
@@ -101,9 +102,11 @@ export default async function RolesPage({
                 preferencias de interés.
               </p>
             </>
-          ) : esRevisor ? (
+          )}
+
+          {esRevisor && (
             <>
-              <TituloDeSeccion>Rol vigente</TituloDeSeccion>
+              <TituloDeSeccion>Revisor de aportes</TituloDeSeccion>
               <Tarjeta className="mb-4">
                 <p className="mb-1 text-[13.5px] font-semibold text-ink">Revisor de aportes</p>
                 <p className="text-[12.5px] text-ink-2">
@@ -112,7 +115,9 @@ export default async function RolesPage({
                 </p>
               </Tarjeta>
             </>
-          ) : (
+          )}
+
+          {!esSupervisor && !esRevisor && (
             <>
               <TituloDeSeccion>Rol vigente</TituloDeSeccion>
               <Tarjeta tenue className="mb-4">
@@ -144,29 +149,31 @@ export default async function RolesPage({
             ))}
           </div>
 
-          <div className="mt-4">
-            {esSupervisor ? (
-              <>
+          <div className="mt-4 flex flex-col gap-4">
+            {esSupervisor && (
+              <div>
                 <Aviso tono="aviso">
                   Al revocar el rol, sus campañas activas siguen corriendo y pasan
                   a la tutela del supervisor del área.
                 </Aviso>
                 <BotonRevocar usuarioId={u.id} rol="SUPERVISOR" />
-              </>
-            ) : esRevisor ? (
-              <>
+              </div>
+            )}
+            {esRevisor && (
+              <div>
                 <Aviso tono="aviso">
                   Al revocar, deja de ser revisor en todas las campañas donde esté
                   aceptado; el creador de cada una deberá invitar a alguien más.
                 </Aviso>
                 <BotonRevocar usuarioId={u.id} rol="REVISOR_DE_APORTES" />
-              </>
-            ) : u.strikes > 0 ? (
+              </div>
+            )}
+            {!esSupervisor && !esRevisor && u.strikes > 0 && (
               <Aviso tono="aviso">
                 Acumula {u.strikes} de 3 strikes. Conviene revisar el historial de
                 sanciones en su ficha antes de asignarle un rol.
               </Aviso>
-            ) : null}
+            )}
           </div>
         </section>
       </div>

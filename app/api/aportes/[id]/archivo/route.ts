@@ -27,9 +27,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
     const row = result.rows[0];
     const roles = Array.isArray(user.role) ? user.role.map(String) : [];
-    if (roles.includes("supervisor")) {
-      return NextResponse.json({ error: "Los supervisores no pueden ver ni descargar el archivo del aporte" }, { status: 403 });
-    }
     const isOwner = Number(row.user_id) === Number(user.id);
     const isCampaignCreator = Number(row.campaign_creator_id) === Number(user.id);
     const reviewer = await pool.query(
@@ -40,6 +37,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const canViewAsReviewer = isAssignedReviewer && (
       String(row.status) === "pendiente" || Number(row.first_pass_by_user_id) === Number(user.id)
     );
+
+    // Un supervisor no ve archivos de aportes por el rol de supervisor en sí
+    // (dictamina campañas, no aportes individuales) — pero supervisor y
+    // revisor ya no son mutuamente excluyentes, así que si además es revisor
+    // aceptado de ESTA campaña, sí puede verlo en esa capacidad.
+    if (roles.includes("supervisor") && !canViewAsReviewer) {
+      return NextResponse.json({ error: "Los supervisores no pueden ver ni descargar el archivo del aporte" }, { status: 403 });
+    }
     if (!isOwner && !isCampaignCreator && !canViewAsReviewer) {
       return NextResponse.json({ error: "No tienes permiso para ver este archivo" }, { status: 403 });
     }

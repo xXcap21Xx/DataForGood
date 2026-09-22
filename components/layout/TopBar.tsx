@@ -34,7 +34,7 @@ export default function TopBar({ usuario }: { usuario: SessionUser }) {
               Supervisor
             </Link>
           )}
-          {Array.isArray(usuario.role) && usuario.role.includes("revisor") && !usuario.role.includes("supervisor") && (
+          {Array.isArray(usuario.role) && usuario.role.includes("revisor") && (
             <Link
               href="/revisiones"
               className="rounded-pill border border-line-2 bg-sunken px-3 py-1.5 text-[11px] font-bold text-accent hover:border-accent hover:bg-accent-tint"

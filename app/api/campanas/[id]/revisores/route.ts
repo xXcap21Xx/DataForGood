@@ -65,13 +65,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const candidate = await pool.query(`SELECT id, nombre, apellidos, role FROM usuarios WHERE id = $1 LIMIT 1`, [usuarioId]);
     if (candidate.rowCount === 0) return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
 
-    const roles = Array.isArray(candidate.rows[0].role)
-      ? candidate.rows[0].role.map(String)
-      : [String(candidate.rows[0].role ?? "usuario")];
-    if (roles.includes("supervisor")) {
-      return NextResponse.json({ error: "Los supervisores no pueden ser revisores de aportes" }, { status: 400 });
-    }
-
     const existing = await pool.query(
       `SELECT estado FROM campana_revisores WHERE campana_id = $1 AND usuario_id = $2 LIMIT 1`,
       [id, usuarioId]

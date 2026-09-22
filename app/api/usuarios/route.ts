@@ -20,16 +20,7 @@ export async function POST(request: Request) {
     const city = String(body.city ?? "").trim();
     const specialty = String(body.specialty ?? "").trim();
     const intereses = Array.isArray(body.intereses) ? body.intereses : [];
-    let roles: string[];
-
-    try {
-      roles = normalizeRoles(body.role ?? body.roles ?? ["usuario"]);
-    } catch (error) {
-      return NextResponse.json(
-        { error: "Un usuario no puede tener a la vez los roles supervisor y revisor" },
-        { status: 400 }
-      );
-    }
+    const roles = normalizeRoles(body.role ?? body.roles ?? ["usuario"]);
 
     if (!nombre || !apellidos || !email || password.length < 6) {
       return NextResponse.json(

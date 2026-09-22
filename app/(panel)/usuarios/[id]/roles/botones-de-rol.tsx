@@ -78,7 +78,7 @@ export function BotonRevocar({
         variant="danger"
         size="sm"
         disabled={pendiente}
-        onClick={() => iniciar(() => revocarRol(usuarioId).then(() => setConfirmando(false)))}
+        onClick={() => iniciar(() => revocarRol(usuarioId, rol).then(() => setConfirmando(false)))}
       >
         {pendiente ? "Revocando…" : "Confirmar revocación"}
       </Button>
