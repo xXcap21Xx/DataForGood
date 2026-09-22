@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
-import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignStarted, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
+import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignEnded, hasCampaignStarted, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
 function normalizeDataTypes(input: unknown): string[] {
   if (!Array.isArray(input)) {
@@ -194,7 +194,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       });
     }
 
-    const existing = await pool.query(`SELECT creator_id, status FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+    const existing = await pool.query(
+      `SELECT creator_id, status, start_date, end_date, end_time FROM campanas WHERE id = $1 LIMIT 1`,
+      [id]
+    );
     if (existing.rowCount === 0) {
       return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
     }
@@ -205,14 +208,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const currentStatus = String(existing.rows[0].status ?? "borrador");
 
     // Reglas de edición por estado: una finalizada es de solo lectura salvo
-    // para reactivarla (solo status: "activa", sin tocar más campos, y con
-    // cupo libre de campañas activas); activa, pausada y aceptada solo dejan
-    // tocar meta y fecha de fin (sin cambiar su estado); borrador, en_revision
-    // y rechazada se editan por completo.
+    // para reactivarla (status: "activa", con cupo libre de campañas activas);
+    // activa, pausada y aceptada solo dejan tocar meta y fecha de fin (sin
+    // cambiar su estado); borrador, en_revision y rechazada se editan por
+    // completo.
     if (currentStatus === "finalizada") {
-      const soloReactiva = Object.keys(body).length === 1 && normalizeCampaignStatus(body.status) === "activa";
-      if (!soloReactiva) {
+      const reactiva = normalizeCampaignStatus(body.status) === "activa";
+      if (!reactiva) {
         return NextResponse.json({ error: "Una campaña finalizada es de solo lectura y no se puede editar" }, { status: 403 });
+      }
+
+      const camposPermitidos = new Set(["status", "endDate", "end_date", "endTime", "end_time"]);
+      const camposNoPermitidos = Object.keys(body).filter((key) => !camposPermitidos.has(key));
+      if (camposNoPermitidos.length > 0) {
+        return NextResponse.json(
+          { error: "Al reactivar una campaña solo puedes ajustar su fecha/hora de finalización" },
+          { status: 400 }
+        );
       }
 
       const activas = await pool.query(
@@ -225,7 +237,39 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           { status: 400 }
         );
       }
-      // Cae al UPDATE genérico de abajo, que solo aplicará status = "activa".
+
+      // Una campaña llega aquí finalizada casi siempre porque su fecha/hora
+      // de fin ya se cumplió (finalizeExpiredCampaigns). Si se reactiva sin
+      // mover esa fecha, la siguiente lectura de /api/campanas la vuelve a
+      // finalizar de inmediato: hay que exigir una fecha de fin nueva y
+      // futura (o dejarla pasar solo si la que ya tenía no cambia por otro
+      // motivo, ej. se finalizó a mano antes de tiempo).
+      const nuevaEndDate =
+        "endDate" in body || "end_date" in body
+          ? normalizeCampaignDate(body.endDate ?? body.end_date)
+          : normalizeCampaignDate(existing.rows[0].end_date);
+      if (("endDate" in body || "end_date" in body) && !nuevaEndDate) {
+        return NextResponse.json({ error: "La fecha de finalización no es válida" }, { status: 400 });
+      }
+
+      const nuevaEndTime =
+        "endTime" in body || "end_time" in body
+          ? normalizeCampaignTime(body.endTime ?? body.end_time)
+          : normalizeCampaignTime(existing.rows[0].end_time);
+
+      const startDateExistente = normalizeCampaignDate(existing.rows[0].start_date);
+      if (startDateExistente && nuevaEndDate && nuevaEndDate < startDateExistente) {
+        return NextResponse.json({ error: "La fecha de finalización no puede ser anterior a la de inicio" }, { status: 400 });
+      }
+
+      if (hasCampaignEnded(nuevaEndDate, nuevaEndTime)) {
+        return NextResponse.json(
+          { error: "Para reactivar la campaña, indica una nueva fecha/hora de finalización posterior a ahora" },
+          { status: 400 }
+        );
+      }
+      // Cae al UPDATE genérico de abajo, que aplica status = "activa" y,
+      // si llegaron, endDate/endTime.
     }
 
     if (currentStatus === "activa" || currentStatus === "pausada") {

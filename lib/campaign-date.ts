@@ -77,14 +77,29 @@ function campaignMoment(dateValue: unknown, timeValue: unknown): Date | null {
 }
 
 /**
- * true si la fecha/hora de inicio ya llegó (o no tiene fecha definida).
- * Compara contra la hora local del proceso de Node, no contra NOW() de
- * Postgres, para no repetir el desfase de huso horario ya documentado.
+ * true si la fecha/hora dada ya pasó (o no tiene fecha definida). Compara
+ * contra la hora local del proceso de Node, no contra NOW() de Postgres,
+ * para no repetir el desfase de huso horario ya documentado.
  */
-export function hasCampaignStarted(dateValue: unknown, timeValue?: unknown): boolean {
+function hasMomentPassed(dateValue: unknown, timeValue?: unknown): boolean {
   const moment = campaignMoment(dateValue, timeValue);
   if (!moment) return true;
   return moment.getTime() <= Date.now();
+}
+
+/** true si la fecha/hora de inicio ya llegó (o no tiene fecha definida). */
+export function hasCampaignStarted(dateValue: unknown, timeValue?: unknown): boolean {
+  return hasMomentPassed(dateValue, timeValue);
+}
+
+/**
+ * true si la fecha/hora de fin ya pasó. Se usa al reactivar una campaña
+ * finalizada: si la fecha de fin (nueva o la que ya tenía) sigue en el
+ * pasado, finalizeExpiredCampaigns la volvería a cerrar en la siguiente
+ * lectura de /api/campanas, así que hay que exigir una fecha futura.
+ */
+export function hasCampaignEnded(dateValue: unknown, timeValue?: unknown): boolean {
+  return hasMomentPassed(dateValue, timeValue);
 }
 
 /** "YYYY-MM-DD HH:MM:SS" en hora local, para comparar contra columnas DATE+TIME en SQL sin usar NOW()/CURRENT_TIMESTAMP de Postgres. */

@@ -139,15 +139,33 @@ function CampanaFormulario({
 
   const limiteActivasAlcanzado = activeCampaigns >= MAX_ACTIVE_CAMPAIGNS;
 
+  // Si la campaña llegó a "finalizada" porque su fecha/hora de fin ya se
+  // cumplió (lo normal: finalizeExpiredCampaigns), reactivarla sin mover esa
+  // fecha hace que la próxima lectura de /api/campanas la vuelva a cerrar de
+  // inmediato. Por eso al reactivar se exige una fecha/hora de fin futura.
+  function momentoDe(fecha: string, hora: string): number | null {
+    if (!fecha) return null;
+    const [year, month, day] = fecha.split("-").map(Number);
+    const [hour, minute] = (hora || "00:00").split(":").map(Number);
+    return new Date(year, month - 1, day, hour || 0, minute || 0).getTime();
+  }
+
   async function handleReactivar() {
-    if (!editingCampaign || limiteActivasAlcanzado) return;
+    if (!editingCampaign || limiteActivasAlcanzado || !endDate) return;
+
+    const moment = momentoDe(endDate, endTime);
+    if (moment === null || moment <= Date.now()) {
+      setReactivarError("Elige una fecha/hora de finalización posterior a ahora.");
+      return;
+    }
+
     setReactivando(true);
     setReactivarError(null);
     try {
       const response = await fetch(`/api/campanas/${editingCampaign.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "activa" }),
+        body: JSON.stringify({ status: "activa", endDate, endTime: endTime || null }),
       });
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
@@ -192,7 +210,8 @@ function CampanaFormulario({
           <div>
             <h1 className="text-xl font-extrabold text-ink">{name}</h1>
             <p className="mt-1 text-[13px] text-ink-2">
-              Esta campaña ya finalizó y queda en solo lectura: no se puede editar.
+              Esta campaña ya finalizó y queda en solo lectura: no se puede editar. Para
+              reactivarla, primero define una nueva fecha/hora de finalización.
             </p>
           </div>
           <Tag>Finalizada</Tag>
@@ -210,6 +229,32 @@ function CampanaFormulario({
           </div>
         )}
 
+        <div className="mb-4 max-w-md">
+          <Field
+            label="Nueva fecha de finalización"
+            required
+            hint="Debe ser posterior a este momento; si no, la campaña volvería a finalizar de inmediato."
+          >
+            <div className="flex gap-2">
+              <Input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                disabled={limiteActivasAlcanzado}
+                required
+                className="font-mono disabled:cursor-not-allowed disabled:opacity-50"
+              />
+              <Input
+                type="time"
+                value={endTime}
+                onChange={(e) => setEndTime(e.target.value)}
+                disabled={limiteActivasAlcanzado}
+                className="font-mono disabled:cursor-not-allowed disabled:opacity-50"
+              />
+            </div>
+          </Field>
+        </div>
+
         <div className="flex gap-2.5">
           <Link href="/mis-campanas">
             <Button>Volver a mis campañas</Button>
@@ -217,7 +262,7 @@ function CampanaFormulario({
           <Button
             variant="primary"
             onClick={handleReactivar}
-            disabled={limiteActivasAlcanzado || reactivando}
+            disabled={limiteActivasAlcanzado || reactivando || !endDate}
           >
             {reactivando ? "Reactivando..." : "Reactivar campaña"}
           </Button>
