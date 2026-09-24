@@ -124,6 +124,16 @@ export async function revocarRol(
       JSON.stringify(nuevosRoles),
     ]);
 
+    if (rol === "SUPERVISOR") {
+      // Una campaña tiene un solo supervisor: las que tomó y aún no dictamina
+      // vuelven a quedar libres para que otro supervisor las tome.
+      await pool.query(
+        `UPDATE campanas SET supervisor_id = NULL, updated_at = NOW()
+         WHERE supervisor_id = $1 AND status = 'en_revision'`,
+        [numericId],
+      );
+    }
+
     if (rol === "REVISOR_DE_APORTES") {
       // Si era revisor aceptado en alguna campaña, se le retira ahí también:
       // si no, la sesión se lo vuelve a asignar solo con el siguiente login.

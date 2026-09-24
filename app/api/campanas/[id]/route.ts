@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
-import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignEnded, hasCampaignStarted, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
+import { ACCIONES_DE_SUPERVISION, registrarDecisionDeCampana, tomarCampanaParaSupervisar, type AccionDeSupervision } from "@/lib/supervision/decision";
+import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignEnded, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
 function normalizeDataTypes(input: unknown): string[] {
   if (!Array.isArray(input)) {
@@ -58,6 +59,7 @@ function mapCampaign(row: Record<string, unknown>) {
     creatorId: String(row.creator_id ?? ""),
     creatorName: String(row.creator_name ?? ""),
     supervisorId: row.supervisor_id != null ? String(row.supervisor_id) : null,
+    supervisedByRoot: Boolean(row.supervisado_por_root),
     name: String(row.name ?? ""),
     description: String(row.description ?? ""),
     tematica: String(row.tematica ?? row.tag ?? ""),
@@ -125,73 +127,39 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 
     const body = await request.json().catch(() => ({}));
     const accion = String(body.action ?? body.accion ?? "").trim().toLowerCase();
-    const allowedDecision = new Set(["aceptada", "rechazada", "reportada"]);
 
-    if (allowedDecision.has(accion)) {
+    // "Supervisar esta campaña": la toma en exclusiva para este supervisor.
+    if (accion === "tomar") {
+      const roles = Array.isArray(user.role) ? user.role : typeof user.role === "string" ? [user.role] : [];
+      if (!roles.includes("supervisor")) {
+        return NextResponse.json({ error: "Solo un supervisor puede supervisar campañas" }, { status: 403 });
+      }
+
+      const resultado = await tomarCampanaParaSupervisar(id, { tipo: "usuario", usuarioId: Number(user.id) });
+      if (!resultado.ok) {
+        return NextResponse.json({ error: resultado.error }, { status: resultado.status });
+      }
+
+      const updated = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+      return NextResponse.json({ message: "Ahora supervisas esta campaña", data: mapCampaign(updated.rows[0]) });
+    }
+
+    if (ACCIONES_DE_SUPERVISION.has(accion)) {
       const roles = Array.isArray(user.role) ? user.role : typeof user.role === "string" ? [user.role] : [];
       if (!roles.includes("supervisor")) {
         return NextResponse.json({ error: "Solo un supervisor puede decidir esta campaña" }, { status: 403 });
       }
 
-      const existing = await pool.query(`SELECT id, status, creator_id, name, start_date, start_time FROM campanas WHERE id = $1 LIMIT 1`, [id]);
-      if (existing.rowCount === 0) {
-        return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
-      }
-
-      // Aceptada con fecha/hora de inicio futura: el estado de la campaña
-      // queda "aceptada" (en_revision -> aceptada -> activa) y se activa sola
-      // cuando lleguen (activateScheduledCampaigns); sin fecha definida se
-      // activa de inmediato igual que antes.
-      const nextStatus =
-        accion === "aceptada"
-          ? hasCampaignStarted(existing.rows[0].start_date, existing.rows[0].start_time) ? "activa" : "aceptada"
-          : accion === "rechazada" ? "rechazada" : existing.rows[0].status;
-      const motivo = String(body.motivo ?? body.reason ?? "").trim() || null;
-      if (accion === "rechazada" && !motivo) {
-        return NextResponse.json({ error: "El motivo es obligatorio al rechazar una campaña" }, { status: 400 });
-      }
-
-      await pool.query(
-        `UPDATE campanas
-         SET status = $2,
-             supervisor_id = $3,
-             updated_at = NOW()
-         WHERE id = $1`,
-        [id, nextStatus, user.id]
-      );
-
-      await pool.query(
-        `INSERT INTO campana_supervisores (campana_id, supervisor_id, accion, motivo, created_at)
-         VALUES ($1, $2, $3, $4, NOW())`,
-        [id, user.id, accion, motivo]
-      );
-
-      if (accion === "rechazada") {
-        await pool.query(
-          `INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, campana_id, metadata)
-           VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-          [
-            existing.rows[0].creator_id,
-            "campana_rechazada",
-            "Campaña rechazada",
-            `Tu campaña "${existing.rows[0].name}" fue rechazada. Motivo: ${motivo}`,
-            id,
-            JSON.stringify({ motivo }),
-          ]
-        );
+      const resultado = await registrarDecisionDeCampana(id, accion as AccionDeSupervision, body.motivo ?? body.reason, {
+        tipo: "usuario",
+        usuarioId: Number(user.id),
+      });
+      if (!resultado.ok) {
+        return NextResponse.json({ error: resultado.error }, { status: resultado.status });
       }
 
       const updated = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [id]);
-      return NextResponse.json({
-        message: accion === "aceptada"
-          ? nextStatus === "activa"
-            ? "Campaña aceptada y puesta en activo"
-            : "Campaña aceptada; se activará el día de su fecha de inicio"
-          : accion === "rechazada"
-            ? "Campaña rechazada"
-            : "Campaña reportada",
-        data: mapCampaign(updated.rows[0]),
-      });
+      return NextResponse.json({ message: resultado.mensaje, data: mapCampaign(updated.rows[0]) });
     }
 
     const existing = await pool.query(

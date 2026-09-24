@@ -7,6 +7,8 @@ import Tag from "@/components/ui/Tag";
 type CampaignApiItem = {
   id: string;
   creatorId: string;
+  supervisorId?: string | null;
+  supervisedByRoot?: boolean;
   creatorName: string;
   name: string;
   tag?: string;
@@ -56,7 +58,11 @@ export default function SupervisionPage() {
         const visible = rows.filter((campaign: CampaignApiItem) => {
           const isPending = String(campaign.status ?? "") === "en_revision";
           const isOwn = userId !== null && String(campaign.creatorId ?? "") === userId;
-          return isPending && !isOwn;
+          // Solo las libres (cualquiera puede tomarlas) o las que ya tomó este
+          // supervisor: una campaña tiene un único supervisor.
+          const isFree = !campaign.supervisorId && !campaign.supervisedByRoot;
+          const isMine = userId !== null && String(campaign.supervisorId ?? "") === userId;
+          return isPending && !isOwn && (isFree || isMine);
         });
 
         setPendingCampaigns(visible);
@@ -87,7 +93,7 @@ export default function SupervisionPage() {
   const renderPendingList = () => (
     <>
       <div className="mb-3 rounded-lg border border-line bg-sunken px-4 py-3 text-[13px] text-ink-2">
-        Selecciona una campaña para ver su detalle. Desde ahí podrás consultar a sus participantes y el panel de campaña.
+        Selecciona una campaña para ver su detalle. Las disponibles puedes tomarlas con “Supervisar esta campaña”; una vez tomada, solo tú puedes dictaminarla.
       </div>
 
       <div className="space-y-3">
@@ -104,7 +110,7 @@ export default function SupervisionPage() {
             >
               <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3">
                 <h2 className="text-[15px] font-extrabold text-ink">{campaign.name}</h2>
-                <Tag tone="warn">En revisión</Tag>
+                {campaign.supervisorId ? <Tag tone="ok">La supervisas tú</Tag> : <Tag tone="warn">Disponible</Tag>}
               </div>
               <p className="text-[12.5px] text-ink-3">
                 {(campaign.creatorName || "Usuario")} · {(campaign.tag || campaign.tematica || "Sin temática")} · meta {Number(campaign.goalContributions ?? 0)} aportes

@@ -158,6 +158,9 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token_expires_at TIMESTAMPTZ;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS aportes JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS downloads_count INTEGER NOT NULL DEFAULT 0;
+    -- El SuperUsuario no tiene fila en usuarios: cuando dictamina desde
+    -- /supervisar, supervisor_id queda NULL y se marca aquí.
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS supervisado_por_root BOOLEAN NOT NULL DEFAULT false;
   `);
 }
 
@@ -171,6 +174,19 @@ export async function ensureCampanaSupervisoresTable(): Promise<void> {
       motivo TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  // Decisiones del SuperUsuario (sin fila en usuarios): supervisor_id NULL y
+  // por_superusuario = true. El CHECK exige uno de los dos.
+  await pool.query(`
+    ALTER TABLE campana_supervisores ALTER COLUMN supervisor_id DROP NOT NULL;
+    ALTER TABLE campana_supervisores ADD COLUMN IF NOT EXISTS por_superusuario BOOLEAN NOT NULL DEFAULT false;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'campana_supervisores_autor_check') THEN
+        ALTER TABLE campana_supervisores ADD CONSTRAINT campana_supervisores_autor_check
+          CHECK (supervisor_id IS NOT NULL OR por_superusuario);
+      END IF;
+    END $$;
   `);
 }
 

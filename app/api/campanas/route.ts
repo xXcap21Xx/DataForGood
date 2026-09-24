@@ -73,6 +73,7 @@ function mapCampaign(row: Record<string, unknown>) {
     creatorId: String(row.creator_id ?? ""),
     creatorName: String(row.creator_name ?? ""),
     supervisorId: row.supervisor_id != null ? String(row.supervisor_id) : null,
+    supervisedByRoot: Boolean(row.supervisado_por_root),
     latestSupervisionAction: row.latest_supervision_action ? String(row.latest_supervision_action) : null,
     name: String(row.name ?? ""),
     description: String(row.description ?? ""),
@@ -159,7 +160,13 @@ export async function GET(request: Request) {
       const result = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [campaignId]);
       if (result.rowCount === 0) return NextResponse.json({ error: "Campana no encontrada" }, { status: 404 });
       const campaign = conIsSaved(result.rows[0]);
-      return NextResponse.json({ data: campaign, viewer: { isCreator: user ? campaign.creatorId === String(user.id) : false } });
+      return NextResponse.json({
+        data: campaign,
+        viewer: {
+          isCreator: user ? campaign.creatorId === String(user.id) : false,
+          isMySupervision: user ? campaign.supervisorId === String(user.id) : false,
+        },
+      });
     }
 
     const result = mine

@@ -99,7 +99,7 @@ const SELECT = `
   SELECT c.id, c.name, c.description, c.tematica, c.tag, c.data_types,
          c.approved_contributions, c.rejected_contributions,
          c.location_city, c.location_state, c.organizer, c.creator_name,
-         c.end_date, c.supervisor_id, c.downloads_count,
+         c.end_date, c.supervisor_id, c.supervisado_por_root, c.downloads_count,
          COALESCE(f.size_bytes, 0) AS size_bytes,
          COALESCE(f.formats, ARRAY[]::text[]) AS formats
   FROM campanas c
@@ -134,7 +134,7 @@ function mapDataset(row: Record<string, unknown>): OpenDataset {
     sizeLabel: formatBytes(sizeBytes),
     downloads: Number(row.downloads_count ?? 0),
     quality: dictamenes > 0 ? Math.round((approved / dictamenes) * 100) / 10 : null,
-    verified: row.supervisor_id != null,
+    verified: row.supervisor_id != null || Boolean(row.supervisado_por_root),
     license: OPEN_DATA_LICENSE,
   };
 }

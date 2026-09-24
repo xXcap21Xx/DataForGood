@@ -1,22 +1,18 @@
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import PanelDeCampanaSupervisor from "@/components/supervision/PanelDeCampanaSupervisor";
 import { obtenerPanelDeCampana } from "@/lib/campanas/panel";
 import { pool } from "@/lib/db";
 import { ensureCoreSchema } from "@/lib/db-schema";
-import { getSessionUser } from "@/lib/session";
+import { exigirSesionRoot } from "@/lib/supervision/root";
 
 export default async function SupervisedCampaignPanel({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
-  const user = await getSessionUser();
-  if (!user || !user.role.includes("supervisor")) redirect("/campanas");
+  await exigirSesionRoot();
   if (!/^\d+$/.test(campaignId)) notFound();
 
   await ensureCoreSchema();
-  // Solo el supervisor que tomó la campaña ve su panel.
-  const acceso = await pool.query(`SELECT 1 FROM campanas WHERE id = $1 AND supervisor_id = $2 LIMIT 1`, [
-    campaignId,
-    user.id,
-  ]);
+  // Solo si la campaña la tomó el SuperUsuario.
+  const acceso = await pool.query(`SELECT 1 FROM campanas WHERE id = $1 AND supervisado_por_root LIMIT 1`, [campaignId]);
   if (acceso.rowCount === 0) notFound();
 
   const panel = await obtenerPanelDeCampana(campaignId);
@@ -25,7 +21,7 @@ export default async function SupervisedCampaignPanel({ params }: { params: Prom
   return (
     <PanelDeCampanaSupervisor
       panel={panel}
-      volverHref={`/supervision/${campaignId}`}
+      volverHref={`/supervisar/${campaignId}`}
       volverTexto="Volver al detalle de campaña"
     />
   );

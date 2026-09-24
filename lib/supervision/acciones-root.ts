@@ -1,0 +1,50 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+
+import { ensureCoreSchema } from "@/lib/db-schema";
+import { hasRootSession } from "@/lib/rootSession";
+import {
+  ACCIONES_DE_SUPERVISION,
+  registrarDecisionDeCampana,
+  tomarCampanaParaSupervisar,
+  type AccionDeSupervision,
+} from "@/lib/supervision/decision";
+
+export type ResultadoDeSupervision = { ok: true; mensaje: string } | { ok: false; error: string };
+
+/**
+ * Dictamen del SuperUsuario desde /supervisar. Mismas reglas que un
+ * supervisor (motivo obligatorio al rechazar, aceptada con inicio futuro,
+ * notificación al creador), pero la autoría queda como SuperUsuario.
+ */
+export async function decidirComoSuperUsuario(
+  campanaId: string,
+  accion: AccionDeSupervision,
+  motivo: string,
+): Promise<ResultadoDeSupervision> {
+  if (!(await hasRootSession())) throw new Error("No autorizado");
+  if (!/^\d+$/.test(campanaId) || !ACCIONES_DE_SUPERVISION.has(accion)) {
+    return { ok: false, error: "Petición inválida." };
+  }
+
+  await ensureCoreSchema();
+  const resultado = await registrarDecisionDeCampana(campanaId, accion, motivo, { tipo: "root" });
+  if (!resultado.ok) return { ok: false, error: resultado.error };
+
+  revalidatePath("/supervisar", "layout");
+  return { ok: true, mensaje: resultado.mensaje };
+}
+
+/** "Supervisar esta campaña": el SuperUsuario la toma en exclusiva. */
+export async function tomarComoSuperUsuario(campanaId: string): Promise<ResultadoDeSupervision> {
+  if (!(await hasRootSession())) throw new Error("No autorizado");
+  if (!/^\d+$/.test(campanaId)) return { ok: false, error: "Petición inválida." };
+
+  await ensureCoreSchema();
+  const resultado = await tomarCampanaParaSupervisar(campanaId, { tipo: "root" });
+  if (!resultado.ok) return { ok: false, error: resultado.error };
+
+  revalidatePath("/supervisar", "layout");
+  return { ok: true, mensaje: "Ahora supervisas esta campaña" };
+}

@@ -98,8 +98,8 @@ export default async function RolesPage({
             <>
               <TituloDeSeccion>Campañas bajo supervisión</TituloDeSeccion>
               <p className="mb-2.5 text-[13px] text-ink-2">
-                Se reparten por especialidad declarada; si no tiene, por sus
-                preferencias de interés.
+                Cada supervisor escoge qué campañas en revisión supervisa; su
+                especialidad es solo informativa.
               </p>
             </>
           )}
