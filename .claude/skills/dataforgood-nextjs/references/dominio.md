@@ -21,7 +21,7 @@ Fuentes: `(auth)/registro`, `verificar`, `bienvenida` y `entrar`.
 - **Registro:** alias, correo único y contraseña confirmada, más aceptar los términos de uso y el aviso de privacidad. Si el correo ya existe, se muestra "Ese correo ya está registrado".
 - **Contraseña:** mínimo 8 caracteres, al menos una mayúscula, un número y un carácter especial.
 - **Verificación por correo:** código de 6 dígitos, que vence (la pantalla muestra una cuenta regresiva de unos 15 minutos) y admite **3 intentos**, con opción de reenviarlo. **Hasta verificar, la cuenta queda inactiva y no puede participar en campañas.**
-- **Perfil inicial (se puede omitir):** estado, ciudad, especialidad opcional (sirve para repartir campañas a supervisores de esa área) y temas de interés. Si se omite, se asignan etiquetas por defecto según las campañas más populares de la zona.
+- **Perfil inicial (se puede omitir):** estado, ciudad, especialidad opcional (solo es un título informativo: **no** influye en qué campañas supervisa alguien) y temas de interés. Si se omite, se asignan etiquetas por defecto según las campañas más populares de la zona.
 - **Inicio de sesión:** correo y contraseña; hay botón "Continuar con Google" y enlace "¿Olvidaste tu contraseña?", ambos sin flujo definido todavía.
 - **Datos del usuario** (`User`): alias, email, avatar, estado, ciudad, especialidad, `xpTotal`, `level` y `streakDays`.
 
@@ -40,6 +40,12 @@ Fuentes: texto informativo de `/entrar` y la pantalla `agregar-revisor`.
 - **Los roles nuevos aparecen dentro de la misma sesión**, sin volver a entrar. Por eso los permisos se recalculan en cada petición.
 - **Quien crea una campaña la administra** desde `/mis-campanas/[id]/*`: bandeja, panel, compartir, especial, agregar revisor, editar y pausar.
 - **El Supervisor dictamina las campañas "En revisión".**
+- **Sección Campañas del panel del SuperUsuario (solo consulta):** `/sistema/campanas` (listado con filtros, orden y paginación en SQL), `/sistema/campanas/dashboard` y `/sistema/campanas/[id]` (panel individual). Viven bajo `/sistema` porque `/campanas` y `/campanas/[id]` ya son pantallas del usuario común: dos route groups no pueden resolver a la misma URL. Los datos están en `lib/campanas/sistema.ts` (consultas, exigen sesión raíz) y `lib/campanas/sistema-opciones.ts` (constantes sin imports de servidor, las usa el cliente). Aportes y participantes se cuentan desde `aportes`; un participante es un `user_id` distinto, o un correo distinto si aportó sin cuenta.
+- **Hay dos tipos de supervisor.**
+  - **Usuario común promovido a Supervisor** (fila de `usuarios` con rol `supervisor`): usa `/supervision` con su sesión normal. Sus reglas están en el punto siguiente.
+  - **El SuperUsuario** no tiene fila en `usuarios` (entra por `/root`, sesión en `root_sessions`). Supervisa desde **`/supervisar`**, dentro de `app/(panel)`. Es una copia aislada de `/supervision`: solo responde con sesión raíz, y un usuario con rol de supervisor que entre por URL es redirigido a `/root`. **Solo supervisa:** no crea campañas, no aporta ni revisa aportes. Sus dictámenes pasan por la server action `decidirComoSuperUsuario` (`lib/supervision/acciones-root.ts`) y dejan `campanas.supervisor_id = NULL` + `supervisado_por_root = true`, y en el historial `campana_supervisores.supervisor_id = NULL` + `por_superusuario = true`. Las reglas del dictamen (motivo obligatorio, "aceptada" con inicio futuro, notificación) viven en un solo lugar: `lib/supervision/decision.ts`, que también usa el `PATCH`.
+- **Supervisor y Revisor de aportes no son excluyentes** (usuario promovido). Un Supervisor también puede crear campañas, aportar y revisar aportes (si lo invitan y acepta). Tiene dos límites: **no aporta a sus propias campañas** (regla general para cualquier creador, `app/api/aportes/route.ts`) y **no supervisa sus propias campañas** (no puede aceptar, rechazar ni reportar; se rechaza en `PATCH /api/campanas/[id]` y la interfaz lo oculta).
+- **El rol de Supervisor no da acceso a los archivos de aportes**, pero tampoco lo quita: los ve si es quien aportó, quien creó la campaña o revisor aceptado de ella (`app/api/aportes/[id]/archivo/route.ts`).
 
 ## 3. Campañas
 
@@ -150,6 +156,10 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
 9. **Valor del tope diario de XP.**
 10. **Inicio con Google y recuperación de contraseña:** los botones existen, los flujos no.
 11. **La meta de la campaña** ¿cuenta aportes recibidos o solo aprobados? El panel usa ambos.
-12. **Reparto de campañas a supervisores** por especialidad: ¿automático o manual?
+12. ~~**Reparto de campañas a supervisores** por especialidad: ¿automático o manual?~~ *Resuelto (2026-09-24): no hay reparto. Cada supervisor (usuario promovido o SuperUsuario) ve todas las campañas `en_revision` (menos las suyas, en el caso del usuario) y **escoge** cuáles supervisa. La especialidad es solo un título informativo.*
+    - **Un solo supervisor por campaña.** Se toma con el botón **"Supervisar esta campaña"** (`PATCH /api/campanas/[id]` con `{ action: "tomar" }` para usuarios; server action `tomarComoSuperUsuario` para root). El `UPDATE` es atómico: solo pasa si la campaña sigue `en_revision` y sin supervisor (`supervisor_id IS NULL AND NOT supervisado_por_root`). Si dos la toman a la vez, gana uno y el otro recibe 409.
+    - **Solo quien la tomó** puede aceptar, rechazar o reportar (`registrarDecisionDeCampana` responde 403 a cualquier otro). En la lista "Por supervisar" cada supervisor ve solo las libres y las suyas.
+    - La campaña se queda con ese supervisor aunque el creador la corrija y la reenvíe tras un rechazo.
+    - Al revocar el rol de Supervisor, las campañas que tomó y siguen `en_revision` vuelven a quedar libres (`revocarRol`). No existe un botón para "soltar" una campaña.
 13. **"Actualiza cada 3 s" en el panel:** polling o websockets.
 14. **Publicación de datos abiertos.** ¿Quién dispara la publicación al finalizar una campaña (automática o manual) y qué anonimización explícita aplica sobre los aportes más allá de excluir nombre/correo del ZIP? *Resuelto parcialmente (2026-09): calidad, licencia y descarga real ya están definidas, ver § 9. Sigue abierto si "finalizar" debe congelar/copiar los datos en vez de leerlos en vivo de `campanas`/`aportes`.*

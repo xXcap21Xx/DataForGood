@@ -30,7 +30,10 @@ export default async function PanelDelSistemaPage() {
         <MetricCard
           label="Campañas activas"
           value={m.campanasActivas}
-          links={[{ label: "Dashboard", href: "/campanas/dashboard" }]}
+          links={[
+            { label: "Dashboard", href: "/sistema/campanas/dashboard" },
+            { label: "Lista", href: "/sistema/campanas" },
+          ]}
         />
         <MetricCard
           label="Aportes recolectados"
