@@ -123,9 +123,6 @@ export const formatearFechaYHora = (f: Date) => fechaConHora.format(f);
  *     queda en 0.
  *   - obtenerReporteDeSancion: no hay flujo de "reportar un aporte para
  *     sanción" en la app y ninguna pantalla la usa; se deja como estaba.
- *   - El TODO de acciones-usuarios.ts sigue abierto: al tercer STRIKE no hay
- *     escalamiento automático a BANEADA todavía (hay que aplicar el baneo a
- *     mano). El contador de strikes ya es real y visible.
  * ────────────────────────────────────────────────────────────────────────────
  */
 

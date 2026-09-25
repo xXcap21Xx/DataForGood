@@ -74,7 +74,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 - **Baneo por campaña:** el creador lo aplica con `POST /api/campanas/[id]/baneos` (tabla `campana_baneados`), y bloquea aportar a esa campaña.
 - **Sanciones del panel** (`aplicarSancion` / `restaurarAcceso`): `STRIKE`, `BANEO_DE_CAMPANA` y `SUSPENSION_TEMPORAL` (con días). El detalle debe tener al menos 20 caracteres. El estado de la cuenta (`ACTIVA`, `CON_STRIKES`, `SUSPENDIDA`, `BANEADA`) se calcula en `lib/usuarios/directorio.ts`.
 - **Qué bloquea cada una** (`lib/sanciones.ts`, según los textos del formulario del panel):
-  - `STRIKE` solo suma al contador; no bloquea nada.
+  - `STRIKE` suma al contador. Al llegar a `STRIKES_PARA_BANEO` (3), `aplicarSancion` agrega en la misma transacción un `BANEO_DE_CAMPANA` con `aplicada_por = 'Automático'`, salvo que ya tenga un baneo activo. Bloquea la fila del usuario (`FOR UPDATE`) para que dos strikes simultáneos no generen dos baneos. En la bitácora queda como `sancion.aplicar` con `automatico: true`.
   - `SUSPENSION_TEMPORAL` bloquea la cuenta durante `dias` desde `aplicada_en`.
   - `BANEO_DE_CAMPANA` (en la interfaz, "Baneo permanente") bloquea la cuenta hasta que se restaure.
 - **Qué significa "bloquear":**

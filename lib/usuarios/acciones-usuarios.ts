@@ -10,7 +10,7 @@ import { CODIGO_DE_ROL, type RolAsignable } from "@/lib/usuarios/rol-asignable";
 import type { TipoDeSancion } from "@/lib/usuarios/directorio";
 import { retirarComoRevisorDeTodasLasCampanas } from "@/lib/usuarios/revisor";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { TIPOS_QUE_BLOQUEAN } from "@/lib/sanciones";
+import { STRIKES_PARA_BANEO, TIPOS_QUE_BLOQUEAN } from "@/lib/sanciones";
 
 export type ResultadoDeAccion = { ok: true } | { ok: false; error: string };
 
@@ -18,13 +18,10 @@ export type ResultadoDeAccion = { ok: true } | { ok: false; error: string };
  * ────────────────────────────────────────────────────────────────────────────
  * Las cuatro acciones escriben de verdad (asignarRol/revocarRol en
  * `usuarios.role`, aplicarSancion/restaurarAcceso en `sanciones`) y quedan en
- * audit_log. La suspensión y el baneo bloquean la cuenta (lib/sanciones.ts).
- * Falta:
- *   1. TODO(dominio): al tercer STRIKE no hay escalamiento automático a
- *      baneo permanente ni bloqueo de correo — hoy hay que aplicar el baneo
- *      a mano con tipo BANEO_DE_CAMPANA. El contador de strikes sí es real.
- *   2. Notificar al usuario sancionado: no hay envío de notificaciones en
- *      la app todavía.
+ * audit_log. La suspensión y el baneo bloquean la cuenta, y al tercer
+ * STRIKE la cuenta se banea sola (lib/sanciones.ts). Falta:
+ *   - Notificar al usuario sancionado: no hay envío de notificaciones en
+ *     la app todavía.
  * ────────────────────────────────────────────────────────────────────────────
  */
 
@@ -178,34 +175,82 @@ export async function aplicarSancion(
     return { ok: false, error: "Indica cuántos días dura la suspensión." };
   }
 
+  const dias = datos.tipo === "SUSPENSION_TEMPORAL" ? datos.dias : null;
+  const client = await pool.connect();
+  let sancionId: number;
+  let baneoAutomatico: { id: number; strikes: number } | null = null;
+
   try {
-    const usuario = await pool.query(`SELECT id FROM usuarios WHERE id = $1`, [numericId]);
+    await client.query("BEGIN");
+
+    // FOR UPDATE: dos strikes aplicados a la vez se forman en fila, así que
+    // el conteo de abajo no puede generar dos baneos automáticos.
+    const usuario = await client.query(`SELECT id FROM usuarios WHERE id = $1 FOR UPDATE`, [numericId]);
     if (usuario.rowCount === 0) {
+      await client.query("ROLLBACK");
       return { ok: false, error: "El usuario no existe." };
     }
 
-    const dias = datos.tipo === "SUSPENSION_TEMPORAL" ? datos.dias : null;
-    const sancion = await pool.query<{ id: number }>(
+    const sancion = await client.query<{ id: number }>(
       `INSERT INTO sanciones (usuario_id, tipo, detalle, dias)
        VALUES ($1, $2, $3, $4) RETURNING id`,
       [numericId, datos.tipo, detalle, dias],
     );
+    sancionId = sancion.rows[0].id;
+
+    // Al llegar a STRIKES_PARA_BANEO strikes la cuenta se banea sola, salvo
+    // que ya tenga un baneo activo.
+    if (datos.tipo === "STRIKE") {
+      const conteo = await client.query<{ strikes: number; baneada: boolean }>(
+        `SELECT COUNT(*) FILTER (WHERE tipo = 'STRIKE')::int AS strikes,
+                BOOL_OR(activa AND tipo = 'BANEO_DE_CAMPANA') AS baneada
+         FROM sanciones WHERE usuario_id = $1`,
+        [numericId],
+      );
+      const { strikes, baneada } = conteo.rows[0];
+      if (strikes >= STRIKES_PARA_BANEO && !baneada) {
+        const baneo = await client.query<{ id: number }>(
+          `INSERT INTO sanciones (usuario_id, tipo, detalle, aplicada_por)
+           VALUES ($1, 'BANEO_DE_CAMPANA', $2, 'Automático') RETURNING id`,
+          [numericId, `Baneo automático al acumular ${strikes} strikes.`],
+        );
+        baneoAutomatico = { id: baneo.rows[0].id, strikes };
+      }
+    }
 
     // Suspensión y baneo bloquean la cuenta: se cierran sus sesiones abiertas
     // para que el bloqueo aplique ya, no hasta que la sesión caduque.
-    if (TIPOS_QUE_BLOQUEAN.has(datos.tipo)) {
-      await pool.query(`DELETE FROM sessions WHERE usuario_id = $1`, [numericId]);
+    if (TIPOS_QUE_BLOQUEAN.has(datos.tipo) || baneoAutomatico) {
+      await client.query(`DELETE FROM sessions WHERE usuario_id = $1`, [numericId]);
     }
 
+    await client.query("COMMIT");
+  } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
+    console.error("Error aplicando sanción", error);
+    return { ok: false, error: "No se pudo aplicar la sanción." };
+  } finally {
+    client.release();
+  }
+
+  await registrarAuditoria({
+    actor: { tipo: "superusuario" },
+    accion: "sancion.aplicar",
+    objetivo: { tipo: "usuario", id: numericId },
+    detalle: { sancionId, tipo: datos.tipo, dias, motivo: detalle },
+  });
+  if (baneoAutomatico) {
     await registrarAuditoria({
       actor: { tipo: "superusuario" },
       accion: "sancion.aplicar",
       objetivo: { tipo: "usuario", id: numericId },
-      detalle: { sancionId: sancion.rows[0].id, tipo: datos.tipo, dias, motivo: detalle },
+      detalle: {
+        sancionId: baneoAutomatico.id,
+        tipo: "BANEO_DE_CAMPANA",
+        automatico: true,
+        strikes: baneoAutomatico.strikes,
+      },
     });
-  } catch (error) {
-    console.error("Error aplicando sanción", error);
-    return { ok: false, error: "No se pudo aplicar la sanción." };
   }
 
   revalidatePath("/usuarios/sanciones");

@@ -11,7 +11,7 @@ import type { TipoDeSancion } from "@/lib/usuarios/directorio";
 const MINIMO = 20;
 
 const TIPOS: { valor: TipoDeSancion; etiqueta: string; hint: string }[] = [
-  { valor: "STRIKE", etiqueta: "Strike", hint: "Suma al contador (3 de 3 = requiere baneo manual)." },
+  { valor: "STRIKE", etiqueta: "Strike", hint: "Suma al contador. Al tercer strike la cuenta se banea automáticamente." },
   { valor: "SUSPENSION_TEMPORAL", etiqueta: "Suspensión temporal", hint: "Bloquea la cuenta por un número de días." },
   { valor: "BANEO_DE_CAMPANA", etiqueta: "Baneo permanente", hint: "Bloquea la cuenta hasta que se restaure a mano." },
 ];

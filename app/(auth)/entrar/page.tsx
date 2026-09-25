@@ -126,10 +126,10 @@ function EntrarForm() {
       </p>
 
       <div className="mt-6 rounded-lg bg-sunken p-4 text-[12.5px] leading-relaxed text-ink-2">
-        Toda cuenta entra como usuario común. El rol de supervisor lo asigna
-        el SuperUsuario o cualquier Supervisor ya activo; revisor y
-        administrador de campaña los asigna el SuperUsuario. Aparecen
-        después dentro de la misma sesión.
+        Toda cuenta entra como usuario común. El rol de supervisor solo lo
+        asigna el SuperUsuario; el de revisor de aportes te lo ofrece quien
+        creó una campaña, y lo aceptas desde tus notificaciones. Aparecen
+        dentro de la misma sesión.
       </div>
     </div>
   );

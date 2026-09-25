@@ -32,7 +32,7 @@ Fuentes: texto informativo de `/entrar` y la pantalla `agregar-revisor`.
 | Rol | Alcance | Cómo se obtiene |
 | --- | --- | --- |
 | Usuario común | Global, implícito | Toda cuenta al registrarse |
-| Supervisor | Global | Lo asigna el **SuperUsuario o cualquier Supervisor activo** |
+| Supervisor | Global | **Solo lo asigna el SuperUsuario** (decidido el 2026-09-25; antes `/entrar` decía "o cualquier Supervisor activo") |
 | Administrador de campaña | Global (según `/entrar`) | Lo asigna el SuperUsuario |
 | Revisor de aportes | **Por campaña** (según `agregar-revisor`) | Invitación de quien administra la campaña; queda pendiente hasta que la persona acepta |
 | SuperUsuario | Global | — |
@@ -45,6 +45,12 @@ Fuentes: texto informativo de `/entrar` y la pantalla `agregar-revisor`.
   - **Usuario común promovido a Supervisor** (fila de `usuarios` con rol `supervisor`): usa `/supervision` con su sesión normal. Sus reglas están en el punto siguiente.
   - **El SuperUsuario** no tiene fila en `usuarios` (entra por `/root`, sesión en `root_sessions`). Supervisa desde **`/supervisar`**, dentro de `app/(panel)`. Es una copia aislada de `/supervision`: solo responde con sesión raíz, y un usuario con rol de supervisor que entre por URL es redirigido a `/root`. **Solo supervisa:** no crea campañas, no aporta ni revisa aportes. Sus dictámenes pasan por la server action `decidirComoSuperUsuario` (`lib/supervision/acciones-root.ts`) y dejan `campanas.supervisor_id = NULL` + `supervisado_por_root = true`, y en el historial `campana_supervisores.supervisor_id = NULL` + `por_superusuario = true`. Las reglas del dictamen (motivo obligatorio, "aceptada" con inicio futuro, notificación) viven en un solo lugar: `lib/supervision/decision.ts`, que también usa el `PATCH`.
 - **Supervisor y Revisor de aportes no son excluyentes** (usuario promovido). Un Supervisor también puede crear campañas, aportar y revisar aportes (si lo invitan y acepta). Tiene dos límites: **no aporta a sus propias campañas** (regla general para cualquier creador, `app/api/aportes/route.ts`) y **no supervisa sus propias campañas** (no puede aceptar, rechazar ni reportar; se rechaza en `PATCH /api/campanas/[id]` y la interfaz lo oculta).
+- **Sanciones de cuenta** (las aplica el SuperUsuario desde `/usuarios/[id]/sancion`; se implementan en `lib/sanciones.ts`):
+  - `STRIKE` suma al contador, que nunca se borra.
+  - **Al tercer strike la cuenta se banea automáticamente** (decidido el 2026-09-25). Si el SuperUsuario restaura ese baneo, el siguiente strike vuelve a banear. No es retroactivo: una cuenta que ya tenía 3 strikes antes de esta regla se banea con su próximo strike.
+  - `SUSPENSION_TEMPORAL` bloquea la cuenta N días.
+  - `BANEO_DE_CAMPANA` ("Baneo permanente") la bloquea hasta que se restaure.
+  - Una cuenta bloqueada no puede entrar, y pierde sus sesiones abiertas.
 - **El rol de Supervisor no da acceso a los archivos de aportes**, pero tampoco lo quita: los ve si es quien aportó, quien creó la campaña o revisor aceptado de ella (`app/api/aportes/[id]/archivo/route.ts`).
 
 ## 3. Campañas

@@ -12,6 +12,13 @@ import { pool } from "@/lib/db";
 export const TIPOS_QUE_BLOQUEAN = new Set(["SUSPENSION_TEMPORAL", "BANEO_DE_CAMPANA"]);
 
 /**
+ * Al acumular este número de strikes, la cuenta se banea sola
+ * (aplicarSancion). Los strikes no se borran nunca, así que si el
+ * SuperUsuario restaura ese baneo, el siguiente strike vuelve a banear.
+ */
+export const STRIKES_PARA_BANEO = 3;
+
+/**
  * Condición SQL: hay una sanción vigente que bloquea a `usuarios u`. Es la
  * misma regla que usa el directorio para marcar SUSPENDIDA/BANEADA.
  */
