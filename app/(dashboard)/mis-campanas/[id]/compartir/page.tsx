@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default function CompartirCampanaPage() {
   const { id } = useParams<{ id: string }>();
@@ -15,7 +16,7 @@ export default function CompartirCampanaPage() {
 
   useEffect(() => {
     async function loadCampaign() {
-      const response = await fetch(`/api/campanas?id=${id}`);
+      const response = await fetch(`${BASE_PATH}/api/campanas?id=${id}`);
       if (!response.ok) return;
       const body = await response.json();
       setCampaign(body.data ?? null);

@@ -32,6 +32,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        BASE_PATH: ${BASE_PATH-/dataforgood}
     container_name: app
     restart: always
     # Secretos (Gmail, Google OAuth, ROOT_PASSWORD_HASH...) salen del .env de

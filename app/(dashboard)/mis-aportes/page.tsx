@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default function MisAportesPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
@@ -15,7 +16,7 @@ export default function MisAportesPage() {
   useEffect(() => {
     async function loadCampaigns() {
       try {
-        const response = await fetch("/api/campanas?misAportes=true", { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/campanas?misAportes=true`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campañas");
         setCampaigns(Array.isArray(payload.data) ? payload.data as Campaign[] : []);

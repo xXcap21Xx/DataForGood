@@ -14,6 +14,11 @@ RUN npm install
 
 FROM node:24-alpine AS builder
 WORKDIR /app
+# Subruta donde se publica la app (basePath de next.config.ts). Next la
+# incrusta en el bundle, así que va en el build, no en el runtime.
+# Para servirla en la raíz: --build-arg BASE_PATH=
+ARG BASE_PATH=/dataforgood
+ENV BASE_PATH=$BASE_PATH
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 RUN npm run build

@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Field, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default function AportarPage() {
   const params = useParams<{ id: string }>();
@@ -24,8 +25,8 @@ export default function AportarPage() {
     async function loadCampaign() {
       try {
         const [campaignRes, aportesRes] = await Promise.all([
-          fetch(`/api/campanas?id=${encodeURIComponent(params.id)}`, { cache: "no-store" }),
-          fetch(`/api/aportes?campaignId=${encodeURIComponent(params.id)}&mine=true`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/campanas?id=${encodeURIComponent(params.id)}`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/aportes?campaignId=${encodeURIComponent(params.id)}&mine=true`, { cache: "no-store" }),
         ]);
 
         const campaignPayload = await campaignRes.json().catch(() => ({}));
@@ -94,7 +95,7 @@ export default function AportarPage() {
       formData.set("file", file);
       caracteristicas.forEach((item) => formData.append("caracteristicas", item));
 
-      const response = await fetch("/api/aportes", { method: "POST", body: formData });
+      const response = await fetch(`${BASE_PATH}/api/aportes`, { method: "POST", body: formData });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "No se pudo enviar el aporte");
 

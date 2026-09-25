@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import Tag from "@/components/ui/Tag";
 import { Textarea } from "@/components/ui/Input";
 import { BackLink } from "../_ui";
+import { BASE_PATH } from "@/lib/base-path";
 
 type Campaign = {
   id: string;
@@ -46,7 +47,7 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     async function loadCampaign() {
       try {
-        const response = await fetch(`/api/campanas?id=${campaignId}`, { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/campanas?id=${campaignId}`, { cache: "no-store" });
         if (!response.ok) {
           throw new Error("No se pudo cargar la campaña");
         }
@@ -72,7 +73,7 @@ export default function CampaignDetailPage() {
 
     try {
       setActionLoading(action);
-      const response = await fetch(`/api/campanas/${campaignId}`, {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${campaignId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, motivo }),
@@ -103,7 +104,7 @@ export default function CampaignDetailPage() {
     try {
       setActionLoading("tomar");
       setError(null);
-      const response = await fetch(`/api/campanas/${campaignId}`, {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${campaignId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "tomar" }),

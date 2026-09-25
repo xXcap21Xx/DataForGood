@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import { BASE_PATH } from "@/lib/base-path";
 
 interface Rule {
   label: string;
@@ -69,7 +70,7 @@ export default function RegistroPage() {
     setSubmitting(true);
 
     try {
-      const response = await fetch("/api/usuarios", {
+      const response = await fetch(`${BASE_PATH}/api/usuarios`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -217,7 +218,7 @@ export default function RegistroPage() {
           type="button"
           className="mt-3 w-full"
           onClick={() => {
-            window.location.href = "/api/auth/google";
+            window.location.href = `${BASE_PATH}/api/auth/google`;
           }}
         >
           <GoogleLogo />

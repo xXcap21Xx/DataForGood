@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import CampaignCard from "@/components/cards/CampaignCard";
 import Button from "@/components/ui/Button";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 const FILTROS = ["Todas", "Guardadas", "Medio ambiente", "Salud y bienestar", "Educación", "Infraestructura"];
 
@@ -17,7 +18,7 @@ export default function CampanasPage() {
   useEffect(() => {
     async function cargarCampanas() {
       try {
-        const response = await fetch("/api/campanas", { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/campanas`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campañas");
         const todas = Array.isArray(payload.data) ? (payload.data as Campaign[]) : [];

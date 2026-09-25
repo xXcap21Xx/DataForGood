@@ -7,6 +7,7 @@ import Button from "@/components/ui/Button";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
@@ -20,7 +21,7 @@ export default function CampaignDetailPage() {
   useEffect(() => {
     async function loadCampaign() {
       try {
-        const response = await fetch(`/api/campanas?id=${encodeURIComponent(params.id)}`, { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/campanas?id=${encodeURIComponent(params.id)}`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar la campaña");
         setCampaign(payload.data as Campaign);
@@ -38,7 +39,7 @@ export default function CampaignDetailPage() {
     setGuardando(true);
     const metodo = saved ? "DELETE" : "POST";
     try {
-      const response = await fetch(`/api/campanas/${encodeURIComponent(params.id)}/guardar`, {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${encodeURIComponent(params.id)}/guardar`, {
         method: metodo,
       });
       const payload = await response.json().catch(() => ({}));

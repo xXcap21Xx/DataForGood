@@ -1,3 +1,5 @@
+import { BASE_PATH } from "@/lib/base-path";
+
 // Next 16 ya no arma la URL absoluta de una petición a partir del header
 // Host (`experimental.trustHostHeader` es `false` por defecto): usa en su
 // lugar el hostname:puerto con el que arrancó el servidor. En Docker eso es
@@ -6,8 +8,11 @@
 // "http://0.0.0.0:3000/..." en vez de la URL pública real. Para construir
 // una URL absoluta que el navegador pueda usar (redirects, links en
 // correos) hay que partir de un origen configurado, no de `request.url`.
+//
+// APP_ORIGIN es solo el origen (sin subruta); la subruta de publicación se
+// antepone aquí porque NextResponse.redirect no aplica `basePath`.
 const APP_ORIGIN = process.env.APP_ORIGIN || "http://localhost:3000";
 
 export function absoluteUrl(path: string) {
-  return new URL(path, APP_ORIGIN);
+  return new URL(`${BASE_PATH}${path}`, APP_ORIGIN);
 }

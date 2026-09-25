@@ -7,6 +7,7 @@ import { Field, Input } from "@/components/ui/Input";
 import { TEMAS_DE_INTERES } from "@/lib/intereses";
 import { ESPECIALIDADES, OTRA_ESPECIALIDAD, opcionesCon } from "@/lib/perfil-opciones";
 import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
+import { BASE_PATH } from "@/lib/base-path";
 
 type Usuario = {
   id: number;
@@ -62,7 +63,7 @@ export default function PerfilForm({ usuario, children }: { usuario: Usuario; ch
     setGuardando(true);
     setMensaje(null);
     try {
-      const response = await fetch(`/api/usuarios/${usuario.id}`, {
+      const response = await fetch(`${BASE_PATH}/api/usuarios/${usuario.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

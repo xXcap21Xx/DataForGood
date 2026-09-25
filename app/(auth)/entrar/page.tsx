@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default function EntrarPage() {
   return (
@@ -34,7 +35,7 @@ function EntrarForm() {
     setSubmitting(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(`${BASE_PATH}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -107,7 +108,7 @@ function EntrarForm() {
           type="button"
           className="mt-2.5 w-full"
           onClick={() => {
-            window.location.href = "/api/auth/google";
+            window.location.href = `${BASE_PATH}/api/auth/google`;
           }}
         >
           Continuar con Google

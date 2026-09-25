@@ -6,6 +6,7 @@ import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import ProgressBar from "@/components/ui/ProgressBar";
 import type { Campaign, CampaignStatus } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 const labels: Record<CampaignStatus, string> = {
   borrador: "Borrador",
@@ -53,7 +54,7 @@ export default function MisCampanasPage() {
   const [finalizarError, setFinalizarError] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    void fetch("/api/campanas?mine=true", { cache: "no-store" })
+    void fetch(`${BASE_PATH}/api/campanas?mine=true`, { cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campanas");
@@ -76,7 +77,7 @@ export default function MisCampanasPage() {
     setFinalizandoId(id);
     setFinalizarError((prev) => ({ ...prev, [id]: "" }));
     try {
-      const response = await fetch(`/api/campanas/${id}`, {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "finalizada" }),

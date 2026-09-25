@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import Tag from "@/components/ui/Tag";
 import { BackLink } from "../_ui";
+import { BASE_PATH } from "@/lib/base-path";
 
 type CampaignRow = {
   id: string;
@@ -24,7 +25,7 @@ export default function SupervisedCampaignsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const response = await fetch("/api/campanas?supervised=true", { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/campanas?supervised=true`, { cache: "no-store" });
         if (!response.ok) {
           throw new Error("No se pudieron cargar las campañas supervisadas");
         }

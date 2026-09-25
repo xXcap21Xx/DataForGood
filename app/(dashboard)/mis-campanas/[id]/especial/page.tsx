@@ -6,6 +6,7 @@ import { Field, Input } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 const MAX_MULTIPLIER = 3;
 
@@ -19,7 +20,7 @@ export default function CampanaEspecialPage() {
 
   useEffect(() => {
     async function loadCampaign() {
-      const response = await fetch(`/api/campanas?id=${params.id}`);
+      const response = await fetch(`${BASE_PATH}/api/campanas?id=${params.id}`);
       if (!response.ok) return;
       const body = await response.json();
       setCampaign(body.data ?? null);

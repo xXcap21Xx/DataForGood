@@ -4,6 +4,7 @@ import { useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/sistema/Button";
 import { Field, Input } from "@/components/sistema/Input";
+import { BASE_PATH } from "@/lib/base-path";
 
 /** Destino tras validar la credencial: SCR-WEB-28, Panel del sistema. */
 const PANEL_DEL_SISTEMA = "/sistema";
@@ -27,7 +28,7 @@ export default function RootLoginForm() {
     setError("");
 
     try {
-      const response = await fetch("/api/auth/root", {
+      const response = await fetch(`${BASE_PATH}/api/auth/root`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         // La cookie de sesión la emite el servidor; nunca se toca desde el cliente.

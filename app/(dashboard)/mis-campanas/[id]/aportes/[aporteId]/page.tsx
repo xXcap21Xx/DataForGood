@@ -7,6 +7,7 @@ import { Field, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Contribution } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 const REJECTION_REASONS = [
   "Contenido borroso o ilegible",
@@ -32,7 +33,7 @@ export default function RevisionAportePage() {
   useEffect(() => {
     async function load() {
       try {
-        const response = await fetch(`/api/aportes/${params.aporteId}`, { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/aportes/${params.aporteId}`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar el aporte");
         setItem(payload.data as Contribution);
@@ -52,7 +53,7 @@ export default function RevisionAportePage() {
     setSubmitting(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/aportes/${params.aporteId}`, {
+      const response = await fetch(`${BASE_PATH}/api/aportes/${params.aporteId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, rejectionReason }),
@@ -80,7 +81,7 @@ export default function RevisionAportePage() {
     setSubmitting(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/campanas/${params.id}/baneos`, {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${params.id}/baneos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contributionId, reason: banReason.trim() }),
@@ -125,7 +126,7 @@ export default function RevisionAportePage() {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {item.fileType === "foto" ? (
           <img
-            src={`/api/aportes/${item.id}/archivo`}
+            src={`${BASE_PATH}/api/aportes/${item.id}/archivo`}
             alt="Archivo del aporte"
             className="h-44 w-full rounded-lg border border-line-2 bg-sunken object-contain"
           />

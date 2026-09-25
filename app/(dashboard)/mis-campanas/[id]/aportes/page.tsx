@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import type { Campaign, Contribution } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 const STAGE_LABEL: Record<string, string> = {
   pendiente: "Sin revisar",
@@ -24,8 +25,8 @@ export default function BandejaAportesPage() {
     async function load() {
       try {
         const [campaignRes, aportesRes] = await Promise.all([
-          fetch(`/api/campanas/${params.id}`, { cache: "no-store" }),
-          fetch(`/api/aportes?campaignId=${encodeURIComponent(params.id)}`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/campanas/${params.id}`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/aportes?campaignId=${encodeURIComponent(params.id)}`, { cache: "no-store" }),
         ]);
 
         const campaignPayload = await campaignRes.json().catch(() => ({}));

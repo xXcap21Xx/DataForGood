@@ -7,6 +7,7 @@ import Tag from "@/components/ui/Tag";
 import MetricCard from "@/components/ui/MetricCard";
 import ProgressBar from "@/components/ui/ProgressBar";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 type DiaDeRecoleccion = { fecha: string; etiqueta: string; valor: number };
 type TipoDeAporte = { tipo: string; etiqueta: string; valor: number; porcentaje: number };
@@ -22,8 +23,8 @@ export default function PanelCampanaPage() {
 
     async function loadCampaign() {
       const [campaignResponse, recoleccionResponse] = await Promise.all([
-        fetch(`/api/campanas?id=${params.id}`, { cache: "no-store" }),
-        fetch(`/api/campanas/${params.id}/recoleccion-diaria`, { cache: "no-store" }),
+        fetch(`${BASE_PATH}/api/campanas?id=${params.id}`, { cache: "no-store" }),
+        fetch(`${BASE_PATH}/api/campanas/${params.id}/recoleccion-diaria`, { cache: "no-store" }),
       ]);
       if (!activo) return;
 

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Tag from "@/components/ui/Tag";
+import { BASE_PATH } from "@/lib/base-path";
 
 type CampaignApiItem = {
   id: string;
@@ -35,9 +36,9 @@ export default function SupervisionPage() {
     async function load() {
       try {
         const [campaignsResponse, supervisedResponse, sessionResponse] = await Promise.all([
-          fetch("/api/campanas", { cache: "no-store" }),
-          fetch("/api/campanas?supervised=true", { cache: "no-store" }),
-          fetch("/api/auth/sesion", { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/campanas`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/campanas?supervised=true`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/auth/sesion`, { cache: "no-store" }),
         ]);
 
         if (!campaignsResponse.ok) {

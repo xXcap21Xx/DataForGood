@@ -2,6 +2,7 @@
 
 import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { BASE_PATH } from "@/lib/base-path";
 
 type NotificationItem = {
   id: string;
@@ -21,7 +22,7 @@ export default function NotificationsBell() {
 
   useEffect(() => {
     let active = true;
-    fetch("/api/notificaciones", { cache: "no-store" })
+    fetch(`${BASE_PATH}/api/notificaciones`, { cache: "no-store" })
       .then((response) => response.ok ? response.json() : null)
       .then((payload) => {
         if (!active || !payload) return;
@@ -37,7 +38,7 @@ export default function NotificationsBell() {
   }, []);
 
   async function load() {
-    const response = await fetch("/api/notificaciones", { cache: "no-store" });
+    const response = await fetch(`${BASE_PATH}/api/notificaciones`, { cache: "no-store" });
     if (!response.ok) return;
     const payload = await response.json();
     startTransition(() => {
@@ -47,7 +48,7 @@ export default function NotificationsBell() {
 
   async function acceptInvitation(item: NotificationItem) {
     setLoadingId(item.id);
-    const response = await fetch(`/api/notificaciones/${item.id}/aceptar`, { method: "POST" });
+    const response = await fetch(`${BASE_PATH}/api/notificaciones/${item.id}/aceptar`, { method: "POST" });
     if (response.ok) {
       setItems((current) => current.filter((notification) => notification.id !== item.id));
       router.refresh();

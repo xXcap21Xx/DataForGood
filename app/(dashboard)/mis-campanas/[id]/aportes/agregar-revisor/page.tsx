@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { Input } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
+import { BASE_PATH } from "@/lib/base-path";
 
 type UserCandidate = {
   id: number;
@@ -33,9 +34,9 @@ export default function AgregarRevisorPage() {
   useEffect(() => {
     async function loadData() {
       const [campaignResponse, sessionResponse, revisoresResponse] = await Promise.all([
-        fetch(`/api/campanas?id=${params.id}`),
-        fetch("/api/auth/sesion", { cache: "no-store" }),
-        fetch(`/api/campanas/${params.id}/revisores`),
+        fetch(`${BASE_PATH}/api/campanas?id=${params.id}`),
+        fetch(`${BASE_PATH}/api/auth/sesion`, { cache: "no-store" }),
+        fetch(`${BASE_PATH}/api/campanas/${params.id}/revisores`),
       ]);
       if (campaignResponse.ok) {
         const campaignBody = await campaignResponse.json();
@@ -51,7 +52,7 @@ export default function AgregarRevisorPage() {
         setEstadoPorUsuario(new Map(filas.map((f: { usuarioId: string; estado: string }) => [Number(f.usuarioId), f.estado])));
       }
 
-      const usersResponse = await fetch("/api/usuarios");
+      const usersResponse = await fetch(`${BASE_PATH}/api/usuarios`);
       if (usersResponse.ok) {
         const usersBody = await usersResponse.json();
         setUsers(Array.isArray(usersBody.data) ? usersBody.data : []);
@@ -80,7 +81,7 @@ export default function AgregarRevisorPage() {
 
   async function invite(candidate: UserCandidate) {
     setError(null);
-    const response = await fetch(`/api/campanas/${params.id}/revisores`, {
+    const response = await fetch(`${BASE_PATH}/api/campanas/${params.id}/revisores`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ usuarioId: candidate.id }),

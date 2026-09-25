@@ -7,6 +7,7 @@ import { Field, Input } from "@/components/ui/Input";
 import { TEMAS_DE_INTERES as INTERESTS } from "@/lib/intereses";
 import { ESPECIALIDADES, OTRA_ESPECIALIDAD, opcionesCon } from "@/lib/perfil-opciones";
 import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
+import { BASE_PATH } from "@/lib/base-path";
 
 type SessionUser = {
   id: number;
@@ -29,7 +30,7 @@ export default function BienvenidaPage() {
 
   useEffect(() => {
     async function loadUser() {
-      const response = await fetch("/api/auth/sesion");
+      const response = await fetch(`${BASE_PATH}/api/auth/sesion`);
       if (!response.ok) {
         router.push("/entrar");
         return;
@@ -80,7 +81,7 @@ export default function BienvenidaPage() {
     }
 
     try {
-      await fetch(`/api/usuarios/${user.id}`, {
+      await fetch(`${BASE_PATH}/api/usuarios/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

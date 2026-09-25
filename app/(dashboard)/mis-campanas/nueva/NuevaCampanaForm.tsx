@@ -9,6 +9,7 @@ import Tag from "@/components/ui/Tag";
 import type { Campaign, CollectionMode, DataType } from "@/types";
 import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
 import { opcionesCon } from "@/lib/perfil-opciones";
+import { BASE_PATH } from "@/lib/base-path";
 
 const DEFAULT_CHECKLIST_OPCIONES = ["Especie del árbol", "Estado de salud aparente"];
 
@@ -56,7 +57,7 @@ export default function NuevaCampanaForm() {
 
     async function loadCampaigns() {
       try {
-        const response = await fetch("/api/campanas?mine=true");
+        const response = await fetch(`${BASE_PATH}/api/campanas?mine=true`);
         if (!response.ok) return;
         const body = await response.json();
         if (activo) setCampaigns(Array.isArray(body.data) ? body.data : []);
@@ -162,7 +163,7 @@ function CampanaFormulario({
     setReactivando(true);
     setReactivarError(null);
     try {
-      const response = await fetch(`/api/campanas/${editingCampaign.id}`, {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${editingCampaign.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "activa", endDate, endTime: endTime || null }),
@@ -345,12 +346,12 @@ function CampanaFormulario({
       // POST a /api/campanas, así que "editar" creaba una campaña nueva en
       // vez de actualizar la que ya existía.
       const response = editingCampaign
-        ? await fetch(`/api/campanas/${editingCampaign.id}`, {
+        ? await fetch(`${BASE_PATH}/api/campanas/${editingCampaign.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(camposEditables),
           })
-        : await fetch("/api/campanas", {
+        : await fetch(`${BASE_PATH}/api/campanas`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

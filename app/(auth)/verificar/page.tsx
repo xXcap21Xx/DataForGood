@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/ui/Button";
+import { BASE_PATH } from "@/lib/base-path";
 
 const CODE_LENGTH = 6;
 const MAX_ATTEMPTS = 3;
@@ -31,7 +32,7 @@ export default function VerificarPage() {
   useEffect(() => {
     async function loadPending() {
       try {
-        const response = await fetch("/api/auth/verificar");
+        const response = await fetch(`${BASE_PATH}/api/auth/verificar`);
         if (!response.ok) {
           router.replace("/entrar");
           return;
@@ -84,7 +85,7 @@ export default function VerificarPage() {
 
     setSubmitting(true);
     try {
-      const response = await fetch("/api/auth/verificar", {
+      const response = await fetch(`${BASE_PATH}/api/auth/verificar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
@@ -115,7 +116,7 @@ export default function VerificarPage() {
     setError("");
     setResending(true);
     try {
-      const response = await fetch("/api/auth/verificar/reenviar", { method: "POST" });
+      const response = await fetch(`${BASE_PATH}/api/auth/verificar/reenviar`, { method: "POST" });
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
