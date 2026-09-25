@@ -113,7 +113,8 @@ services:
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?Falta MINIO_ACCESS_KEY en .env}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?Falta MINIO_SECRET_KEY en .env}
     ports:
-      - "3000:3000"
+      # Puerto del host al que apunta el proxy (en producción, 3002).
+      - "${APP_PORT:-3000}:3000"
     depends_on:
       postgres:
         condition: service_healthy

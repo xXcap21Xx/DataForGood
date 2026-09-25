@@ -4,6 +4,17 @@
 import { ensureCoreSchema } from "@/lib/db-schema";
 
 export async function crearEsquemaAlArrancar(): Promise<void> {
+  // Falta de configuración: reintentar no sirve de nada, así que se avisa
+  // de inmediato (antes esperaba 30 intentos para decir lo mismo).
+  if (!process.env.DATABASE_URL && !process.env.POSTGRES_URL) {
+    console.error(
+      "Falta DATABASE_URL en el entorno. Levanta la app con `docker compose up -d` " +
+        "(que la arma desde .env) o pásala con `docker run --env-file .env ...`.",
+    );
+    if (process.env.NODE_ENV === "production") process.exit(1);
+    return;
+  }
+
   // Postgres puede tardar en aceptar conexiones justo al levantar el stack.
   const INTENTOS = 30;
   for (let intento = 1; ; intento++) {
