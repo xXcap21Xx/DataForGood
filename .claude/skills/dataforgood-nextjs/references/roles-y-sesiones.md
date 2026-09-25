@@ -7,7 +7,8 @@
 4. Acceso por campaña
 5. Registro, verificación e inicio de sesión
 6. Sanciones y baneos
-7. Huecos conocidos
+7. Bitácora (`audit_log`)
+8. Huecos conocidos
 
 Las reglas de negocio y los puntos abiertos están en `dominio.md`, secciones 1, 2 y 9.
 
@@ -27,11 +28,9 @@ Las reglas de negocio y los puntos abiertos están en `dominio.md`, secciones 1,
 
 ## 2. Capas de protección
 
-1. **`proxy.ts`:** solo comprueba que exista la cookie y redirige. No es autorización.
+1. **`proxy.ts`:** en páginas solo comprueba que exista la cookie y redirige; no es autorización. En `/api`, rechaza con 403 las mutaciones (POST, PATCH, PUT, DELETE) cuyo `Origin` no sea el host de la petición (`Host` o `X-Forwarded-Host`) ni el de `APP_ORIGIN`; también las que traen `Sec-Fetch-Site: cross-site` sin `Origin`. Sin `Origin` (clientes que no son navegador) deja pasar, porque no pueden usar la cookie de otra persona. Las server actions no pasan por ahí: Next verifica su `Origin`.
 2. **Layouts:** `(panel)/layout.tsx` (sesión raíz) y `(dashboard)/supervision/layout.tsx` (rol `supervisor`).
-3. **Cada página, route handler y server action vuelve a verificar.** En el panel se usa `exigirSesionRoot()` (`lib/supervision/root.ts`) o `exigirSuperUsuario()` (`lib/usuarios/acciones-usuarios.ts`). En la API, `getSessionUser()` más la comprobación de permiso sobre el recurso.
-
-**No hay verificación de `Origin`** en las mutaciones. Las de usuario dependen de `SameSite=Lax` y las raíz de `SameSite=Strict`; las server actions traen su propia protección de Next.
+3. **Cada página, route handler y server action vuelve a verificar.** En el panel se usa `exigirSesionRoot()` (`lib/supervision/root.ts`) o `exigirSuperUsuario()` (`lib/usuarios/acciones-usuarios.ts`, `acciones-supervisor.ts`). En la API, `getSessionUser()` más la comprobación de permiso sobre el recurso.
 
 ## 3. Roles
 
@@ -74,10 +73,27 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 - **Baneo por campaña:** el creador lo aplica con `POST /api/campanas/[id]/baneos` (tabla `campana_baneados`), y bloquea aportar a esa campaña.
 - **Sanciones del panel** (`aplicarSancion` / `restaurarAcceso`): `STRIKE`, `BANEO_DE_CAMPANA` y `SUSPENSION_TEMPORAL` (con días). El detalle debe tener al menos 20 caracteres. El estado de la cuenta (`ACTIVA`, `CON_STRIKES`, `SUSPENDIDA`, `BANEADA`) se calcula en `lib/usuarios/directorio.ts`.
+- **Qué bloquea cada una** (`lib/sanciones.ts`, según los textos del formulario del panel):
+  - `STRIKE` solo suma al contador; no bloquea nada.
+  - `SUSPENSION_TEMPORAL` bloquea la cuenta durante `dias` desde `aplicada_en`.
+  - `BANEO_DE_CAMPANA` (en la interfaz, "Baneo permanente") bloquea la cuenta hasta que se restaure.
+- **Qué significa "bloquear":**
+  - `getSessionUser()` devuelve `null`, así que ninguna ruta ni página lo deja pasar;
+  - el login con correo responde 403 con la fecha de fin de la suspensión (solo si la contraseña es correcta, para no revelarlo a otros);
+  - el login con Google redirige a `/entrar?error=bloqueada`;
+  - al aplicar la sanción se borran sus filas de `sessions`.
+- **Restaurar** (`restaurarAcceso`) desbloquea de inmediato. Una suspensión vencida deja de bloquear sola.
 
-## 7. Huecos conocidos
+## 7. Bitácora (`audit_log`)
 
-- **Las sanciones de la tabla `sanciones` no se aplican todavía:** ni el login ni `getSessionUser()` ni `POST /api/aportes` las consultan, así que una suspensión no impide entrar ni aportar. Preguntar antes de implementarlo (qué bloquea cada tipo).
-- **No existe `audit_log`:** los cambios de rol, las sanciones y los accesos raíz no quedan registrados (hay `TODO` en `app/api/auth/root/route.ts`).
-- **`GET /api/usuarios` exige sesión** desde el 2026-09-25, pero cualquier usuario con sesión ve nombre y correo de los últimos 50 usuarios verificados (lo usa el buscador de "agregar revisor"). Si se quiere ocultar el correo, hay que rediseñar ese buscador.
+`registrarAuditoria()` en `lib/auditoria.ts`, llamado después de que la acción se completó. Si el registro falla, solo se reporta en consola: no revierte la acción.
+
+- **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`).
+- **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
+- **Sin pantalla:** todavía no hay vista en el panel para consultarla; se lee con SQL.
+
+## 8. Huecos conocidos
+
+- **`revertirAccion` no hace nada todavía:** ya exige sesión raíz, pero su lógica sigue en `TODO`. Cuando se implemente, debe registrar `supervision.revertir` en la bitácora.
+- **Buscador de revisores** (`GET /api/usuarios?campanaId=&q=`): solo el creador de esa campaña, con al menos 3 letras del nombre o un correo completo exacto. Devuelve 10 usuarios verificados como máximo, con el correo oculto (`an***@gmail.com`).
 - **El límite de intentos de `/root` vive en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. Hay dos límites: 5 por minuto por IP y 30 por minuto en total. La IP es el **último** valor de `X-Forwarded-For` (el que agrega el proxy), no el primero, que lo puede inventar el cliente.

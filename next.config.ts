@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
   // que es compatible (ver AGENTS.md).
   output: "standalone",
   basePath,
+  // Con basePath, la raíz del dominio queda en 404. Al abrir
+  // http://localhost:3000/ se manda a la app. En producción el proxy solo
+  // reenvía /dataforgood/..., así que esto no interfiere con otros sitios.
+  async redirects() {
+    if (!basePath) return [];
+    return [{ source: "/", destination: basePath, basePath: false, permanent: false }];
+  },
   env: {
     // Lo lee lib/base-path.ts para prefijar fetch, <img>, <a> y redirects.
     NEXT_PUBLIC_BASE_PATH: basePath,

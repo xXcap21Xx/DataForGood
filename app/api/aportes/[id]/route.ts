@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 
 const ALLOWED_STATUS = new Set(["pendiente", "espera_final", "aceptado", "rechazado"]);
@@ -43,8 +42,6 @@ async function loadAporteWithCampaign(id: string) {
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -73,8 +70,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 // El revisor aceptado valida en primera instancia y el creador puede revisar el aporte.
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -153,8 +148,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 // Uso previsto: quien envió el aporte edita descripción/caracteristicas mientras sigue pendiente (Insomnia: PUT { "description": "...", "caracteristicas": [...] })
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -201,8 +194,6 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
   const client = await pool.connect();
 
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });

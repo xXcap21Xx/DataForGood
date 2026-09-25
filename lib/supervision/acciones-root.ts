@@ -2,7 +2,6 @@
 
 import { revalidatePath } from "next/cache";
 
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { hasRootSession } from "@/lib/rootSession";
 import {
   ACCIONES_DE_SUPERVISION,
@@ -28,7 +27,6 @@ export async function decidirComoSuperUsuario(
     return { ok: false, error: "Petición inválida." };
   }
 
-  await ensureCoreSchema();
   const resultado = await registrarDecisionDeCampana(campanaId, accion, motivo, { tipo: "root" });
   if (!resultado.ok) return { ok: false, error: resultado.error };
 
@@ -41,7 +39,6 @@ export async function tomarComoSuperUsuario(campanaId: string): Promise<Resultad
   if (!(await hasRootSession())) throw new Error("No autorizado");
   if (!/^\d+$/.test(campanaId)) return { ok: false, error: "Petición inválida." };
 
-  await ensureCoreSchema();
   const resultado = await tomarCampanaParaSupervisar(campanaId, { tipo: "root" });
   if (!resultado.ok) return { ok: false, error: resultado.error };
 

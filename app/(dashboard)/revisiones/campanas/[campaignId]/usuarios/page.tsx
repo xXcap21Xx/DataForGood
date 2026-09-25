@@ -1,12 +1,10 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 
 export default async function ReviewerUsersPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
-  await ensureCoreSchema();
   const reviewer = await getSessionUser();
   if (!reviewer) redirect("/entrar");
   const campaignResult = await pool.query(`SELECT c.id, c.name FROM campanas c JOIN campana_revisores cr ON cr.campana_id = c.id WHERE c.id = $1 AND cr.usuario_id = $2 AND cr.estado = 'aceptado' LIMIT 1`, [campaignId, reviewer.id]);

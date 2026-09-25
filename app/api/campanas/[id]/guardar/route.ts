@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 
 function parseCampaignId(raw: string): number | null {
@@ -14,8 +13,6 @@ export async function POST(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await ensureCoreSchema();
-
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -52,8 +49,6 @@ export async function DELETE(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await ensureCoreSchema();
-
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });

@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BackLink } from "../../_ui";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 
 type CampaignAccess = { id: number; name: string; status: string };
@@ -23,7 +22,6 @@ async function getSupervisedCampaign(campaignId: string): Promise<CampaignAccess
 
 export default async function CampaignUsersPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
-  await ensureCoreSchema();
   const campaign = await getSupervisedCampaign(campaignId);
   const result = await pool.query(
     `SELECT a.user_id AS id,

@@ -4,9 +4,12 @@ import { pool } from "@/lib/db";
  * Único lugar donde se define el DDL de cada tabla. Antes estaba duplicado
  * (y ya divergido) en cada ruta/módulo que la usaba — p. ej. `usuarios` tenía
  * cuatro copias distintas del CREATE TABLE, una de ellas sin `email_verificado`
- * ni `locked_until`. Cualquier módulo que consulte una tabla debe llamar a su
- * `ensureXTable()` antes de la query: son idempotentes (`IF NOT EXISTS`), así
- * que no importa si ya se llamó en la misma petición.
+ * ni `locked_until`.
+ *
+ * `ensureCoreSchema()` corre UNA vez al arrancar el servidor (ver
+ * instrumentation.ts), no en cada petición. Las funciones son idempotentes
+ * (`IF NOT EXISTS`), así que repetirlas en cada arranque es inofensivo. Una
+ * tabla nueva se agrega aquí y en `ensureCoreSchema()`.
  */
 
 export async function ensureUsuariosTable(): Promise<void> {
@@ -297,7 +300,30 @@ export async function ensureSancionesTable(): Promise<void> {
   `);
 }
 
-/** Crea (si falta) todo lo que las pantallas de /usuarios y /sistema necesitan leer. */
+/**
+ * Bitácora de acciones sensibles (roles, sanciones, dictámenes, baneos,
+ * accesos raíz). Solo se inserta, nunca se edita. `actor_id` es NULL cuando
+ * el actor es el SuperUsuario (no tiene fila en usuarios).
+ */
+export async function ensureAuditLogTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id BIGSERIAL PRIMARY KEY,
+      actor_tipo VARCHAR(20) NOT NULL CHECK (actor_tipo IN ('usuario', 'superusuario', 'anonimo')),
+      actor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      accion VARCHAR(60) NOT NULL,
+      objetivo_tipo VARCHAR(30),
+      objetivo_id VARCHAR(40),
+      detalle JSONB NOT NULL DEFAULT '{}'::jsonb,
+      ip VARCHAR(64),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS audit_log_created_at_idx ON audit_log (created_at DESC);
+    CREATE INDEX IF NOT EXISTS audit_log_objetivo_idx ON audit_log (objetivo_tipo, objetivo_id);
+  `);
+}
+
+/** Crea (si falta) todo el esquema. Lo llama instrumentation.ts al arrancar. */
 export async function ensureCoreSchema(): Promise<void> {
   await ensureUsuariosTable();
   await ensureSessionsTable();
@@ -310,4 +336,5 @@ export async function ensureCoreSchema(): Promise<void> {
   await ensureCampanasGuardadasTable();
   await ensureAportesTable();
   await ensureSancionesTable();
+  await ensureAuditLogTable();
 }

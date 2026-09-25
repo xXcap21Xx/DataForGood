@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureUsuariosTable } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 
 export async function GET(
@@ -8,8 +7,6 @@ export async function GET(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await ensureUsuariosTable();
-
     const { id } = await context.params;
     const rawId = id;
 
@@ -64,8 +61,6 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> }
 ) {
   try {
-    await ensureUsuariosTable();
-
     const { id } = await context.params;
     const rawId = id;
 

@@ -1,11 +1,16 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import { BASE_PATH } from "@/lib/base-path";
+
+const ERRORES_DE_URL: Record<string, string> = {
+  google: "No se pudo iniciar sesión con Google. Intenta de nuevo.",
+  bloqueada: "Tu cuenta está suspendida o bloqueada. Si crees que es un error, contáctanos.",
+};
 
 export default function EntrarPage() {
   return (
@@ -20,14 +25,12 @@ function EntrarForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [serverError, setServerError] = useState("");
+  // El error que llega en la URL (?error=google|bloqueada, desde el login con
+  // Google) es el valor inicial; enviar el formulario lo limpia.
+  const [serverError, setServerError] = useState(
+    () => ERRORES_DE_URL[searchParams.get("error") ?? ""] ?? ""
+  );
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (searchParams.get("error") === "google") {
-      setServerError("No se pudo iniciar sesión con Google. Intenta de nuevo.");
-    }
-  }, [searchParams]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

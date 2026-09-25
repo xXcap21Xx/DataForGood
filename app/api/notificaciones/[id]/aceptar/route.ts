@@ -1,12 +1,11 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 import { normalizeRoles } from "@/lib/roles";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 export async function POST(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
 
@@ -49,6 +48,12 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
     } finally {
       client.release();
     }
+
+    await registrarAuditoria({
+      actor: { tipo: "usuario", id: Number(user.id) },
+      accion: "revisor.aceptar",
+      objetivo: { tipo: "campana", id: Number(campaignId) },
+    });
 
     return NextResponse.json({ message: "Ahora eres revisor de aportes de esta campaña" });
   } catch (error) {

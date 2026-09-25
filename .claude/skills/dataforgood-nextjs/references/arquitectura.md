@@ -14,17 +14,21 @@
 No hay servidor personalizado. `next start` (en Docker, el `server.js` de `.next/standalone`) atiende páginas, route handlers y server actions. Todo el código de servidor vive en `lib/` y se importa desde `app/`.
 
 ```
-Navegador ──► proxy.ts (¿hay cookie? si no, redirect) ──► página / route handler / server action
+Arranque: instrumentation.ts ──► ensureCoreSchema() (crea o actualiza las tablas, una vez)
+
+Navegador ──► proxy.ts (¿hay cookie?  /api: ¿Origin propio?) ──► página / route handler / server action
                                                              │
-                                                             ├─ lib/session.ts o lib/rootSession.ts  (¿quién es?)
-                                                             ├─ lib/db-schema.ts ensureXTable()      (crea tablas si faltan)
+                                                             ├─ lib/session.ts o lib/rootSession.ts  (¿quién es? ¿está sancionado?)
                                                              ├─ lib/db.ts pool.query(sql, params)    (PostgreSQL)
-                                                             └─ lib/minio.ts                         (archivos)
+                                                             ├─ lib/minio.ts                         (archivos)
+                                                             └─ lib/auditoria.ts                     (bitácora de acciones sensibles)
 ```
 
 ## 2. Flujo de una petición
 
-1. **`proxy.ts`** (antes `middleware.ts`) mira solo si existe la cookie. Cubre `/campanas`, `/mis-aportes`, `/mis-campanas`, `/cuenta`, `/supervision` (cookie `session_token` → si falta, `/entrar`) y `/sistema` (cookie `root_session_token` → si falta, `/root`). **No valida el token ni el rol**, y no cubre `/revisiones`, `/usuarios` ni `/supervisar`: esas rutas dependen de sus layouts y páginas.
+1. **`proxy.ts`** (antes `middleware.ts`):
+   - **Páginas:** solo mira si existe la cookie. Cubre `/campanas`, `/mis-aportes`, `/mis-campanas`, `/cuenta`, `/supervision` (cookie `session_token`; si falta, `/entrar`) y `/sistema` (cookie `root_session_token`; si falta, `/root`). **No valida el token ni el rol**, y no cubre `/revisiones`, `/usuarios` ni `/supervisar`: esas rutas dependen de sus layouts y páginas.
+   - **`/api`:** rechaza las mutaciones con `Origin` ajeno (CSRF, ver `roles-y-sesiones.md`).
 2. **Layout del grupo:** `(panel)/layout.tsx` llama a `hasRootSession()`; `(dashboard)/supervision/layout.tsx` exige rol `supervisor`.
 3. **Página o handler:** vuelve a verificar. Los layouts no bastan porque no se vuelven a ejecutar en cada navegación cliente y no protegen los route handlers ni las server actions.
 
@@ -35,7 +39,6 @@ Navegador ──► proxy.ts (¿hay cookie? si no, redirect) ──► página /
 ```ts
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -62,8 +65,8 @@ Archivos `"use server"` en `lib/`: `lib/usuarios/acciones-usuarios.ts` (`asignar
 export async function hacerAlgo(id: string, ...): Promise<{ ok: true } | { ok: false; error: string }> {
   if (!(await hasRootSession())) throw new Error("No autorizado");   // guardia SIEMPRE primero
   if (!/^\d+$/.test(id)) return { ok: false, error: "Petición inválida." };
-  await ensureCoreSchema();
   // lógica (idealmente una función de lib/ compartida con el route handler equivalente)
+  // si es sensible: await registrarAuditoria({ actor: { tipo: "superusuario" }, accion: ..., objetivo: ... });
   revalidatePath("/ruta", "layout");
   return { ok: true };
 }

@@ -1,5 +1,4 @@
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import type { DataType } from "@/types";
 
 /**
@@ -154,8 +153,6 @@ export async function buscarConjuntosAbiertos(
   filtros: OpenDataFilters
 ): Promise<{ conjuntos: OpenDataset[] }> {
   try {
-    await ensureCoreSchema();
-
     const condiciones = ["c.status = 'finalizada'"];
     const valores: unknown[] = [];
 
@@ -190,7 +187,6 @@ export async function buscarConjuntosAbiertos(
 /** Total de conjuntos publicados, sin filtros: para distinguir "catálogo vacío" de "sin resultados para este filtro". */
 export async function contarConjuntosPublicados(): Promise<number> {
   try {
-    await ensureCoreSchema();
     const result = await pool.query(`SELECT COUNT(*)::int AS total FROM campanas WHERE status = 'finalizada'`);
     return Number(result.rows[0]?.total ?? 0);
   } catch {
@@ -199,7 +195,6 @@ export async function contarConjuntosPublicados(): Promise<number> {
 }
 
 export async function obtenerConjuntoAbierto(id: string): Promise<OpenDataset | null> {
-  await ensureCoreSchema();
   const result = await pool.query(`${SELECT} WHERE c.id = $1 AND c.status = 'finalizada' LIMIT 1`, [id]);
   if (result.rowCount === 0) return null;
   return mapDataset(result.rows[0]);
@@ -207,7 +202,6 @@ export async function obtenerConjuntoAbierto(id: string): Promise<OpenDataset | 
 
 /** Temáticas presentes entre las campañas ya finalizadas, para las facetas del catálogo. */
 export async function obtenerTematicasDelCatalogo(): Promise<{ valor: string; total: number }[]> {
-  await ensureCoreSchema();
   const result = await pool.query(
     `SELECT tematica AS valor, COUNT(*)::int AS total
      FROM campanas
@@ -220,7 +214,6 @@ export async function obtenerTematicasDelCatalogo(): Promise<{ valor: string; to
 
 /** Estados presentes entre las campañas ya finalizadas, para las facetas del catálogo. */
 export async function obtenerEstadosDelCatalogo(): Promise<{ valor: string; total: number }[]> {
-  await ensureCoreSchema();
   const result = await pool.query(
     `SELECT location_state AS valor, COUNT(*)::int AS total
      FROM campanas

@@ -1,6 +1,5 @@
 import type { Pestana } from "@/components/sistema/subtabs";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { ETIQUETA_DE_ESTADO, RESUMEN_DE_SANCIONES, estadoDesdeSanciones } from "@/lib/usuarios/directorio";
 import { TEMAS_DE_INTERES } from "@/lib/intereses";
 
@@ -96,8 +95,6 @@ export async function obtenerDashboardDeUsuarios(
   rango: RangoDeFechas = "30d",
 ): Promise<DashboardDeUsuarios> {
   try {
-    await ensureCoreSchema();
-
     const dias = DIAS_POR_RANGO[rango];
     const meses = mesesRecientes(MESES_DE_TENDENCIA[rango]);
     const desdeMes = meses[0]?.clave ?? "1970-01";

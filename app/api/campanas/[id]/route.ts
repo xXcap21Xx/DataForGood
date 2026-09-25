@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 import { ACCIONES_DE_SUPERVISION, registrarDecisionDeCampana, tomarCampanaParaSupervisar, type AccionDeSupervision } from "@/lib/supervision/decision";
 import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignEnded, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
@@ -95,8 +94,6 @@ function mapCampaign(row: Record<string, unknown>) {
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
 
@@ -119,8 +116,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 // Actualización parcial (Insomnia: PATCH { "status": "activa" }, o cualquier subconjunto de campos editables)
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -385,8 +380,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 // Reemplazo completo de los campos editables (Insomnia: PUT con el mismo shape que POST /api/campanas)
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });

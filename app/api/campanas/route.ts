@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
@@ -111,8 +110,6 @@ function mapCampaign(row: Record<string, unknown>) {
 
 export async function GET(request: Request) {
   try {
-    await ensureCoreSchema();
-
     const url = new URL(request.url);
     const campaignId = url.searchParams.get("id");
     const mine = url.searchParams.get("mine") === "true";
@@ -197,8 +194,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureCoreSchema();
-
     const body = await request.json();
     const sessionUser = await getSessionUser();
 

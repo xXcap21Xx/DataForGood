@@ -6,7 +6,6 @@ import Card from "@/components/ui/Card";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { DATA_TYPE_LABELS, buscarConjuntosAbiertos, contarConjuntosPublicados } from "@/lib/open-data";
 
 // Página pública: se regenera cada cinco minutos y el resto del tiempo se
@@ -62,7 +61,6 @@ const CIFRAS_VACIAS: CifrasReales = {
  */
 async function obtenerCifras(): Promise<CifrasReales> {
   try {
-    await ensureCoreSchema();
     const result = await pool.query(`
       SELECT
         (SELECT COUNT(*)::int FROM campanas) AS campanas_creadas,
@@ -94,7 +92,6 @@ interface CampanaDestacada {
 /** Campañas activas con más participación, para la vitrina de la landing. */
 async function obtenerCampanasDestacadas(): Promise<CampanaDestacada[]> {
   try {
-    await ensureCoreSchema();
     const result = await pool.query(
       `SELECT id, name, COALESCE(NULLIF(tag, ''), tematica) AS tag, current_contributions, goal_contributions, participants
        FROM campanas
@@ -142,7 +139,6 @@ function comoHashtag(texto: string): string {
  */
 async function obtenerAportesRecientes(): Promise<AporteReciente[]> {
   try {
-    await ensureCoreSchema();
     const result = await pool.query(
       `SELECT a.id, COALESCE(NULLIF(c.tag, ''), c.tematica) AS tag, a.description, a.submitted_at
        FROM aportes a

@@ -16,7 +16,9 @@
 
 ## 2. Dónde vive el esquema
 
-**`lib/db-schema.ts` es la única fuente del DDL.** Cada tabla tiene su `ensureXTable()`, y `ensureCoreSchema()` las llama todas en orden de dependencias. Son idempotentes (`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`), y los route handlers y las acciones las llaman antes de consultar.
+**`lib/db-schema.ts` es la única fuente del DDL.** Cada tabla tiene su `ensureXTable()`, y `ensureCoreSchema()` las llama todas en orden de dependencias. Son idempotentes (`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`).
+
+**Corre una sola vez, al arrancar el servidor:** `instrumentation.ts` llama a `ensureCoreSchema()` antes de atender peticiones. Si Postgres no responde, reintenta 30 veces cada 2 s; si sigue sin responder, en producción termina el proceso para que Docker lo reinicie. No se ejecuta durante `next build`. **No llames `ensure*()` en rutas ni acciones.** El usuario de la base necesita permisos de DDL al arrancar.
 
 **No hay migraciones versionadas.** Para cambiar el esquema:
 
@@ -39,9 +41,8 @@
 | `campanas_guardadas` | Favoritos del usuario |
 | `notificaciones` | Avisos por usuario (`tipo`, `titulo`, `mensaje`, `metadata` JSONB, `leida_en`) |
 | `aportes` | Aporte: `campaign_id`, `user_id` (NULL si fue anónimo), datos del participante, `file_*` (clave en MinIO, nombre, mime, tamaño), `caracteristicas` JSONB, `status`, `rejection_reason`, primera revisión (`first_pass_by`, `first_pass_by_user_id`) |
-| `sanciones` | Strikes, baneos y suspensiones aplicados desde el panel (`tipo`, `detalle`, `dias`, `activa`, `restaurada_en`) |
-
-**No existe `audit_log`.** El historial de supervisión está en `campana_supervisores`; las sanciones y los cambios de rol no dejan rastro de quién los hizo, salvo `sanciones.aplicada_por`.
+| `sanciones` | Strikes, baneos y suspensiones aplicados desde el panel (`tipo`, `detalle`, `dias`, `activa`, `restaurada_en`). La suspensión y el baneo bloquean la cuenta (`lib/sanciones.ts`) |
+| `audit_log` | Bitácora de acciones sensibles, solo de inserción: `actor_tipo` (`usuario`, `superusuario`, `anonimo`), `actor_id`, `accion`, `objetivo_tipo` + `objetivo_id`, `detalle` JSONB, `ip`. Se escribe con `registrarAuditoria()` (`lib/auditoria.ts`) |
 
 ## 4. Convenciones
 

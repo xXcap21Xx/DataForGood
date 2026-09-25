@@ -46,38 +46,39 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 | --- | --- |
 | Reglas de negocio: campañas, aportes, cuotas, revisión, supervisión, enlaces, XP, datos abiertos; **puntos abiertos** | `references/dominio.md` |
 | Cómo fluye una petición, route handlers vs server actions, patrones de página, Docker | `references/arquitectura.md` |
-| Tablas, `ensureXTable()`, JSONB, fechas y zonas horarias | `references/base-de-datos.md` |
-| Sesiones (usuario y raíz), `proxy.ts`, roles, guardias, sanciones | `references/roles-y-sesiones.md` |
+| Tablas, esquema al arrancar, `audit_log`, JSONB, fechas y zonas horarias | `references/base-de-datos.md` |
+| Sesiones (usuario y raíz), `proxy.ts` y `Origin`, roles, guardias, sanciones, bitácora | `references/roles-y-sesiones.md` |
 | Subir o mostrar archivos; MinIO | `references/almacenamiento.md` |
 | Tokens, componentes (`components/ui` y `components/sistema`), layouts, móvil | `references/ui-responsiva.md` |
 
 ## Reglas del proyecto
 
-1. **Toda ruta o acción verifica la sesión y el permiso en el servidor.** `proxy.ts` solo redirige si falta la cookie; no valida nada. Cada route handler llama a `getSessionUser()` (o `hasRootSession()`), cada server action empieza con su guardia y cada página de `(panel)` llama a `exigirSesionRoot()` además del layout.
-2. **Las reglas de negocio se aplican en el servidor**, aunque la interfaz ya las muestre: cuota por persona, transiciones de estado, motivo obligatorio al rechazar, tamaño y formato de archivos, que el creador no aporte ni supervise sus campañas. La interfaz solo informa.
-3. **Una regla, un lugar.** Si dos caminos (p. ej. `PATCH /api/campanas/[id]` y la server action del SuperUsuario) aplican la misma regla, se extrae a `lib/` (ejemplo: `lib/supervision/decision.ts`). No dupliques la lógica.
-4. **SQL siempre parametrizado** (`$1, $2...`) con `pool.query` de `lib/db.ts`. Nunca concatenes valores del usuario. Si hay varias escrituras que deben ir juntas, usa una transacción con `pool.connect()` + `BEGIN/COMMIT/ROLLBACK`. Las operaciones con carrera (tomar una campaña) se resuelven con un `UPDATE ... WHERE` condicional, no con leer y luego escribir.
-5. **El esquema vive solo en `lib/db-schema.ts`.** Columnas nuevas: agrégalas al `CREATE TABLE` **y** como `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. Antes de consultar, llama a `ensureCoreSchema()` o al `ensureXTable()` que toque. Las fechas con hora son `TIMESTAMPTZ`.
-6. **`types/index.ts` es el contrato de datos del frontend de usuario** (campos en inglés camelCase, estados en español). Los route handlers mapean filas de snake_case a esos tipos. Si hay que cambiar un tipo, es un cambio consciente que se menciona al entregar.
-7. **Cuál patrón usar:**
+1. **Toda ruta o acción verifica la sesión y el permiso en el servidor.** `proxy.ts` solo redirige si falta la cookie y rechaza mutaciones de `/api` con `Origin` ajeno; no valida sesiones ni roles. Cada route handler llama a `getSessionUser()` (o `hasRootSession()`), cada server action empieza con su guardia y cada página de `(panel)` llama a `exigirSesionRoot()` además del layout. `getSessionUser()` ya devuelve `null` si la cuenta está suspendida o baneada (`lib/sanciones.ts`).
+2. **Las acciones sensibles se registran en `audit_log`** con `registrarAuditoria()` (`lib/auditoria.ts`), después de completarse: cambios de rol, sanciones, dictámenes, tomar campaña, baneos por campaña, invitar o aceptar revisor, accesos a `/root`. Si agregas una acción de ese tipo, regístrala y amplía `AccionAuditada`.
+3. **Las reglas de negocio se aplican en el servidor**, aunque la interfaz ya las muestre: cuota por persona, transiciones de estado, motivo obligatorio al rechazar, tamaño y formato de archivos, que el creador no aporte ni supervise sus campañas. La interfaz solo informa.
+4. **Una regla, un lugar.** Si dos caminos (p. ej. `PATCH /api/campanas/[id]` y la server action del SuperUsuario) aplican la misma regla, se extrae a `lib/` (ejemplo: `lib/supervision/decision.ts`). No dupliques la lógica.
+5. **SQL siempre parametrizado** (`$1, $2...`) con `pool.query` de `lib/db.ts`. Nunca concatenes valores del usuario. Si hay varias escrituras que deben ir juntas, usa una transacción con `pool.connect()` + `BEGIN/COMMIT/ROLLBACK`. Las operaciones con carrera (tomar una campaña) se resuelven con un `UPDATE ... WHERE` condicional, no con leer y luego escribir.
+6. **El esquema vive solo en `lib/db-schema.ts`.** Columnas nuevas: agrégalas al `CREATE TABLE` **y** como `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. `ensureCoreSchema()` corre **una vez al arrancar** (`instrumentation.ts`); **no** lo llames en rutas ni acciones. Una tabla nueva va en su `ensureXTable()` y en `ensureCoreSchema()`. Las fechas con hora son `TIMESTAMPTZ`.
+7. **`types/index.ts` es el contrato de datos del frontend de usuario** (campos en inglés camelCase, estados en español). Los route handlers mapean filas de snake_case a esos tipos. Si hay que cambiar un tipo, es un cambio consciente que se menciona al entregar.
+8. **Cuál patrón usar:**
    - En `(dashboard)` las páginas suelen ser **componentes cliente que llaman a `/api/...` con `fetch`**. Si amplías una de esas pantallas, sigue ese patrón.
    - En `(panel)` las páginas son **Server Components que leen con funciones de `lib/`** y mutan con **server actions** + `revalidatePath`.
    - Pantalla nueva: prefiere Server Component que lee de `lib/` y un componente cliente hermano para la interacción.
-8. **Módulos que usa el cliente no importan `pg`.** Constantes y tipos compartidos van en archivos sin imports de servidor (`lib/usuarios/rol-asignable.ts`, `lib/campanas/sistema-opciones.ts`). Un `import` de `pg` en un componente cliente rompe el build.
-9. **`'use client'` nunca en una función `async`.** En las páginas, lee los parámetros con `await params` / `await searchParams`.
-10. **La app vive bajo un `basePath`** (`/dataforgood` en producción, según `BASE_PATH` en el build). `<Link>`, `router.push`, `redirect()` y `revalidatePath` lo aplican solos. **Todo lo demás lo antepone a mano con `BASE_PATH` de `lib/base-path.ts`**: `fetch(\`${BASE_PATH}/api/...\`)`, `<img src>`, `<a href>` y `window.location`. No lo agregues a un `<Link>`, porque quedaría duplicado. Para URLs absolutas usa `absoluteUrl()` de `lib/app-url.ts` (`APP_ORIGIN` + `BASE_PATH`): `new URL(path, request.url)` da `http://0.0.0.0:3000` dentro de Docker y no lleva la subruta.
-11. **Páginas prerenderizadas que leen Postgres** (`revalidate` o estáticas) envuelven sus consultas en `try/catch` con valores vacíos: `next build` corre sin base de datos dentro del Dockerfile.
-12. **Reutiliza componentes y tokens** (`components/ui/*` para la zona de usuario, `components/sistema/*` para el panel; `bg-surface`, `text-ink-2`, `border-line`...). Nada de colores sueltos, otra tipografía ni botones nuevos. **No anides `<Link>` con `<Button>`**: usa `ButtonLink`.
-13. **Diseño mobile-first.** Revisa cada pantalla en 360, 768 y 1280 px.
-14. **Roles:**
+9. **Módulos que usa el cliente no importan `pg`.** Constantes y tipos compartidos van en archivos sin imports de servidor (`lib/usuarios/rol-asignable.ts`, `lib/campanas/sistema-opciones.ts`). Un `import` de `pg` en un componente cliente rompe el build.
+10. **`'use client'` nunca en una función `async`.** En las páginas, lee los parámetros con `await params` / `await searchParams`.
+11. **La app vive bajo un `basePath`** (`/dataforgood` en producción, según `BASE_PATH` en el build). `<Link>`, `router.push`, `redirect()` y `revalidatePath` lo aplican solos. **Todo lo demás lo antepone a mano con `BASE_PATH` de `lib/base-path.ts`**: `fetch(\`${BASE_PATH}/api/...\`)`, `<img src>`, `<a href>` y `window.location`. No lo agregues a un `<Link>`, porque quedaría duplicado. Para URLs absolutas usa `absoluteUrl()` de `lib/app-url.ts` (`APP_ORIGIN` + `BASE_PATH`): `new URL(path, request.url)` da `http://0.0.0.0:3000` dentro de Docker y no lleva la subruta.
+12. **Páginas prerenderizadas que leen Postgres** (`revalidate` o estáticas) envuelven sus consultas en `try/catch` con valores vacíos: `next build` corre sin base de datos dentro del Dockerfile.
+13. **Reutiliza componentes y tokens** (`components/ui/*` para la zona de usuario, `components/sistema/*` para el panel; `bg-surface`, `text-ink-2`, `border-line`...). Nada de colores sueltos, otra tipografía ni botones nuevos. **No anides `<Link>` con `<Button>`**: usa `ButtonLink`.
+14. **Diseño mobile-first.** Revisa cada pantalla en 360, 768 y 1280 px.
+15. **Roles:**
     - Supervisor **solo lo asigna el SuperUsuario** (`asignarRol` en `lib/usuarios/acciones-usuarios.ts`).
     - Revisor de aportes es **por campaña**: invitación del creador que la persona acepta (`campana_revisores`).
     - Supervisor y Revisor no se excluyen.
     - El SuperUsuario no tiene fila en `usuarios`: solo supervisa y administra, no crea campañas ni aporta.
-15. **Ubicación solo textual** (estado, ciudad, colonia). Nada de GPS ni `navigator.geolocation` sin petición explícita.
-16. **Solo PostgreSQL**, también para pruebas. Sin SQLite, MySQL, MongoDB, `pg-mem` ni PGlite.
-17. **Antes de usar una API de Next, lee su guía en `node_modules/next/dist/docs/`**, como exige `AGENTS.md`.
-18. **No inventes reglas.** `references/dominio.md` lista los puntos abiertos. Si una tarea depende de uno, pregunta; si hay que avanzar, deja `// TODO(dominio): ...` y menciónalo.
+16. **Ubicación solo textual** (estado, ciudad, colonia). Nada de GPS ni `navigator.geolocation` sin petición explícita.
+17. **Solo PostgreSQL**, también para pruebas. Sin SQLite, MySQL, MongoDB, `pg-mem` ni PGlite.
+18. **Antes de usar una API de Next, lee su guía en `node_modules/next/dist/docs/`**, como exige `AGENTS.md`.
+19. **No inventes reglas.** `references/dominio.md` lista los puntos abiertos. Si una tarea depende de uno, pregunta; si hay que avanzar, deja `// TODO(dominio): ...` y menciónalo.
 
 ## Estructura
 
@@ -116,7 +117,7 @@ DataForGood/
 4. **Entrada:**
    - Si la llama la zona de usuario, usa un route handler en `app/api/...`: `getSessionUser()` → 401, validación → 400, permiso → 403, lógica, `NextResponse.json({ data })` o `{ error }`.
    - Si la llama el panel, usa una server action en `lib/<modulo>/acciones-*.ts`: guardia → validación → lógica → `revalidatePath`, y devuelve `{ ok: true } | { ok: false, error }`.
-5. **Página:** sigue el patrón de su zona (regla 7).
+5. **Página:** sigue el patrón de su zona (regla 8).
 6. **Documenta en `references/dominio.md`** las reglas nuevas o los puntos abiertos que se resuelvan, con fecha.
 
 ## Cambios de versión que rompen código viejo
@@ -124,7 +125,7 @@ DataForGood/
 - **Next 16:** `params`, `searchParams`, `cookies()` y `headers()` son asíncronos.
 - **Next 16:** `middleware.ts` pasó a llamarse `proxy.ts` (función `proxy`) y no es control de acceso.
 - **Next 16:** Turbopack es el bundler por defecto.
-- **Next 16:** `request.url` ya no se arma con el header `Host` (ver regla 10).
+- **Next 16:** `request.url` ya no se arma con el header `Host` (ver regla 11).
 - **`output: "standalone"`** funciona porque no hay servidor personalizado. Si algún día se agrega uno, deja de funcionar.
 
 ## Verificación antes de terminar

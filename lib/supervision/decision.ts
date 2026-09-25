@@ -1,5 +1,6 @@
 import { pool } from "@/lib/db";
 import { hasCampaignStarted } from "@/lib/campaign-date";
+import { registrarAuditoria, type ActorDeAuditoria } from "@/lib/auditoria";
 
 export type AccionDeSupervision = "aceptada" | "rechazada" | "reportada";
 
@@ -13,6 +14,10 @@ export const ACCIONES_DE_SUPERVISION = new Set<string>(["aceptada", "rechazada",
  * en vez de un `supervisor_id`.
  */
 export type AutorDeDecision = { tipo: "usuario"; usuarioId: number } | { tipo: "root" };
+
+function actorDeAuditoria(autor: AutorDeDecision): ActorDeAuditoria {
+  return autor.tipo === "root" ? { tipo: "superusuario" } : { tipo: "usuario", id: autor.usuarioId };
+}
 
 export type ResultadoDeDecision =
   | { ok: true; nextStatus: string; mensaje: string }
@@ -43,7 +48,14 @@ export async function tomarCampanaParaSupervisar(
      RETURNING id`,
     [campanaId, supervisorId, porRoot],
   );
-  if (tomada.rowCount !== 0) return { ok: true };
+  if (tomada.rowCount !== 0) {
+    await registrarAuditoria({
+      actor: actorDeAuditoria(autor),
+      accion: "supervision.tomar",
+      objetivo: { tipo: "campana", id: campanaId },
+    });
+    return { ok: true };
+  }
 
   // No se pudo: averiguar por qué para dar un mensaje útil.
   const actual = await pool.query(
@@ -126,6 +138,13 @@ export async function registrarDecisionDeCampana(
      VALUES ($1, $2, $3, $4, $5, NOW())`,
     [campanaId, supervisorId, porRoot, accion, motivo],
   );
+
+  await registrarAuditoria({
+    actor: actorDeAuditoria(autor),
+    accion: "supervision.dictaminar",
+    objetivo: { tipo: "campana", id: campanaId },
+    detalle: { accion, motivo, estadoAnterior: String(campana.status), estadoNuevo: nextStatus },
+  });
 
   if (accion === "rechazada") {
     await pool.query(

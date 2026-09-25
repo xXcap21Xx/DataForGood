@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { createRootSession } from "@/lib/rootSession";
+import { registrarAuditoria } from "@/lib/auditoria";
+import { ipDelCliente } from "@/lib/ip";
 
 /**
  * POST /api/auth/root — valida la credencial de SuperUsuario y abre su
- * sesión. El registro en audit_log sigue pendiente (no existe esa tabla
- * todavía en el proyecto).
+ * sesión. Los accesos, exitosos o fallidos, quedan en audit_log.
  */
 
 /** Ventana simple en memoria. En producción conviene moverla a Redis. */
@@ -21,15 +22,6 @@ const intentos = new Map<string, { n: number; desde: number }>();
  */
 const INTENTOS_MAX_GLOBAL = 30;
 const CLAVE_GLOBAL = "*";
-
-function obtenerIp(request: Request): string {
-  // El proxy inverso agrega la IP real del cliente AL FINAL de la lista
-  // (proxy_add_x_forwarded_for); lo de la izquierda lo puede inventar el
-  // cliente. Por eso se toma el último valor, no el primero.
-  const forwarded = request.headers.get("x-forwarded-for");
-  const ultimo = forwarded?.split(",").pop()?.trim();
-  return ultimo || request.headers.get("x-real-ip")?.trim() || "desconocida";
-}
 
 function contarIntento(clave: string, maximo: number): boolean {
   const ahora = Date.now();
@@ -60,7 +52,7 @@ function identificadorCoincide(recibido: string, esperado: string): boolean {
 }
 
 export async function POST(request: Request) {
-  const ip = obtenerIp(request);
+  const ip = ipDelCliente(request.headers);
 
   if (excedeIntentos(ip)) {
     return NextResponse.json({ error: "Demasiados intentos." }, { status: 429 });
@@ -88,15 +80,16 @@ export async function POST(request: Request) {
   const credOk = await bcrypt.compare(credencial, hashEsperado);
 
   if (!idOk || !credOk) {
-    // TODO(flujo): registrar el intento fallido en audit_log.
+    // No se guarda el identificador recibido: si alguien teclea la
+    // contraseña en ese campo, quedaría en claro en la bitácora.
+    await registrarAuditoria({ actor: { tipo: "anonimo" }, accion: "root.acceso_fallido" });
     return NextResponse.json({ error: "Credencial no válida." }, { status: 401 });
   }
 
   intentos.delete(ip);
 
   await createRootSession();
-
-  // TODO(flujo): registrar el acceso exitoso en audit_log.
+  await registrarAuditoria({ actor: { tipo: "superusuario" }, accion: "root.acceso" });
 
   return new NextResponse(null, { status: 204 });
 }

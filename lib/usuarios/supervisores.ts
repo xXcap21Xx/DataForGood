@@ -4,7 +4,6 @@
  */
 
 import { pool } from "@/lib/db";
-import { ensureUsuariosTable } from "@/lib/db-schema";
 
 export type TipoDeAccion =
   | "VETO_PARTICIPANTE"
@@ -237,8 +236,6 @@ function supervisorDesdeDB(row: FilaSupervisorDB): Supervisor {
 
 export async function obtenerResumenDeSupervisores(): Promise<ResumenDeSupervisores> {
   try {
-    await ensureUsuariosTable();
-
     const result = await pool.query<{ count: string }>(
       `SELECT COUNT(*) FROM usuarios WHERE role @> '["supervisor"]'::jsonb`,
     );
@@ -259,8 +256,6 @@ export async function listarSupervisores(q?: string): Promise<Supervisor[]> {
   const t = (q ?? "").trim();
 
   try {
-    await ensureUsuariosTable();
-
     const condiciones = [`role @> '["supervisor"]'::jsonb`];
     const valores: string[] = [];
     if (t) {
@@ -287,8 +282,6 @@ export async function obtenerActividad(id: string): Promise<ActividadDeSuperviso
   if (!Number.isInteger(numericId)) return null;
 
   try {
-    await ensureUsuariosTable();
-
     const result = await pool.query<FilaSupervisorDB>(
       `SELECT id, nombre, apellidos, email FROM usuarios
        WHERE id = $1 AND role @> '["supervisor"]'::jsonb

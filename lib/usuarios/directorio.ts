@@ -1,11 +1,5 @@
 import { pool } from "@/lib/db";
 import {
-  ensureAportesTable,
-  ensureCampanasTable,
-  ensureSancionesTable,
-  ensureUsuariosTable,
-} from "@/lib/db-schema";
-import {
   nombreDeRolPrincipal,
   rolesVigentesDesde,
   type RolAsignable,
@@ -200,9 +194,6 @@ export async function buscarUsuarios(opciones: {
   // try/catch, la primera visita al directorio tumba la página con
   // "relation ... does not exist" en vez de mostrar la lista vacía.
   try {
-    await ensureUsuariosTable();
-    await ensureSancionesTable();
-
     const condiciones: string[] = [];
     const valores: Array<string | number> = [];
 
@@ -271,9 +262,6 @@ export async function obtenerUsuario(id: string): Promise<Usuario | null> {
   if (!Number.isInteger(numericId)) return null;
 
   try {
-    await ensureUsuariosTable();
-    await ensureSancionesTable();
-
     const result = await pool.query<
       FilaUsuarioDB & {
         state: string | null;
@@ -322,8 +310,6 @@ export async function obtenerUsuario(id: string): Promise<Usuario | null> {
     let aportesAceptados = 0;
 
     try {
-      await Promise.all([ensureCampanasTable(), ensureAportesTable()]);
-
       const [campanasResult, aportesResult] = await Promise.all([
         pool.query<{ count: string }>(`SELECT COUNT(*) FROM campanas WHERE creator_id = $1`, [
           numericId,
@@ -391,9 +377,6 @@ export async function obtenerReporteDeSancion(
  */
 export async function listarSancionesActivas(): Promise<SancionActiva[]> {
   try {
-    await ensureUsuariosTable();
-    await ensureSancionesTable();
-
     const result = await pool.query<{
       id: number;
       tipo: string;

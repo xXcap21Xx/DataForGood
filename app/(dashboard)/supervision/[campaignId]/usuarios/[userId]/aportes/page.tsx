@@ -3,12 +3,10 @@ import { notFound, redirect } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import { BackLink } from "../../../../_ui";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 
 export default async function UserContributionsPage({ params }: { params: Promise<{ campaignId: string; userId: string }> }) {
   const { campaignId, userId } = await params;
-  await ensureCoreSchema();
   const user = await getSessionUser();
   if (!user || !user.role.includes("supervisor")) redirect("/campanas");
 

@@ -12,19 +12,24 @@ type UserCandidate = {
   id: number;
   nombre: string;
   apellidos: string;
-  email: string;
+  // El servidor nunca manda el correo completo (an***@gmail.com).
+  emailOculto: string;
   role?: string[] | string;
 };
 
 type CampaignInfo = { id: string; name: string; creatorId: string };
+
+// Igual que en GET /api/usuarios: con menos no se busca.
+const MINIMO_BUSQUEDA = 3;
 
 export default function AgregarRevisorPage() {
   const params = useParams<{ id: string }>();
   const [campaign, setCampaign] = useState<CampaignInfo | null>(null);
   const [users, setUsers] = useState<UserCandidate[]>([]);
   const [query, setQuery] = useState("");
+  const [buscando, setBuscando] = useState(false);
   const [invitedId, setInvitedId] = useState<number | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<number | null>(null);
+  const [invitedName, setInvitedName] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Estado de revisor DENTRO de esta campaña (campana_revisores), no el rol
   // global del usuario: alguien puede ser revisor de otra campaña y seguir
@@ -33,51 +38,69 @@ export default function AgregarRevisorPage() {
 
   useEffect(() => {
     async function loadData() {
-      const [campaignResponse, sessionResponse, revisoresResponse] = await Promise.all([
+      const [campaignResponse, revisoresResponse] = await Promise.all([
         fetch(`${BASE_PATH}/api/campanas?id=${params.id}`),
-        fetch(`${BASE_PATH}/api/auth/sesion`, { cache: "no-store" }),
         fetch(`${BASE_PATH}/api/campanas/${params.id}/revisores`),
       ]);
       if (campaignResponse.ok) {
         const campaignBody = await campaignResponse.json();
         setCampaign(campaignBody.data ?? null);
       }
-      if (sessionResponse.ok) {
-        const sessionBody = await sessionResponse.json();
-        setCurrentUserId(sessionBody.data?.id ? Number(sessionBody.data.id) : null);
-      }
       if (revisoresResponse.ok) {
         const revisoresBody = await revisoresResponse.json();
         const filas = Array.isArray(revisoresBody.data) ? revisoresBody.data : [];
         setEstadoPorUsuario(new Map(filas.map((f: { usuarioId: string; estado: string }) => [Number(f.usuarioId), f.estado])));
-      }
-
-      const usersResponse = await fetch(`${BASE_PATH}/api/usuarios`);
-      if (usersResponse.ok) {
-        const usersBody = await usersResponse.json();
-        setUsers(Array.isArray(usersBody.data) ? usersBody.data : []);
       }
     }
 
     if (params.id) loadData();
   }, [params.id]);
 
+  // La búsqueda la hace el servidor (GET /api/usuarios), con una pausa de
+  // 300 ms tras la última tecla para no pedir una vez por letra. Excluye al
+  // creador de la campaña.
+  useEffect(() => {
+    const texto = query.trim();
+    const suficiente = texto.includes("@") || texto.length >= MINIMO_BUSQUEDA;
+    const controlador = new AbortController();
+
+    const temporizador = setTimeout(async () => {
+      if (!params.id || !suficiente) {
+        setUsers([]);
+        return;
+      }
+      setBuscando(true);
+      try {
+        const response = await fetch(
+          `${BASE_PATH}/api/usuarios?campanaId=${encodeURIComponent(params.id)}&q=${encodeURIComponent(texto)}`,
+          { signal: controlador.signal }
+        );
+        const body = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          setError(body.error ?? "No se pudo buscar");
+          setUsers([]);
+          return;
+        }
+        setUsers(Array.isArray(body.data) ? body.data : []);
+      } catch {
+        // Búsqueda cancelada por otra más reciente.
+      } finally {
+        if (!controlador.signal.aborted) setBuscando(false);
+      }
+    }, 300);
+
+    return () => {
+      clearTimeout(temporizador);
+      controlador.abort();
+    };
+  }, [query, params.id]);
+
   if (!campaign) {
     return <p className="text-sm text-ink-2">Cargando campaña…</p>;
   }
 
-  const filtered = users.filter((candidate) => {
-    const fullName = `${candidate.nombre ?? ""} ${candidate.apellidos ?? ""}`.trim();
-    const queryText = query.toLowerCase();
-    const isOwner = String(candidate.id) === String(campaign.creatorId) || candidate.id === currentUserId;
-    return (
-      !isOwner &&
-      fullName.toLowerCase().includes(queryText) ||
-      (!isOwner && candidate.email.toLowerCase().includes(queryText))
-    );
-  });
-
-  const invited = users.find((candidate) => candidate.id === invitedId);
+  const textoBuscado = query.trim();
+  const busquedaSuficiente = textoBuscado.includes("@") || textoBuscado.length >= MINIMO_BUSQUEDA;
 
   async function invite(candidate: UserCandidate) {
     setError(null);
@@ -92,6 +115,7 @@ export default function AgregarRevisorPage() {
       return;
     }
     setInvitedId(candidate.id);
+    setInvitedName(`${candidate.nombre} ${candidate.apellidos}`.trim());
     setEstadoPorUsuario((prev) => new Map(prev).set(candidate.id, "invitado"));
   }
 
@@ -110,21 +134,33 @@ export default function AgregarRevisorPage() {
           <p className="mt-1 text-[13px] text-ink-2">{campaign.name}</p>
         </div>
         <Input
-          placeholder="Buscar por nombre o correo"
+          placeholder="Nombre o correo completo"
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setError(null);
+            setQuery(e.target.value);
+          }}
           className="w-56"
         />
       </div>
 
-      {invited && (
+      {invitedName && (
         <div className="mb-5 rounded-lg bg-accent-tint p-3.5 text-[12.5px] text-accent-deep">
-          Invitaste a {`${invited.nombre} ${invited.apellidos}`.trim()} como revisor de aportes. Queda pendiente hasta que
-          la acepte.
+          Invitaste a {invitedName} como revisor de aportes. Queda pendiente hasta que la acepte.
         </div>
       )}
 
       {error && <p className="mb-4 rounded border border-danger bg-danger-tint p-3 text-[12.5px] text-danger">{error}</p>}
+
+      {!busquedaSuficiente ? (
+        <p className="mb-4 rounded-lg bg-sunken p-3.5 text-[12.5px] text-ink-2">
+          Escribe al menos {MINIMO_BUSQUEDA} letras del nombre, o el correo completo de la persona que quieres invitar.
+        </p>
+      ) : !buscando && users.length === 0 ? (
+        <p className="mb-4 rounded-lg border border-dashed border-line-2 bg-surface p-6 text-center text-[12.5px] text-ink-2">
+          No encontramos usuarios verificados con “{textoBuscado}”.
+        </p>
+      ) : null}
 
       <div className="overflow-hidden rounded-lg border border-line">
         <table className="w-full text-left text-[13px]">
@@ -136,7 +172,7 @@ export default function AgregarRevisorPage() {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((candidate) => {
+            {users.map((candidate) => {
               const roles = Array.isArray(candidate.role) ? candidate.role : candidate.role ? [candidate.role] : ["usuario"];
               const isSupervisor = roles.includes("supervisor");
               // Estado DENTRO de esta campaña (campana_revisores), no el rol
@@ -156,7 +192,7 @@ export default function AgregarRevisorPage() {
                 <tr key={candidate.id} className="border-t border-line">
                   <td className="px-3 py-3">
                     <p className="font-medium text-ink">{`${candidate.nombre} ${candidate.apellidos}`.trim()}</p>
-                    <p className="font-mono text-[11.5px] text-ink-3">{candidate.email}</p>
+                    <p className="font-mono text-[11.5px] text-ink-3">{candidate.emailOculto}</p>
                   </td>
                   <td className="px-3 py-3">
                     <Tag tone={isInvited ? "warn" : yaAceptado ? "ok" : "default"}>

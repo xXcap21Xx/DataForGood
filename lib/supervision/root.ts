@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { activateScheduledCampaigns, finalizeExpiredCampaigns, normalizeCampaignDate } from "@/lib/campaign-date";
 import { hasRootSession } from "@/lib/rootSession";
 
@@ -79,7 +78,6 @@ export async function listarCampanasParaRoot(): Promise<{
   supervisadas: CampanaSupervisable[];
 }> {
   await exigirSesionRoot();
-  await ensureCoreSchema();
   await activateScheduledCampaigns();
   await finalizeExpiredCampaigns();
 
@@ -104,7 +102,6 @@ export async function listarCampanasParaRoot(): Promise<{
 
 export async function obtenerCampanaParaRoot(id: string): Promise<CampanaSupervisable | null> {
   await exigirSesionRoot();
-  await ensureCoreSchema();
   if (!/^\d+$/.test(id)) return null;
 
   const result = await pool.query(
@@ -120,7 +117,6 @@ export async function obtenerCampanaParaRoot(id: string): Promise<CampanaSupervi
 /** Campaña que el SuperUsuario supervisa y ya recolecta (para ver participantes y aportes). */
 export async function obtenerCampanaSupervisadaPorRoot(id: string): Promise<{ id: number; name: string } | null> {
   await exigirSesionRoot();
-  await ensureCoreSchema();
   if (!/^\d+$/.test(id)) return null;
 
   const result = await pool.query<{ id: number; name: string }>(

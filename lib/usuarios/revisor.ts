@@ -1,5 +1,4 @@
 import { pool } from "@/lib/db";
-import { ensureCampanaRevisoresTable, ensureCampanasTable } from "@/lib/db-schema";
 
 /**
  * `campana_revisores` (no `usuarios.role`) es la fuente real de si alguien es
@@ -9,9 +8,6 @@ import { ensureCampanaRevisoresTable, ensureCampanasTable } from "@/lib/db-schem
  * rol de Revisor de aportes (`revocarRol`).
  */
 export async function retirarComoRevisorDeTodasLasCampanas(usuarioId: number): Promise<void> {
-  await ensureCampanaRevisoresTable();
-  await ensureCampanasTable();
-
   const campanasAfectadas = await pool.query<{ campana_id: number }>(
     `UPDATE campana_revisores SET estado = 'rechazado'
      WHERE usuario_id = $1 AND estado = 'aceptado'

@@ -2,13 +2,11 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 import { BASE_PATH } from "@/lib/base-path";
 
 export default async function ReviewerContributionDetailPage({ params }: { params: Promise<{ campaignId: string; userId: string; aporteId: string }> }) {
   const { campaignId, userId, aporteId } = await params;
-  await ensureCoreSchema();
   const reviewer = await getSessionUser();
   if (!reviewer) redirect("/entrar");
 

@@ -1,5 +1,4 @@
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { activateScheduledCampaigns, finalizeExpiredCampaigns, normalizeCampaignDate } from "@/lib/campaign-date";
 import { hasRootSession } from "@/lib/rootSession";
 import {
@@ -31,7 +30,6 @@ export * from "@/lib/campanas/sistema-opciones";
 
 async function prepararLectura(): Promise<void> {
   if (!(await hasRootSession())) throw new Error("No autorizado");
-  await ensureCoreSchema();
   await activateScheduledCampaigns();
   await finalizeExpiredCampaigns();
 }

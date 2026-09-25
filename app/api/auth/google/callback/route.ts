@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
-import { ensureUsuariosTable } from "@/lib/db-schema";
 import { createSession } from "@/lib/session";
 import { exchangeCodeForProfile } from "@/lib/google";
 import { absoluteUrl } from "@/lib/app-url";
+import { obtenerBloqueo } from "@/lib/sanciones";
 
 const STATE_COOKIE = "google_oauth_state";
 
@@ -25,7 +25,6 @@ export async function GET(request: Request) {
 
     const profile = await exchangeCodeForProfile(code);
 
-    await ensureUsuariosTable();
 
     const existing = await pool.query(
       `SELECT id FROM usuarios WHERE email = $1 OR google_id = $2 LIMIT 1`,
@@ -48,6 +47,10 @@ export async function GET(request: Request) {
         [profile.givenName, profile.familyName, profile.email, profile.googleId, JSON.stringify(["usuario"])]
       );
       usuarioId = inserted.rows[0].id;
+    }
+
+    if (await obtenerBloqueo(usuarioId)) {
+      return NextResponse.redirect(absoluteUrl("/entrar?error=bloqueada"));
     }
 
     await createSession(usuarioId);

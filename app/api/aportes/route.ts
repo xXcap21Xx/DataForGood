@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 import { saveUploadedFile } from "@/lib/minio";
 
@@ -33,8 +32,6 @@ function mapAporte(row: Record<string, unknown>) {
 
 export async function GET(request: Request) {
   try {
-    await ensureCoreSchema();
-
     const url = new URL(request.url);
     const campaignId = url.searchParams.get("campaignId");
     const mine = url.searchParams.get("mine") === "true";
@@ -96,8 +93,6 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    await ensureCoreSchema();
-
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });

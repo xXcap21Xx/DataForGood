@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
     const { id: campaignId } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -41,6 +40,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
        ON CONFLICT (campana_id, usuario_id) DO UPDATE SET motivo = EXCLUDED.motivo, baneado_por = EXCLUDED.baneado_por`,
       [campaignId, row.user_id, reason, user.id]
     );
+
+    await registrarAuditoria({
+      actor: { tipo: "usuario", id: Number(user.id) },
+      accion: "campana.banear",
+      objetivo: { tipo: "usuario", id: Number(row.user_id) },
+      detalle: { campanaId: Number(campaignId), aporteId: Number(contributionId), motivo: reason },
+    });
 
     return NextResponse.json({ message: "Usuario baneado de la campaña" });
   } catch (error) {

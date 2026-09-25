@@ -1,18 +1,16 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureUsuariosTable } from "@/lib/db-schema";
 import { createSession } from "@/lib/session";
 import { verifyPassword, hashPassword, wasLegacyHash } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
+import { mensajeDeBloqueo, obtenerBloqueo } from "@/lib/sanciones";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 1000 * 60 * 15; // 15 minutos
 
 export async function POST(request: Request) {
   try {
-    await ensureUsuariosTable();
-
     const body = await request.json();
     const email = String(body.email ?? "").trim().toLowerCase();
     const password = String(body.password ?? "");
@@ -92,6 +90,13 @@ export async function POST(request: Request) {
       `UPDATE usuarios SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1`,
       [usuario.id]
     );
+
+    // Se revisa después de validar la contraseña, para no revelar a quien no
+    // la conoce si la cuenta está sancionada.
+    const bloqueo = await obtenerBloqueo(usuario.id);
+    if (bloqueo) {
+      return NextResponse.json({ error: mensajeDeBloqueo(bloqueo) }, { status: 403 });
+    }
 
     if (!usuario.email_verificado) {
       const response = NextResponse.json(

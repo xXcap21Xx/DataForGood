@@ -2,7 +2,7 @@ import { randomBytes, createHash } from "crypto";
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
-import { ensureCampanaRevisoresTable, ensureCampanasTable, ensureSessionsTable, ensureUsuariosTable } from "@/lib/db-schema";
+import { SQL_SANCION_BLOQUEANTE } from "@/lib/sanciones";
 
 const COOKIE_NAME = "session_token";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 días
@@ -29,13 +29,6 @@ function hashToken(token: string) {
 }
 
 export async function createSession(usuarioId: number) {
-  await ensureUsuariosTable();
-  await ensureSessionsTable();
-  await ensureCampanasTable();
-  await ensureCampanaRevisoresTable();
-  await ensureCampanasTable();
-  await ensureCampanaRevisoresTable();
-
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
@@ -56,9 +49,6 @@ export async function createSession(usuarioId: number) {
 }
 
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
-  await ensureUsuariosTable();
-  await ensureSessionsTable();
-
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
 
@@ -79,6 +69,8 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
      FROM sessions s
      JOIN usuarios u ON u.id = s.usuario_id
      WHERE s.token_hash = $1 AND s.expires_at > NOW()
+       -- Una cuenta suspendida o baneada deja de tener sesión válida.
+       AND NOT ${SQL_SANCION_BLOQUEANTE}
     LIMIT 1`,
     [tokenHash]
   );
@@ -95,9 +87,6 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 });
 
 export async function destroySession() {
-  await ensureUsuariosTable();
-  await ensureSessionsTable();
-
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
 

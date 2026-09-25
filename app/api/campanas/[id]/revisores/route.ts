@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 // La invitación a revisor es por campaña (campana_revisores), no por el rol
 // global en usuarios.role: esta lista es lo que debe usar la pantalla de
@@ -10,8 +10,6 @@ import { getSessionUser } from "@/lib/session";
 // de OTRA campaña, o que tiene el rol por una asignación vieja).
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -38,8 +36,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -91,6 +87,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         JSON.stringify({ campanaId: String(id) }),
       ]
     );
+
+    await registrarAuditoria({
+      actor: { tipo: "usuario", id: Number(user.id) },
+      accion: "revisor.invitar",
+      objetivo: { tipo: "usuario", id: usuarioId },
+      detalle: { campanaId: Number(id) },
+    });
 
     return NextResponse.json({ message: "Invitación enviada" }, { status: 201 });
   } catch (error) {

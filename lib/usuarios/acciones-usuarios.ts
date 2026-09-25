@@ -4,27 +4,26 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { pool } from "@/lib/db";
-import { ensureSancionesTable, ensureUsuariosTable } from "@/lib/db-schema";
 import { hasRootSession } from "@/lib/rootSession";
 import { normalizeRoles } from "@/lib/roles";
 import { CODIGO_DE_ROL, type RolAsignable } from "@/lib/usuarios/rol-asignable";
 import type { TipoDeSancion } from "@/lib/usuarios/directorio";
 import { retirarComoRevisorDeTodasLasCampanas } from "@/lib/usuarios/revisor";
+import { registrarAuditoria } from "@/lib/auditoria";
+import { TIPOS_QUE_BLOQUEAN } from "@/lib/sanciones";
 
 export type ResultadoDeAccion = { ok: true } | { ok: false; error: string };
 
 /*
  * ────────────────────────────────────────────────────────────────────────────
- * PENDIENTE DE CONECTAR
- *
- * Las cuatro acciones ya escriben de verdad (asignarRol/revocarRol en
- * `usuarios.role`, aplicarSancion/restaurarAcceso en `sanciones`). Falta:
- *   1. El registro en auditoría: quién, cuándo, sobre quién y con qué motivo
- *      (no existe tabla de auditoría todavía).
- *   2. TODO(dominio): al tercer STRIKE no hay escalamiento automático a
+ * Las cuatro acciones escriben de verdad (asignarRol/revocarRol en
+ * `usuarios.role`, aplicarSancion/restaurarAcceso en `sanciones`) y quedan en
+ * audit_log. La suspensión y el baneo bloquean la cuenta (lib/sanciones.ts).
+ * Falta:
+ *   1. TODO(dominio): al tercer STRIKE no hay escalamiento automático a
  *      baneo permanente ni bloqueo de correo — hoy hay que aplicar el baneo
  *      a mano con tipo BANEO_DE_CAMPANA. El contador de strikes sí es real.
- *   3. Notificar al usuario sancionado: no hay envío de notificaciones en
+ *   2. Notificar al usuario sancionado: no hay envío de notificaciones en
  *      la app todavía.
  * ────────────────────────────────────────────────────────────────────────────
  */
@@ -58,8 +57,6 @@ export async function asignarRol(
   }
 
   try {
-    await ensureUsuariosTable();
-
     const actual = await pool.query<{ role: string[] | null }>(
       `SELECT role FROM usuarios WHERE id = $1`,
       [numericId],
@@ -77,6 +74,13 @@ export async function asignarRol(
       numericId,
       JSON.stringify(nuevosRoles),
     ]);
+
+    await registrarAuditoria({
+      actor: { tipo: "superusuario" },
+      accion: "rol.asignar",
+      objetivo: { tipo: "usuario", id: numericId },
+      detalle: { rol },
+    });
 
     revalidatePath(`/usuarios/${usuarioId}/roles`);
     revalidatePath(`/usuarios/${usuarioId}`);
@@ -100,8 +104,6 @@ export async function revocarRol(
   }
 
   try {
-    await ensureUsuariosTable();
-
     const actual = await pool.query<{ role: string[] | null }>(
       `SELECT role FROM usuarios WHERE id = $1`,
       [numericId],
@@ -140,6 +142,13 @@ export async function revocarRol(
       await retirarComoRevisorDeTodasLasCampanas(numericId);
     }
 
+    await registrarAuditoria({
+      actor: { tipo: "superusuario" },
+      accion: "rol.revocar",
+      objetivo: { tipo: "usuario", id: numericId },
+      detalle: { rol },
+    });
+
     revalidatePath(`/usuarios/${usuarioId}/roles`);
     revalidatePath(`/usuarios/${usuarioId}`);
     revalidatePath("/usuarios");
@@ -170,19 +179,30 @@ export async function aplicarSancion(
   }
 
   try {
-    await ensureUsuariosTable();
-    await ensureSancionesTable();
-
     const usuario = await pool.query(`SELECT id FROM usuarios WHERE id = $1`, [numericId]);
     if (usuario.rowCount === 0) {
       return { ok: false, error: "El usuario no existe." };
     }
 
-    await pool.query(
+    const dias = datos.tipo === "SUSPENSION_TEMPORAL" ? datos.dias : null;
+    const sancion = await pool.query<{ id: number }>(
       `INSERT INTO sanciones (usuario_id, tipo, detalle, dias)
-       VALUES ($1, $2, $3, $4)`,
-      [numericId, datos.tipo, detalle, datos.tipo === "SUSPENSION_TEMPORAL" ? datos.dias : null],
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [numericId, datos.tipo, detalle, dias],
     );
+
+    // Suspensión y baneo bloquean la cuenta: se cierran sus sesiones abiertas
+    // para que el bloqueo aplique ya, no hasta que la sesión caduque.
+    if (TIPOS_QUE_BLOQUEAN.has(datos.tipo)) {
+      await pool.query(`DELETE FROM sessions WHERE usuario_id = $1`, [numericId]);
+    }
+
+    await registrarAuditoria({
+      actor: { tipo: "superusuario" },
+      accion: "sancion.aplicar",
+      objetivo: { tipo: "usuario", id: numericId },
+      detalle: { sancionId: sancion.rows[0].id, tipo: datos.tipo, dias, motivo: detalle },
+    });
   } catch (error) {
     console.error("Error aplicando sanción", error);
     return { ok: false, error: "No se pudo aplicar la sanción." };
@@ -205,18 +225,24 @@ export async function restaurarAcceso(
   }
 
   try {
-    await ensureSancionesTable();
-
     // El contador de strikes NO se reinicia: se conserva para la escala de
     // penalización, así que esto solo cambia el estado de la cuenta.
-    const result = await pool.query(
+    const result = await pool.query<{ usuario_id: number; tipo: string }>(
       `UPDATE sanciones SET activa = false, restaurada_en = NOW()
-       WHERE id = $1 AND activa = true`,
+       WHERE id = $1 AND activa = true
+       RETURNING usuario_id, tipo`,
       [numericId],
     );
     if (result.rowCount === 0) {
       return { ok: false, error: "La sanción no existe o ya fue restaurada." };
     }
+
+    await registrarAuditoria({
+      actor: { tipo: "superusuario" },
+      accion: "sancion.restaurar",
+      objetivo: { tipo: "usuario", id: result.rows[0].usuario_id },
+      detalle: { sancionId: numericId, tipo: result.rows[0].tipo },
+    });
   } catch (error) {
     console.error("Error restaurando acceso", error);
     return { ok: false, error: "No se pudo restaurar el acceso." };
