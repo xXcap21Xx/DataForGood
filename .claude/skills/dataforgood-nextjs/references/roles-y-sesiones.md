@@ -79,5 +79,5 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 - **Las sanciones de la tabla `sanciones` no se aplican todavía:** ni el login ni `getSessionUser()` ni `POST /api/aportes` las consultan, así que una suspensión no impide entrar ni aportar. Preguntar antes de implementarlo (qué bloquea cada tipo).
 - **No existe `audit_log`:** los cambios de rol, las sanciones y los accesos raíz no quedan registrados (hay `TODO` en `app/api/auth/root/route.ts`).
-- **`GET /api/usuarios` no exige sesión** y devuelve hasta 50 usuarios con su correo.
-- **El límite de intentos de `/root` vive en memoria:** se reinicia con cada despliegue y no se comparte entre instancias.
+- **`GET /api/usuarios` exige sesión** desde el 2026-09-25, pero cualquier usuario con sesión ve nombre y correo de los últimos 50 usuarios verificados (lo usa el buscador de "agregar revisor"). Si se quiere ocultar el correo, hay que rediseñar ese buscador.
+- **El límite de intentos de `/root` vive en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. Hay dos límites: 5 por minuto por IP y 30 por minuto en total. La IP es el **último** valor de `X-Forwarded-For` (el que agrega el proxy), no el primero, que lo puede inventar el cliente.

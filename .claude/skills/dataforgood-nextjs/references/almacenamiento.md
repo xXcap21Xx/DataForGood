@@ -9,7 +9,7 @@
 
 ## 1. Cómo funciona hoy
 
-`lib/minio.ts` crea un `Client` del SDK `minio` con las variables `MINIO_*` y exporta:
+`lib/minio.ts` crea, en el primer uso, un `Client` del SDK `minio` con las variables `MINIO_*` (sin valores por defecto para las credenciales) y exporta:
 
 - **`saveUploadedFile(file, subdir)`:** crea el bucket la primera vez (`MINIO_BUCKET`, por defecto `aportes`), guarda el objeto como `<subdir>/<uuid><ext>` con `putObject` y devuelve `{ relativePath, originalName, mimeType, sizeBytes }`.
 - **`readUploadedFile(key)`:** descarga el objeto completo a un `Buffer`.
@@ -34,14 +34,12 @@
 
 ## 4. Configuración
 
-- `docker-compose.yml`: servicio `minio`, imagen `quay.io/minio/minio` **sin versión fija**, consola en `:9001` y datos en `C:/minio/data` (ruta del host Windows).
-- Dentro de Docker la app usa `MINIO_ENDPOINT=minio`. Con `next dev` fuera de Docker, `localhost`.
+- **Servicio `minio`:** sin puertos publicados; la app lo alcanza por la red interna (`MINIO_ENDPOINT=minio`). Los datos van en el volumen `minio_data`, o en la carpeta del host que indique `MINIO_DATA`.
+- **Servicio `minio-init`:** usa la misma imagen, que trae `mc`, y entra con el root (`MINIO_ROOT_USER/PASSWORD`). Crea el bucket, lo deja privado y crea la política `dataforgood-app`: `GetBucketLocation`/`ListBucket` sobre el bucket, `GetObject`/`PutObject`/`DeleteObject` sobre sus objetos, y **niega** crear o editar service accounts (vector del CVE-2025-62506). Después crea el usuario `MINIO_ACCESS_KEY` con esa política. Es idempotente.
+- **La app solo conoce el usuario limitado.** No puede crear buckets ni usar la API de administración (comprobado). Si agregas una operación nueva de S3, amplía la política en `docker-compose.yml`.
+- **Con `next dev` fuera de Docker:** `MINIO_ENDPOINT=localhost` y `docker-compose.local.yml` para publicar el 9000 en `127.0.0.1`.
 
-## 5. Riesgos y pendientes (diagnóstico del 2026-09-24, sin aplicar)
+## 5. Riesgos y pendientes
 
-- **La app usa el usuario root de MinIO** (`admin` / `admin12345`, fijos en el compose). Lo correcto es un usuario IAM normal con una política limitada al bucket, creado con `mc` en un contenedor de configuración.
-- **9000 y 9001 están publicados en todas las interfaces.** La consola debería escuchar solo en `127.0.0.1`, y la API S3 no necesita publicarse, porque la app llega por la red interna.
-- **Imagen sin versión fija:** fíjala a una etiqueta concreta. Las imágenes Community de MinIO dejaron de recibir parches en 2025 (CVE-2025-62506 corregida solo en código fuente), y ese es un riesgo aceptado que conviene documentar en la entrega.
+- **La imagen ya no se puede descargar.** MinIO dejó de publicar imágenes: `quay.io/minio/minio` responde 401 y `minio/minio` "no existe". Solo funciona la que ya está en caché (`RELEASE.2025-09-07T16-13-09Z`), que además no recibe parches. Un servidor nuevo no puede levantar el stack. Hay que decidir el reemplazo (compilar desde el código fuente o usar otro almacenamiento compatible con S3).
 - **Sin respaldos** del volumen de datos.
-
-Son tareas de despliegue que hay que acordar; no las mezcles con otros cambios.

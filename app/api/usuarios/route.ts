@@ -5,6 +5,7 @@ import { hashPassword } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
 import { normalizeRoles } from "@/lib/roles";
+import { getSessionUser } from "@/lib/session";
 
 export async function POST(request: Request) {
   try {
@@ -90,13 +91,20 @@ export async function POST(request: Request) {
   }
 }
 
+// Lo usa solo el buscador de "agregar revisor": exige sesión y devuelve lo
+// mínimo que ese buscador muestra, no el perfil completo.
 export async function GET() {
   try {
     await ensureUsuariosTable();
 
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+    }
+
     const result = await pool.query(
-      `SELECT id, nombre, apellidos, email, state, city, specialty, intereses, role, xp_total, level, streak_days, email_verificado
-       FROM usuarios ORDER BY id DESC LIMIT 50`
+      `SELECT id, nombre, apellidos, email, role
+       FROM usuarios WHERE email_verificado ORDER BY id DESC LIMIT 50`
     );
 
     return NextResponse.json({ data: result.rows });

@@ -14,22 +14,42 @@ const INTENTOS_MAX = 5;
 const VENTANA_MS = 60_000;
 const intentos = new Map<string, { n: number; desde: number }>();
 
+/**
+ * Tope global, sin importar la IP. X-Forwarded-For lo puede escribir el
+ * cliente, así que cambiarlo en cada intento esquivaría el límite por IP;
+ * este tope acota la fuerza bruta aunque el encabezado venga falsificado.
+ */
+const INTENTOS_MAX_GLOBAL = 30;
+const CLAVE_GLOBAL = "*";
+
 function obtenerIp(request: Request): string {
+  // El proxy inverso agrega la IP real del cliente AL FINAL de la lista
+  // (proxy_add_x_forwarded_for); lo de la izquierda lo puede inventar el
+  // cliente. Por eso se toma el último valor, no el primero.
   const forwarded = request.headers.get("x-forwarded-for");
-  return forwarded?.split(",")[0]?.trim() || "desconocida";
+  const ultimo = forwarded?.split(",").pop()?.trim();
+  return ultimo || request.headers.get("x-real-ip")?.trim() || "desconocida";
 }
 
-function excedeIntentos(ip: string): boolean {
+function contarIntento(clave: string, maximo: number): boolean {
   const ahora = Date.now();
-  const registro = intentos.get(ip);
+  const registro = intentos.get(clave);
 
   if (!registro || ahora - registro.desde > VENTANA_MS) {
-    intentos.set(ip, { n: 1, desde: ahora });
+    intentos.set(clave, { n: 1, desde: ahora });
     return false;
   }
 
   registro.n += 1;
-  return registro.n > INTENTOS_MAX;
+  return registro.n > maximo;
+}
+
+function excedeIntentos(ip: string): boolean {
+  // Se cuentan los dos siempre (sin cortocircuito) para que el tope global
+  // registre también los intentos de IPs ya bloqueadas.
+  const porIp = contarIntento(ip, INTENTOS_MAX);
+  const global = contarIntento(CLAVE_GLOBAL, INTENTOS_MAX_GLOBAL);
+  return porIp || global;
 }
 
 function identificadorCoincide(recibido: string, esperado: string): boolean {

@@ -38,7 +38,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 | Validación | A mano (`lib/validation.ts`, regex, `Set` de valores permitidos). No hay Zod |
 | Archivos | MinIO con el SDK `minio` (`lib/minio.ts`). El archivo pasa por el servidor (`putObject`), no hay URLs firmadas |
 | Otros | `bcryptjs` (contraseñas), `nodemailer` + Gmail (códigos de verificación), `google-auth-library` (OAuth), `archiver` (ZIP de datos abiertos) |
-| Infraestructura | Docker Compose con `postgres:16-alpine`, `quay.io/minio/minio` (sin versión fija) y la app (Dockerfile multi-stage, `node:24-alpine`) |
+| Infraestructura | Docker Compose con `postgres:16-alpine`, `quay.io/minio/minio` (solo la copia en caché: ya no se puede descargar), `minio-init` (usuario limitado) y la app (Dockerfile multi-stage, `node:24-alpine`). Secretos en `.env` (plantilla `.env.example`); Postgres y MinIO sin puertos publicados |
 
 ## Qué leer según la tarea
 
