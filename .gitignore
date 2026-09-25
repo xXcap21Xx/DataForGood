@@ -43,3 +43,8 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Paquetes de despliegue (imagen de Docker + archivos para el servidor)
+/despliegue/
+*.tar
+*.img

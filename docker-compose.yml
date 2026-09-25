@@ -76,6 +76,10 @@ services:
         echo "MinIO listo: bucket $$MINIO_BUCKET y usuario limitado $$MINIO_ACCESS_KEY"
 
   app:
+    # Nombre fijo: en el servidor la imagen llega con `docker load` (no se
+    # construye ahí), y `docker compose up` la usa si ya existe con este
+    # nombre. Sin esto, Compose espera "<carpeta>-app" y no la encuentra.
+    image: dataforgood-app:latest
     build:
       context: .
       dockerfile: Dockerfile
