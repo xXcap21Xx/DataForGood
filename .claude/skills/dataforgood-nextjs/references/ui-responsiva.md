@@ -1,4 +1,4 @@
-# Interfaz: sistema de diseño de la rama y diseño responsivo
+# Interfaz: sistema de diseño y diseño responsivo
 
 ## Contenido
 1. Tokens y tipografía
@@ -39,7 +39,7 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 
 | Componente | API | Notas |
 | --- | --- | --- |
-| `ui/Button` | `variant`: primary (verde) · secondary · danger · ghost; `size`: sm · md | Forma de píldora. Para navegar usa `ButtonLink` (`conectar-mocks.md`) |
+| `ui/Button` | `variant`: primary (verde) · secondary · danger · ghost; `size`: sm · md | Forma de píldora. Para navegar usa `ui/ButtonLink` (nunca `<Link>` envolviendo `<Button>`) |
 | `ui/Card` | `highlighted` | `rounded-lg border bg-surface p-4 shadow-sm` |
 | `ui/Input` | `Field` (label, hint, required), `Input`, `Textarea` | Asterisco rojo en obligatorios; la pista va en `text-ink-3` |
 | `ui/Tag` | `tone`: default · ok · warn · danger · on | Estados y temáticas |
@@ -48,8 +48,8 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 | `cards/CampaignCard` | `campaign` | Tarjeta vertical del catálogo |
 | `cards/ContributionCard` | `contribution` | Estado con `Tag` |
 | `layout/PublicHeader`, `PublicFooter` | — | Landing |
-| `layout/TopBar` | — | Búsqueda, notificaciones, avatar. Hoy lee el mock: recibirá el usuario por props |
-| `layout/SidebarNav` | — (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas |
+| `layout/TopBar` | `usuario: SessionUser` | Búsqueda, `NotificationsBell`, avatar |
+| `layout/SidebarNav` | `usuario` (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas; agrega Supervisión si `role` incluye `supervisor` |
 
 Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta uno nuevo (Select, Dialog, EmptyState, ButtonLink), sigue las mismas convenciones.
 
@@ -72,7 +72,16 @@ Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta 
 | `(auth)` | Logo y tarjeta centrados, `max-w-md`, fondo `bg-paper` |
 | `(dashboard)` | `TopBar` arriba; `SidebarNav` a la izquierda (16rem, sticky en `lg`); contenido `max-w-7xl` con `px-4 sm:px-6 lg:px-10` |
 
-Cuando existan roles, `(dashboard)/layout.tsx` obtiene el usuario y construye los elementos del menú en el servidor. Luego se los pasa a `SidebarNav` como prop: "Revisión" para revisores aceptados, "Supervisión" con `campanas.dictaminar`, "Sistema" con `sistema.panel`. El componente seguirá siendo cliente por `usePathname`.
+`(dashboard)/layout.tsx` obtiene el usuario con `getSessionUser()` (redirige a `/entrar` si no hay) y se lo pasa a `TopBar` y `SidebarNav`, que muestran los elementos según `usuario.role`.
+
+**Panel del SuperUsuario, `(panel)`:** usa su propio kit en `components/sistema/`, no el de `components/ui/`. Tiene:
+
+- `Topbar` y `Sidebar`;
+- `Button`, `Input`, `Tag`, `MetricCard` y `ProgressBar` propios;
+- `Subtabs`, `GraficaDeColumnas` e iconos;
+- en `ui.tsx`: `Encabezado`, `TituloDeSeccion`, `Volver`, `Aviso`, `Reparto`, `ListaClaveValor`, `Tarjeta`, `Identidad`, `MedidorDeStrikes`, `Paginacion`, `EnlaceBoton` y `formatearNumero`.
+
+Las pantallas del panel usan solo ese kit, y las de usuario solo `components/ui/`. No los mezcles.
 
 ## 5. Móvil: lo que ya funciona y lo que falta
 
@@ -105,10 +114,10 @@ Cuando existan roles, `(dashboard)/layout.tsx` obtiene el usuario y construye lo
 </label>
 ```
 
-- **Validación en el cliente:** mantén la que ya existe (formato y 10 MB) para avisar pronto; el servidor vuelve a validar (`KIND_RULES`).
+- **Validación en el cliente:** mantén la que ya existe (formato y 10 MB) para avisar pronto; el servidor vuelve a validar (`ALLOWED_FILE_TYPES` y `MAX_FILE_SIZE` en `app/api/aportes/route.ts`).
 - **Vista previa:** `URL.createObjectURL(file)`, liberando la URL después.
 - **Audio en vivo:** `MediaRecorder` (Chrome graba `audio/webm`, Safari `audio/mp4`). Requiere HTTPS o `localhost`; como respaldo, ofrece `<input type="file" accept="audio/*">`.
-- **Subida:** usa `uploadMedia` (`lib/upload-media.ts`), que muestra progreso real. Si falla, conserva lo que la persona escribió.
+- **Subida:** `FormData` con `fetch` a `POST /api/aportes` (ver `almacenamiento.md`). Si falla, conserva lo que la persona escribió.
 
 ## 7. Accesibilidad
 

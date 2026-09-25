@@ -1,6 +1,6 @@
-# Reglas de negocio (tomadas de la rama Prueba1)
+# Reglas de negocio
 
-Todo lo de este archivo sale de las pantallas, textos y datos simulados de la rama. Cada regla indica su fuente. Las reglas se aplican **en los services**; la interfaz solo las comunica.
+Este archivo partió de las pantallas y los textos del prototipo (rama `Prueba1`) y se actualiza conforme se implementa. Cada regla indica su fuente. Las reglas se aplican **en el servidor** (route handlers, server actions y funciones de `lib/`); la interfaz solo las comunica.
 
 ## Contenido
 1. Cuentas y registro
@@ -105,7 +105,7 @@ Fuente: `mis-campanas/[id]/compartir`.
 - **Aportes anónimos:** quien abre el enlace puede aportar **sin registrarse** mientras el token siga vigente. Esos aportes aparecen como "Anónimo" (`userId = null`).
 - **Vencimiento y regeneración:** el token vence (la pantalla muestra unas 21 horas restantes). Al regenerarlo se crea una dirección nueva y la anterior queda inutilizable **para siempre**; los aportes ya recibidos se conservan.
 - **Estadísticas del enlace vencido:** aportes recibidos y visitas.
-- **Diseño técnico:** tabla `campaign_share_links` en la plantilla, con subidas anónimas limitadas por IP y token (`references/almacenamiento.md`).
+- **Estado técnico:** `campanas.share_token` y `share_token_expires_at` ya existen, pero la ruta pública `/c/[token]` y el aporte anónimo todavía no están implementados.
 
 ## 7. Experiencia (XP) y campañas especiales
 
@@ -145,12 +145,12 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
 
 **No los resuelvas por tu cuenta.** Pregunta, o deja un TODO explícito y menciónalo.
 
-1. **Quién asigna al Revisor de aportes.** `/entrar` dice que "revisor y administrador de campaña los asigna el SuperUsuario". `agregar-revisor` dice que quien administra la campaña lo invita y que el rol aplica solo dentro de esa campaña. *La plantilla sigue la segunda versión (por campaña).*
+1. **Quién asigna al Revisor de aportes.** `/entrar` dice que "revisor y administrador de campaña los asigna el SuperUsuario". `agregar-revisor` dice que quien administra la campaña lo invita y que el rol aplica solo dentro de esa campaña. *El código sigue la segunda versión: el creador invita y la persona acepta; el SuperUsuario solo puede revocarlo (`lib/usuarios/acciones-usuarios.ts`).*
 2. **Administrador de campaña.** Se menciona como rol que asigna el SuperUsuario, pero en la rama cualquier usuario crea y administra sus campañas. ¿Qué agrega este rol?
 3. **Colaborador de Supervisor.** Aparecía en requisitos anteriores; no existe en la rama. ¿Sigue vigente?
 4. **Cálculo de XP.** `xpPerContribution` por campaña (50, 40, 35, 30) frente a XP base por tipo en la pantalla de especial (texto 10, foto o documento 25, audio o video 50). ¿Cuál manda, o se combinan?
 5. **Catálogo de temáticas.** El filtro de `/campanas` usa "Salud y bienestar" y omite varias categorías; el formulario usa "Salud urbana".
-6. **Límites de archivos** para video, audio y documento (la plantilla usa valores provisionales) y formatos de documento.
+6. **Límites de archivos** para video, audio y documento, y formatos de documento. Hoy `POST /api/aportes` solo acepta JPG y PNG de hasta 10 MB.
 7. **Cuota de aportes anónimos.** Sin cuenta no hay persona a quien contar: ¿límite por dispositivo o IP, o solo la meta total?
 8. **Rechazo en primera instancia.** ¿El revisor puede rechazar de forma definitiva o solo validar? No hay pantalla del revisor.
 9. **Valor del tope diario de XP.**
