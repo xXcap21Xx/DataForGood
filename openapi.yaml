@@ -1,0 +1,958 @@
+openapi: 3.1.0
+info:
+  title: DataForGood API
+  version: "1.0"
+  description: |
+    Route handlers de `app/api`. Las acciones del panel del SuperUsuario
+    (`/sistema`, `/usuarios`, `/supervisar`) son server actions y no aparecen aquí.
+
+    **Sesión:** se maneja con la cookie `session_token` (httpOnly). Ejecuta
+    primero `POST /api/auth/login`; el navegador (o Insomnia) guarda la cookie
+    y la manda sola en las siguientes peticiones.
+
+    **CSRF:** las mutaciones con un header `Origin` de otro sitio responden
+    403 `Origen no permitido` (`proxy.ts`).
+
+    Todas las respuestas JSON son `{ data }`, `{ message, data }` o `{ error }`.
+
+    Este archivo se mantiene a mano: si cambias una ruta, actualízalo en el mismo commit.
+# /api/docs/spec agrega al inicio el servidor desde el que se abre la página.
+servers:
+  - url: http://localhost:3000/dataforgood
+    description: Docker local
+  - url: http://localhost:3000
+    description: next dev
+  - url: https://multimodal-ai-lab.cicese.mx/dataforgood
+    description: Producción
+
+tags:
+  - name: Auth
+  - name: Campañas
+  - name: Aportes
+  - name: Usuarios
+  - name: Revisiones y notificaciones
+  - name: Datos abiertos
+
+security:
+  - sessionCookie: []
+
+paths:
+  # ---------------------------------------------------------------- Auth
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión con correo y contraseña
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password }
+            example: { email: usuario@correo.com, password: contraseña }
+      responses:
+        "200":
+          description: Sesión iniciada. Guarda la cookie `session_token`.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data: { $ref: "#/components/schemas/User" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401":
+          description: Correo o contraseña incorrectos
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+        "403":
+          description: Cuenta suspendida, baneada o sin verificar (en ese caso guarda `pending_verification_id`)
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/auth/logout:
+    post:
+      tags: [Auth]
+      summary: Cerrar sesión
+      responses:
+        "200": { $ref: "#/components/responses/Message" }
+
+  /api/auth/sesion:
+    get:
+      tags: [Auth]
+      summary: Usuario de la sesión actual
+      responses:
+        "200":
+          description: Usuario en sesión
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/User" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/auth/verificar:
+    get:
+      tags: [Auth]
+      summary: Consultar la verificación de correo pendiente
+      description: Usa la cookie `pending_verification_id` que dejan el registro o el login.
+      security: [pendingVerificationCookie: []]
+      responses:
+        "200": { description: Datos de la verificación pendiente }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Auth]
+      summary: Verificar el correo con el código recibido
+      security: [pendingVerificationCookie: []]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [code]
+              properties:
+                code: { type: string, example: "123456" }
+      responses:
+        "200": { $ref: "#/components/responses/Message" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/auth/verificar/reenviar:
+    post:
+      tags: [Auth]
+      summary: Reenviar el código de verificación
+      security: [pendingVerificationCookie: []]
+      responses:
+        "200":
+          description: Código reenviado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      expiresAt: { type: string, format: date-time }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/auth/google:
+    get:
+      tags: [Auth]
+      summary: Iniciar sesión con Google (redirección OAuth)
+      description: Pruébalo en el navegador; redirige a Google y regresa a `/api/auth/google/callback`.
+      security: []
+      responses:
+        "307": { description: Redirección a Google }
+
+  /api/auth/google/callback:
+    get:
+      tags: [Auth]
+      summary: Regreso de Google OAuth
+      security: []
+      parameters:
+        - { name: code, in: query, required: true, schema: { type: string } }
+        - { name: state, in: query, required: true, schema: { type: string } }
+      responses:
+        "307": { description: Redirige a `/campanas` o a `/entrar?error=...` }
+
+  /api/auth/root:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión como SuperUsuario
+      description: |
+        Guarda la cookie `root_session_token` (2 horas). Límite: 5 intentos por
+        minuto por IP y 30 por minuto en total. Cada intento queda en `audit_log`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identificador, credencial]
+              properties:
+                identificador: { type: string }
+                credencial: { type: string, format: password }
+      responses:
+        "204": { description: Sesión raíz creada }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { description: Demasiados intentos }
+
+  # ---------------------------------------------------------------- Usuarios
+  /api/usuarios:
+    post:
+      tags: [Usuarios]
+      summary: Registro de cuenta
+      description: Envía el código de verificación por correo y guarda la cookie `pending_verification_id`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/RegistroInput" }
+      responses:
+        "201": { $ref: "#/components/responses/Message" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "409":
+          description: El correo ya está registrado
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    get:
+      tags: [Usuarios]
+      summary: Buscar candidatos a revisor de una campaña
+      description: Solo el creador de la campaña. Busca por nombre o por correo exacto, entre cuentas verificadas.
+      parameters:
+        - { name: campanaId, in: query, required: true, schema: { type: integer } }
+        - { name: q, in: query, required: false, schema: { type: string }, description: Nombre o correo }
+      responses:
+        "200":
+          description: Candidatos
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        nombre: { type: string }
+                        apellidos: { type: string }
+                        emailOculto: { type: string, example: "an***@correo.com" }
+                        role: { type: string }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/usuarios/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Usuarios]
+      summary: Perfil de un usuario
+      description: No pide sesión en el código actual.
+      security: []
+      responses:
+        "200":
+          description: Usuario (columnas de la tabla, en snake_case)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Usuarios]
+      summary: Editar el propio perfil
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                nombre: { type: string }
+                apellidos: { type: string }
+                state: { type: string }
+                city: { type: string }
+                specialty: { type: string }
+                intereses: { type: array, items: { type: string } }
+      responses:
+        "200": { description: Perfil actualizado }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- Campañas
+  /api/campanas:
+    get:
+      tags: [Campañas]
+      summary: Listar campañas
+      description: Usa uno de los filtros a la vez. Sin filtros lista las campañas visibles.
+      security: []
+      parameters:
+        - { name: id, in: query, schema: { type: integer }, description: Una sola campaña }
+        - { name: available, in: query, schema: { type: boolean }, description: Campañas en las que puedo aportar }
+        - { name: mine, in: query, schema: { type: boolean }, description: Campañas que creé (requiere sesión) }
+        - { name: supervised, in: query, schema: { type: boolean }, description: Campañas que superviso (requiere sesión) }
+        - { name: misAportes, in: query, schema: { type: boolean }, description: Campañas donde aporté, con `myContributionsCount` }
+      responses:
+        "200":
+          description: Campañas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Campaign" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Campañas]
+      summary: Crear campaña
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignInput" }
+      responses:
+        "201": { $ref: "#/components/responses/CampaignResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/campanas/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Campañas]
+      summary: Detalle de campaña
+      security: []
+      responses:
+        "200":
+          description: Campaña
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Campaign" }
+                  viewer:
+                    type: object
+                    properties:
+                      isCreator: { type: boolean }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Campañas]
+      summary: Editar campaña completa (solo el creador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CampaignInput" }
+      responses:
+        "200": { $ref: "#/components/responses/CampaignResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Campañas]
+      summary: Edición parcial o decisión del supervisor
+      description: |
+        - **Creador:** manda solo los campos a cambiar (mismos nombres que `CampaignInput`).
+          Los campos permitidos dependen del estado actual; una campaña `finalizada` es de solo lectura.
+        - **Supervisor:** `{ "action": "tomar" }` para tomarla, o
+          `{ "action": "aceptada" | "rechazada" | "reportada", "motivo": "..." }` para decidir.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - $ref: "#/components/schemas/CampaignInput"
+                - type: object
+                  title: Acción de supervisor
+                  required: [action]
+                  properties:
+                    action: { type: string, enum: [tomar, aceptada, rechazada, reportada] }
+                    motivo: { type: string }
+            examples:
+              finalizar: { value: { status: finalizada } }
+              tomar: { value: { action: tomar } }
+              rechazar: { value: { action: rechazada, motivo: La campaña no cumple los lineamientos } }
+      responses:
+        "200": { $ref: "#/components/responses/CampaignResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/campanas/{id}/guardar:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Campañas]
+      summary: Guardar campaña
+      responses:
+        "200": { $ref: "#/components/responses/SavedResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Campañas]
+      summary: Quitar campaña de guardadas
+      responses:
+        "200": { $ref: "#/components/responses/SavedResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/campanas/{id}/revisores:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Campañas]
+      summary: Revisores de la campaña (solo el creador)
+      responses:
+        "200":
+          description: Revisores
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        usuarioId: { type: string }
+                        estado: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Campañas]
+      summary: Invitar revisor (solo el creador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [usuarioId]
+              properties:
+                usuarioId: { type: integer }
+      responses:
+        "201": { $ref: "#/components/responses/Message" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Ya es revisor de la campaña
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/campanas/{id}/baneos:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Campañas]
+      summary: Banear de la campaña a quien envió un aporte (solo el creador)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [contributionId, reason]
+              properties:
+                contributionId: { type: string }
+                reason: { type: string }
+      responses:
+        "200": { $ref: "#/components/responses/Message" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/campanas/{id}/recoleccion-diaria:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Campañas]
+      summary: Aportes aprobados por día y por tipo
+      description: "Pendiente conocido: solo pide sesión, no revisa que seas creador o supervisor."
+      responses:
+        "200":
+          description: Serie diaria y reparto por tipo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        fecha: { type: string, format: date }
+                        etiqueta: { type: string }
+                        valor: { type: integer }
+                  porTipo:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        tipo: { $ref: "#/components/schemas/DataType" }
+                        etiqueta: { type: string }
+                        valor: { type: integer }
+                        porcentaje: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  # ---------------------------------------------------------------- Aportes
+  /api/aportes:
+    get:
+      tags: [Aportes]
+      summary: Aportes de una campaña
+      description: Sin `mine`, solo el creador o un revisor aceptado de la campaña.
+      parameters:
+        - { name: campaignId, in: query, required: true, schema: { type: integer } }
+        - { name: mine, in: query, schema: { type: boolean }, description: Solo mis aportes }
+        - { name: reviewer, in: query, schema: { type: boolean }, description: Vista de revisor }
+      responses:
+        "200":
+          description: Aportes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Contribution" } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Aportes]
+      summary: Enviar aporte con archivo
+      description: |
+        El archivo se sube a MinIO. Reglas: la campaña debe estar activa, no puedes
+        ser su creador ni estar baneado, y no debes haber alcanzado tu cuota.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [campaignId, description, file]
+              properties:
+                campaignId: { type: string }
+                description: { type: string, maxLength: 1000 }
+                file:
+                  type: string
+                  format: binary
+                  description: .jpg, .jpeg o .png, máximo 10 MB
+      responses:
+        "201": { $ref: "#/components/responses/ContributionResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/aportes/{id}:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Aportes]
+      summary: Detalle de aporte
+      responses:
+        "200":
+          description: Aporte
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { $ref: "#/components/schemas/Contribution" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    put:
+      tags: [Aportes]
+      summary: Editar mi aporte (antes de que entre a revisión)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [description]
+              properties:
+                description: { type: string, maxLength: 1000 }
+                caracteristicas:
+                  type: array
+                  items: { type: string }
+                  description: Solo opciones del checklist de la campaña
+      responses:
+        "200": { $ref: "#/components/responses/ContributionResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Aportes]
+      summary: Revisar aporte (creador o revisor aceptado)
+      description: |
+        Revisión en dos instancias. El revisor solo puede dar la primera
+        (`pendiente` → `espera_final`); el creador da la final.
+        `rejectionReason` es obligatorio al rechazar.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { $ref: "#/components/schemas/ContributionStatus" }
+                rejectionReason: { type: string }
+            examples:
+              primeraInstancia: { value: { status: espera_final } }
+              aceptar: { value: { status: aceptado } }
+              rechazar: { value: { status: rechazado, rejectionReason: La foto no corresponde a la campaña } }
+      responses:
+        "200": { $ref: "#/components/responses/ContributionResult" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Aportes]
+      summary: Eliminar mi aporte (si no está aceptado)
+      responses:
+        "200": { $ref: "#/components/responses/Message" }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/aportes/{id}/archivo:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Aportes]
+      summary: Descargar el archivo del aporte
+      responses:
+        "200":
+          description: Contenido del archivo con su `Content-Type`
+          content:
+            application/octet-stream:
+              schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+  # ---------------------------------------------------------------- Revisiones y notificaciones
+  /api/revisiones:
+    get:
+      tags: [Revisiones y notificaciones]
+      summary: Campañas en las que soy revisor
+      responses:
+        "200":
+          description: Campañas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: string }
+                        name: { type: string }
+                        description: { type: string }
+                        status: { $ref: "#/components/schemas/CampaignStatus" }
+                        tag: { type: string }
+                        goalContributions: { type: integer }
+                        pendingContributions: { type: integer }
+                        participants: { type: integer }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/notificaciones:
+    get:
+      tags: [Revisiones y notificaciones]
+      summary: Mis notificaciones
+      responses:
+        "200":
+          description: Notificaciones
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: array, items: { $ref: "#/components/schemas/Notification" } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/notificaciones/{id}/aceptar:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Revisiones y notificaciones]
+      summary: Aceptar una invitación para ser revisor
+      responses:
+        "200": { $ref: "#/components/responses/Message" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: La invitación ya no está disponible
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  # ---------------------------------------------------------------- Datos abiertos
+  /api/datos/{id}/descarga:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Datos abiertos]
+      summary: Descargar un conjunto de datos abiertos (ZIP)
+      security: []
+      responses:
+        "200":
+          description: Archivo ZIP
+          content:
+            application/zip:
+              schema: { type: string, format: binary }
+        "404": { $ref: "#/components/responses/NotFound" }
+
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session_token
+      description: Se obtiene con `POST /api/auth/login`. El navegador la manda sola.
+    pendingVerificationCookie:
+      type: apiKey
+      in: cookie
+      name: pending_verification_id
+      description: La dejan el registro o un login sin verificar.
+
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: string }
+
+  responses:
+    Message:
+      description: Operación correcta
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+    BadRequest:
+      description: Datos inválidos
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Unauthorized:
+      description: No hay sesión (o la cuenta está suspendida o baneada)
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    Forbidden:
+      description: Sin permiso para esta acción, o `Origen no permitido`
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    NotFound:
+      description: No existe
+      content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+    CampaignResult:
+      description: Campaña resultante
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+              data: { $ref: "#/components/schemas/Campaign" }
+    ContributionResult:
+      description: Aporte resultante
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message: { type: string }
+              data: { $ref: "#/components/schemas/Contribution" }
+    SavedResult:
+      description: Estado de guardado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data:
+                type: object
+                properties:
+                  isSaved: { type: boolean }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+
+    CampaignStatus:
+      type: string
+      enum: [borrador, en_revision, aceptada, activa, pausada, finalizada, rechazada]
+    DataType:
+      type: string
+      enum: [texto, foto, video, audio, documento]
+    CollectionMode:
+      type: string
+      enum: [checklist, texto_libre]
+    ContributionStatus:
+      type: string
+      enum: [pendiente, espera_final, aceptado, rechazado]
+
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        nombre: { type: string }
+        apellidos: { type: string }
+        email: { type: string }
+        state: { type: string }
+        city: { type: string }
+        specialty: { type: string }
+        intereses: { type: array, items: { type: string } }
+        role: { type: string, enum: [usuario, supervisor, revisor, admin] }
+        xpTotal: { type: integer }
+        level: { type: integer }
+        streakDays: { type: integer }
+
+    RegistroInput:
+      type: object
+      required: [nombre, apellidos, email, password]
+      properties:
+        nombre: { type: string }
+        apellidos: { type: string }
+        email: { type: string, format: email }
+        password: { type: string, format: password }
+        state: { type: string }
+        city: { type: string }
+        specialty: { type: string }
+        intereses: { type: array, items: { type: string } }
+      example:
+        nombre: Ana
+        apellidos: Pérez López
+        email: ana@correo.com
+        password: Contraseña123
+        state: Nayarit
+        city: Tepic
+        specialty: ""
+        intereses: [medio ambiente]
+
+    CampaignInput:
+      type: object
+      required: [name, description, tematica, dataTypes, goalContributions, quotaPerUser, startDate, endDate, locationState, locationCity]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        tematica: { type: string }
+        status: { $ref: "#/components/schemas/CampaignStatus" }
+        dataTypes: { type: array, minItems: 1, items: { $ref: "#/components/schemas/DataType" } }
+        collectionMode: { $ref: "#/components/schemas/CollectionMode" }
+        checklistOpciones:
+          type: array
+          items: { type: string }
+          description: Obligatorio (al menos una) si `collectionMode` es `checklist`
+        goalContributions: { type: integer, minimum: 1 }
+        quotaPerUser: { type: integer, minimum: 1 }
+        xpPerContribution: { type: integer }
+        startDate: { type: string, format: date }
+        startTime: { type: string, example: "08:00" }
+        endDate: { type: string, format: date }
+        endTime: { type: string, example: "20:00" }
+        locationState: { type: string }
+        locationCity: { type: string }
+        locationColonia: { type: string }
+        organizer: { type: string }
+      example:
+        name: Baches en Tepic
+        description: Fotos de baches en calles de la ciudad
+        tematica: infraestructura
+        status: en_revision
+        dataTypes: [foto]
+        collectionMode: texto_libre
+        checklistOpciones: []
+        goalContributions: 100
+        quotaPerUser: 5
+        xpPerContribution: 30
+        startDate: "2026-10-01"
+        startTime: "08:00"
+        endDate: "2026-10-31"
+        endTime: "20:00"
+        locationState: Nayarit
+        locationCity: Tepic
+        locationColonia: ""
+        organizer: ""
+
+    Campaign:
+      type: object
+      properties:
+        id: { type: string }
+        creatorId: { type: string }
+        creatorName: { type: string }
+        name: { type: string }
+        description: { type: string }
+        tag: { type: string }
+        tematica: { type: string }
+        status: { $ref: "#/components/schemas/CampaignStatus" }
+        dataTypes: { type: array, items: { $ref: "#/components/schemas/DataType" } }
+        collectionMode: { $ref: "#/components/schemas/CollectionMode" }
+        checklistOpciones: { type: array, items: { type: string } }
+        goalContributions: { type: integer }
+        quotaPerUser: { type: integer }
+        currentContributions: { type: integer }
+        approvedContributions: { type: integer }
+        pendingContributions: { type: integer }
+        rejectedContributions: { type: integer }
+        participants: { type: integer }
+        startDate: { type: [string, "null"], format: date }
+        startTime: { type: [string, "null"] }
+        endDate: { type: [string, "null"], format: date }
+        endTime: { type: [string, "null"] }
+        locationCity: { type: string }
+        locationState: { type: string }
+        locationColonia: { type: string }
+        organizer: { type: string }
+        xpPerContribution: { type: integer }
+        isSpecial: { type: boolean }
+        daysRemaining: { type: [integer, "null"] }
+        hasReviewerAssigned: { type: boolean }
+        isSaved: { type: boolean, description: Solo con sesión }
+        myContributionsCount: { type: integer, description: Solo con `misAportes=true` }
+
+    Contribution:
+      type: object
+      properties:
+        id: { type: string }
+        campaignId: { type: string }
+        campaignName: { type: string }
+        userId: { type: [string, "null"], description: null = aporte anónimo }
+        participantName: { type: string }
+        participantEmail: { type: string }
+        description: { type: string }
+        fileType: { $ref: "#/components/schemas/DataType" }
+        fileSizeBytes: { type: integer }
+        caracteristicas: { type: array, items: { type: string } }
+        status: { $ref: "#/components/schemas/ContributionStatus" }
+        submittedAt: { type: string, format: date-time }
+        rejectionReason: { type: string }
+        firstPassBy: { type: string }
+        firstPassByUserId: { type: string }
+
+    Notification:
+      type: object
+      properties:
+        id: { type: string }
+        type: { type: string }
+        title: { type: string }
+        message: { type: string }
+        campaignId: { type: [string, "null"] }
+        campaignName: { type: [string, "null"] }
+        metadata: { type: object }
+        readAt: { type: [string, "null"], format: date-time }

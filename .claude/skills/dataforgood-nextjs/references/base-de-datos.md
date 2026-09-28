@@ -18,7 +18,7 @@
 
 **`lib/db-schema.ts` es la única fuente del DDL.** Cada tabla tiene su `ensureXTable()`, y `ensureCoreSchema()` las llama todas en orden de dependencias. Son idempotentes (`CREATE TABLE IF NOT EXISTS` + `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`).
 
-**Corre una sola vez, al arrancar el servidor:** `instrumentation.ts` llama a `ensureCoreSchema()` antes de atender peticiones. Si Postgres no responde, reintenta 30 veces cada 2 s; si sigue sin responder, en producción termina el proceso para que Docker lo reinicie. No se ejecuta durante `next build`. **No llames `ensure*()` en rutas ni acciones.** El usuario de la base necesita permisos de DDL al arrancar.
+**Corre una sola vez, al arrancar el servidor:** `instrumentation.ts` llama a `ensureCoreSchema()` antes de atender peticiones. Si falta `DATABASE_URL`/`POSTGRES_URL`, termina de inmediato en producción (es un error de configuración, reintentar no sirve). Si Postgres no responde, reintenta 30 veces cada 2 s; si sigue sin responder, en producción termina el proceso para que Docker lo reinicie. No se ejecuta durante `next build`. **No llames `ensure*()` en rutas ni acciones.** El usuario de la base necesita permisos de DDL al arrancar.
 
 **No hay migraciones versionadas.** Para cambiar el esquema:
 

@@ -54,7 +54,8 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
 - **Respuesta:** `{ data }` si sale bien, `{ error }` si no. Los clientes leen `payload.error`.
 - **Mapeo:** las filas vienen en snake_case y se convierten a los tipos de `types/index.ts` con una función `mapX(row)` en el mismo archivo.
-- **Endpoints actuales:** `auth/{login, logout, root, sesion, verificar, verificar/reenviar, google, google/callback}`, `usuarios`, `usuarios/[id]`, `campanas`, `campanas/[id]{, /guardar, /revisores, /baneos, /recoleccion-diaria}`, `aportes`, `aportes/[id]{, /archivo}`, `revisiones`, `notificaciones`, `notificaciones/[id]/aceptar` y `datos/[id]/descarga` (ZIP con `archiver`).
+- **Endpoints actuales:** `auth/{login, logout, root, sesion, verificar, verificar/reenviar, google, google/callback}`, `usuarios`, `usuarios/[id]`, `campanas`, `campanas/[id]{, /guardar, /revisores, /baneos, /recoleccion-diaria}`, `aportes`, `aportes/[id]{, /archivo}`, `revisiones`, `notificaciones`, `notificaciones/[id]/aceptar` y `datos/[id]/descarga` (ZIP con `archiver`), y `docs` + `docs/spec` (Swagger UI).
+- **Documentación OpenAPI:** `openapi.yaml` (raíz) describe todos los route handlers y se escribe a mano. **Si agregas o cambias un endpoint, actualiza `openapi.yaml` en el mismo commit.** `/api/docs` sirve Swagger UI (desde jsdelivr) y `/api/docs/spec` entrega el YAML con el servidor actual (`BASE_PATH`) como primero. Acceso (`lib/api-docs.ts`): abierto en `next dev`; en producción, incluido Docker local, exige sesión root. `next.config.ts` incluye el YAML en el build con `outputFileTracingIncludes`. La colección de Insomnia equivalente es `dataforgood-insomnia.json`.
 
 ## 4. Server actions (panel del SuperUsuario)
 
@@ -88,22 +89,24 @@ Actualización en vivo: `components/supervision/RefrescoEnVivo.tsx` hace `router
 
 - **Levantar:** `docker compose up -d` (agrega `--build` si cambió código, `Dockerfile` o dependencias). Logs: `docker compose logs -f app`.
 - **Servicios:** `postgres` (16-alpine, con healthcheck), `minio`, `minio-init` (crea el bucket privado y el usuario limitado, y termina) y `app`, que espera a `postgres` healthy y a que `minio-init` termine bien.
-- **Puertos:** solo la app publica el 3000; Postgres y MinIO no. Para `next dev` o la consola de MinIO, usa `docker compose -f docker-compose.yml -f docker-compose.local.yml up -d`, que los publica en `127.0.0.1`. No publiques Postgres ni MinIO en el compose base.
+- **Puertos:** solo la app publica un puerto, `APP_PORT` (3000 por defecto, 3002 en producción) → 3000 del contenedor; Postgres y MinIO no. Para `next dev` o la consola de MinIO, usa `docker compose -f docker-compose.yml -f docker-compose.local.yml up -d`, que los publica en `127.0.0.1`. No publiques Postgres ni MinIO en el compose base.
 - **Secretos:** todos salen de `.env` (plantilla versionada en `.env.example`). Los `${VAR:?}` hacen que Compose no arranque si falta alguno. `DATABASE_URL` se arma con `POSTGRES_USER/PASSWORD/DB`. `lib/db.ts` y `lib/minio.ts` no tienen credenciales por defecto: crean la conexión en el primer uso y fallan si falta la variable (no al importar, porque `next build` los importa sin entorno). Migrar un servidor existente: ver `README.md`.
 - **Dos `.env`, ambos gitignored y no intercambiables:**
   - `.env.local` lo lee `next dev`. Ahí un `$` literal se escapa con `\$`.
   - `.env` lo lee Compose para sustituir `${VAR}` en `docker-compose.yml`. Ahí un `$` literal se escapa con `$$`.
   - `ROOT_PASSWORD_HASH` (bcrypt, lleno de `$`) tiene que estar en los dos, cada uno con su escape.
-- **Variables:** `POSTGRES_USER/PASSWORD/DB` (Compose) o `DATABASE_URL` (`next dev`), `MINIO_ROOT_USER/PASSWORD` (solo `minio` y `minio-init`), `MINIO_ENDPOINT/PORT/USE_SSL/ACCESS_KEY/SECRET_KEY/BUCKET` (`ACCESS_KEY` es el usuario limitado), `MINIO_DATA` (opcional), `BASE_PATH`, `APP_ORIGIN`, `ROOT_USER_ID`, `ROOT_PASSWORD_HASH`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_FROM`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`.
+- **Variables:** `POSTGRES_USER/PASSWORD/DB` (Compose) o `DATABASE_URL` (`next dev`), `MINIO_ROOT_USER/PASSWORD` (solo `minio` y `minio-init`), `MINIO_ENDPOINT/PORT/USE_SSL/ACCESS_KEY/SECRET_KEY/BUCKET` (`ACCESS_KEY` es el usuario limitado), `MINIO_DATA` (opcional), `APP_PORT` (opcional), `BASE_PATH`, `APP_ORIGIN`, `ROOT_USER_ID`, `ROOT_PASSWORD_HASH`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_FROM`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`.
 - **Subruta (`basePath`):** en producción la app se publica en `https://multimodal-ai-lab.cicese.mx/dataforgood/`. `BASE_PATH` es un `ARG` del Dockerfile (por defecto `/dataforgood`; `docker-compose.yml` lo pasa como build arg) y `next.config.ts` lo usa como `basePath` y `NEXT_PUBLIC_BASE_PATH`. Como se incrusta en el bundle, cambiarlo exige reconstruir la imagen. El proxy inverso del servidor **debe reenviar la ruta completa, con `/dataforgood`**, sin recortarla. En local, con `docker compose`, la app queda en `http://localhost:3000/dataforgood`, y `next dev` sin `BASE_PATH` queda en la raíz. En Git Bash, `BASE_PATH=/dataforgood` se convierte en una ruta de Windows: usa PowerShell o `MSYS_NO_PATHCONV=1`.
 - **`Dockerfile`:** multi-stage `deps → builder → runner` sobre `node:24-alpine`. Usa `npm install` (no `npm ci`) porque el lockfile se genera en Windows. El runner copia `.next/standalone`.
+- **Imagen con nombre fijo:** el servicio `app` se etiqueta `dataforgood-app:latest`. En producción el servidor no compila: recibe un paquete `despliegue/dataforgood-<commit>/` (imágenes `.tar`, `README.md`, `docker-compose.yml`, `.env.example`; `despliegue/`, `*.tar` e `*.img` están en `.gitignore`), hace `docker load` y `docker compose up -d` **sin `--build`**. La imagen de MinIO también se lleva en `.tar` porque ya no se puede descargar. Pasos completos en `README.md`.
+- **Sin `DATABASE_URL`** (ni `POSTGRES_URL`) la app termina al arrancar con un mensaje claro (`instrumentation-node.ts`), en vez de reintentar. Pasa si se corre la imagen con `docker run` sin el stack: usa `docker compose`.
 
 ## 7. Problemas conocidos (pendientes de despliegue)
 
 Críticos resueltos el 2026-09-25: puertos, credenciales en el compose, usuario limitado de MinIO, volumen de Windows y límite de intentos de `/root`. Siguen pendientes:
 
 - **Imagen de MinIO:** ya no se puede descargar (MinIO dejó de publicar en `quay.io/minio/*` y en Docker Hub); solo sirve la que está en caché (`RELEASE.2025-09-07T16-13-09Z`), y no recibe parches. Hay que decidir el reemplazo (compilar desde el código fuente o migrar a otro almacenamiento compatible con S3).
-- La app publica `3000` en todas las interfaces: si el proxy vive en el mismo host, conviene `127.0.0.1:3000:3000`.
+- La app publica `APP_PORT` en todas las interfaces: si el proxy vive en el mismo host, conviene `127.0.0.1:${APP_PORT}:3000`.
 - Sin `/api/health` y sin respaldos (`pg_dump` + copia del volumen de MinIO).
 
 No los "arregles de paso": son una tarea propia que hay que acordar.
