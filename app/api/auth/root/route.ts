@@ -80,7 +80,7 @@ export async function POST(request: Request) {
   const idOk = identificadorCoincide(identificador, idEsperado);
   const credOk = await bcrypt.compare(credencial, hashEsperado);
 
-  console.log({ idOk, credOk, idEsperado, hashEsperado })
+  console.log({ idOk, credOk, idEsperado, credencial, hashEsperado })
 
   if (!idOk || !credOk) {
     // No se guarda el identificador recibido: si alguien teclea la
