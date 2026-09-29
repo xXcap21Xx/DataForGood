@@ -11,6 +11,10 @@ const nextConfig: NextConfig = {
   // completo a la imagen. No hay servidor personalizado en este repo, así
   // que es compatible (ver AGENTS.md).
   output: "standalone",
+  // /api/docs/spec lee openapi.yaml con fs; sin esto no llega a la imagen.
+  outputFileTracingIncludes: {
+    "/api/docs/spec": ["./openapi.yaml"],
+  },
   basePath,
   // Con basePath, la raíz del dominio queda en 404. Al abrir
   // http://localhost:3000/ se manda a la app. En producción el proxy solo

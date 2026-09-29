@@ -18,6 +18,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
+| Documentación de la API | `/api/docs` (Swagger UI de `openapi.yaml`) | Abierta en `next dev`; sesión raíz en producción |
 | Pública | `/`, `/datos`, `/datos/[id]`, `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
 | Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario) | Libre |
 | Participar, `(dashboard)` | `/campanas`, `/campanas/[id]`, `/campanas/[id]/aportar`, `/mis-aportes`, `/mis-aportes/[campanaId]`, `/cuenta` | Sesión de usuario |
@@ -105,6 +106,8 @@ DataForGood/
 │   ├── campanas/, supervision/, usuarios/, sistema/   # consultas y server actions por módulo
 ├── types/index.ts                # contrato de datos
 ├── sql/                          # scripts CREATE históricos: NO son la fuente del esquema
+├── openapi.yaml                  # documentación de la API (a mano); se ve en /api/docs
+├── dataforgood-insomnia.json     # colección de Insomnia con las mismas rutas
 ├── docker-compose.yml, Dockerfile, next.config.ts
 └── .env (Compose) y .env.local (next dev): gitignored, ver arquitectura.md
 ```
@@ -119,6 +122,7 @@ DataForGood/
    - Si la llama el panel, usa una server action en `lib/<modulo>/acciones-*.ts`: guardia → validación → lógica → `revalidatePath`, y devuelve `{ ok: true } | { ok: false, error }`.
 5. **Página:** sigue el patrón de su zona (regla 8).
 6. **Documenta en `references/dominio.md`** las reglas nuevas o los puntos abiertos que se resuelvan, con fecha.
+7. **Si tocaste un route handler, actualiza `openapi.yaml`** (y la colección de Insomnia si cambió la forma de la petición).
 
 ## Cambios de versión que rompen código viejo
 

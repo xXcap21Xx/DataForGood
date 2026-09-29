@@ -94,6 +94,8 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 ## 8. Huecos conocidos
 
+- **El registro acepta roles del body (grave):** `POST /api/usuarios` pasa `body.role`/`body.roles` por `normalizeRoles` (`lib/roles.ts`), que admite `supervisor`, `revisor` y `admin`. Cualquiera puede registrarse como supervisor, lo que rompe la regla de que solo el SuperUsuario lo asigna. Debe guardar siempre `["usuario"]`. Detectado el 2026-09-28, sin corregir.
+- **`GET /api/usuarios/[id]` no pide sesión** y devuelve correo, ubicación y XP de cualquier id: permite enumerar correos. Detectado el 2026-09-28, sin corregir.
 - **`revertirAccion` no hace nada todavía:** ya exige sesión raíz, pero su lógica sigue en `TODO`. Cuando se implemente, debe registrar `supervision.revertir` en la bitácora.
 - **Buscador de revisores** (`GET /api/usuarios?campanaId=&q=`): solo el creador de esa campaña, con al menos 3 letras del nombre o un correo completo exacto. Devuelve 10 usuarios verificados como máximo, con el correo oculto (`an***@gmail.com`).
 - **El límite de intentos de `/root` vive en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. Hay dos límites: 5 por minuto por IP y 30 por minuto en total. La IP es el **último** valor de `X-Forwarded-For` (el que agrega el proxy), no el primero, que lo puede inventar el cliente.
