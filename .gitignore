@@ -48,3 +48,5 @@ next-env.d.ts
 /despliegue/
 *.tar
 *.img
+
+/data
