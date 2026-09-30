@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 import Subtabs from "@/components/sistema/subtabs";
 import Tag from "@/components/sistema/Tag";
-import { Aviso, Encabezado, EnlaceBoton, Paginacion, formatearNumero } from "@/components/sistema/ui";
+import { Encabezado, EnlaceBoton, Paginacion, formatearNumero } from "@/components/sistema/ui";
 import {
   ETIQUETA_DE_CAMPANA,
   NOMBRE_DE_TIPO,
@@ -186,11 +186,6 @@ export default async function ListadoDeCampanasPage({ searchParams }: { searchPa
           <Paginacion desde={desde} hasta={hasta} total={total} pagina={pagina} paginas={paginas} href={(p) => enlace({ pagina: p })} />
         </>
       )}
-
-      <Aviso className="mt-5">
-        Listado de consulta: filtra, ordena y abre el detalle de cualquier campaña. Aceptar, rechazar o reportar son
-        acciones de supervisión y viven en <b className="font-semibold">Modo supervisor</b>.
-      </Aviso>
     </div>
   );
 }

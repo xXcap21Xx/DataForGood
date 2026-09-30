@@ -5,7 +5,7 @@ import GraficaDeColumnas from "@/components/sistema/grafica-columnas";
 import MetricCard from "@/components/sistema/MetricCard";
 import ProgressBar from "@/components/sistema/ProgressBar";
 import Tag from "@/components/sistema/Tag";
-import { Aviso, EnlaceBoton, Reparto, Tarjeta, TituloDeSeccion, formatearNumero } from "@/components/sistema/ui";
+import { Aviso, Reparto, Tarjeta, TituloDeSeccion, formatearNumero } from "@/components/sistema/ui";
 import RefrescoEnVivo from "@/components/supervision/RefrescoEnVivo";
 import { obtenerPanelDeCampana } from "@/lib/campanas/panel";
 import { hasRootSession } from "@/lib/rootSession";
@@ -150,14 +150,6 @@ export default async function PanelDeCampanaSistemaPage({ params }: { params: Pr
             <p className="text-[12px] leading-relaxed text-ink-2">{proyeccion}</p>
           </Tarjeta>
         </section>
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-        <EnlaceBoton href="/sistema/campanas">← Listado de campañas</EnlaceBoton>
-        <div className="flex flex-wrap items-center gap-2">
-          <EnlaceBoton href={`/supervisar/${c.id}`}>Abrir en modo supervisor</EnlaceBoton>
-          <EnlaceBoton href="/sistema/campanas/dashboard">Dashboard de campañas</EnlaceBoton>
-        </div>
       </div>
     </div>
   );

@@ -7,7 +7,6 @@ import {
   Encabezado,
   EnlaceBoton,
   ListaClaveValor,
-  PieDePantalla,
   Reparto,
   TituloDeSeccion,
   formatearNumero,
@@ -166,11 +165,6 @@ export default async function DashboardDeUsuariosPage({
           </tbody>
         </table>
       </div>
-
-      <PieDePantalla
-        volver={{ texto: "Panel del sistema", href: "/sistema" }}
-        acciones={<EnlaceBoton href="/usuarios">Ver directorio completo</EnlaceBoton>}
-      />
     </div>
   );
 }

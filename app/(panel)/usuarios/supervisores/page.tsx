@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 
 import Subtabs from "@/components/sistema/subtabs";
-import { Aviso, Encabezado, EnlaceBoton, formatearNumero } from "@/components/sistema/ui";
+import { Encabezado, EnlaceBoton, formatearNumero } from "@/components/sistema/ui";
 import MetricCard from "@/components/sistema/MetricCard";
 import { PESTANAS_USUARIOS } from "@/lib/usuarios/dashboard";
 import {
@@ -89,12 +89,6 @@ export default async function SupervisoresPage({
           </table>
         </div>
       )}
-
-      <Aviso tono="neutro" className="mt-5">
-        Abre a un supervisor para ver qué campañas lleva y el historial de lo que ha
-        decidido. Revertir una de esas decisiones es potestad exclusiva del
-        SuperUsuario y exige motivo registrado.
-      </Aviso>
     </div>
   );
 }
