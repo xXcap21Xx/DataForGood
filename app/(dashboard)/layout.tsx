@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
 import TopBar from "@/components/layout/TopBar";
 import SidebarNav from "@/components/layout/SidebarNav";
-import { getSessionUser } from "@/lib/session";
+import VigilanteDeSesion from "@/components/layout/VigilanteDeSesion";
+import { exigirUsuario } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +10,12 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const usuario = await getSessionUser();
-
-  if (!usuario) {
-    redirect("/entrar");
-  }
+  // Sin sesión va a /entrar; una cuenta suspendida o baneada, a /cuenta-bloqueada.
+  const usuario = await exigirUsuario();
 
   return (
     <div className="min-h-screen bg-paper">
+      <VigilanteDeSesion />
       <TopBar usuario={usuario} />
       <div className="dashboard-shell flex">
         <SidebarNav usuario={usuario} />

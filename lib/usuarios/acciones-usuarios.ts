@@ -10,7 +10,7 @@ import { CODIGO_DE_ROL, type RolAsignable } from "@/lib/usuarios/rol-asignable";
 import type { TipoDeSancion } from "@/lib/usuarios/directorio";
 import { retirarComoRevisorDeTodasLasCampanas } from "@/lib/usuarios/revisor";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { STRIKES_PARA_BANEO, TIPOS_QUE_BLOQUEAN } from "@/lib/sanciones";
+import { STRIKES_PARA_BANEO, TIPOS_DE_SANCION } from "@/lib/sanciones";
 
 export type ResultadoDeAccion = { ok: true } | { ok: false; error: string };
 
@@ -167,12 +167,20 @@ export async function aplicarSancion(
     return { ok: false, error: "ID de usuario inválido." };
   }
 
-  const detalle = datos.detalle.trim();
+  // Una server action se puede invocar con cualquier dato: no basta con que
+  // el formulario solo ofrezca estas opciones.
+  if (!TIPOS_DE_SANCION.has(datos.tipo)) {
+    return { ok: false, error: "Tipo de sanción inválido." };
+  }
+  const detalle = typeof datos.detalle === "string" ? datos.detalle.trim() : "";
   if (detalle.length < 20) {
     return { ok: false, error: "El detalle debe tener al menos 20 caracteres." };
   }
-  if (datos.tipo === "SUSPENSION_TEMPORAL" && !datos.dias) {
-    return { ok: false, error: "Indica cuántos días dura la suspensión." };
+  if (
+    datos.tipo === "SUSPENSION_TEMPORAL" &&
+    !(Number.isInteger(datos.dias) && (datos.dias as number) >= 1)
+  ) {
+    return { ok: false, error: "Indica cuántos días dura la suspensión (un número entero mayor que cero)." };
   }
 
   const dias = datos.tipo === "SUSPENSION_TEMPORAL" ? datos.dias : null;
@@ -218,11 +226,9 @@ export async function aplicarSancion(
       }
     }
 
-    // Suspensión y baneo bloquean la cuenta: se cierran sus sesiones abiertas
-    // para que el bloqueo aplique ya, no hasta que la sesión caduque.
-    if (TIPOS_QUE_BLOQUEAN.has(datos.tipo) || baneoAutomatico) {
-      await client.query(`DELETE FROM sessions WHERE usuario_id = $1`, [numericId]);
-    }
+    // Suspensión y baneo no cierran sus sesiones: el bloqueo aplica ya porque
+    // getSessionUser deja de aceptarlas, y así la persona ve en la app la
+    // pantalla de cuenta bloqueada con el motivo en vez de salir a /entrar.
 
     await client.query("COMMIT");
   } catch (error) {

@@ -2,14 +2,11 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { saveUploadedFile } from "@/lib/minio";
+import { estaBaneadoDeCampana } from "@/lib/campanas/baneos";
+import { respuestasValidas, seccionesDesdeFila } from "@/lib/campanas/checklist";
 
 const ALLOWED_FILE_TYPES = new Set(["image/jpeg", "image/png"]);
 const MAX_FILE_SIZE = 10_000_000;
-
-function normalizeCaracteristicas(values: string[], allowed: string[]): string[] {
-  const allowedSet = new Set(allowed);
-  return Array.from(new Set(values.filter((value) => allowedSet.has(value))));
-}
 
 function mapAporte(row: Record<string, unknown>) {
   return {
@@ -138,19 +135,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Esta campaña no está activa" }, { status: 400 });
     }
 
-    const banResult = await pool.query(
-      `SELECT 1 FROM campana_baneados WHERE campana_id = $1 AND usuario_id = $2 LIMIT 1`,
-      [campaignId, user.id]
-    );
-    if (banResult.rowCount) {
+    if (await estaBaneadoDeCampana(campaignId, user.id)) {
       return NextResponse.json({ error: "No puedes aportar en esta campaña porque estás baneado de ella" }, { status: 403 });
     }
 
-    const campaignChecklistOpciones = Array.isArray(campaign.checklist_opciones) ? campaign.checklist_opciones : [];
-    const caracteristicas =
-      String(campaign.collection_mode ?? "checklist") === "checklist"
-        ? normalizeCaracteristicas(rawCaracteristicas, campaignChecklistOpciones)
-        : [];
+    // Solo se guardan respuestas que existen en los checklists de la campaña ("Título: opción").
+    const caracteristicas = respuestasValidas(rawCaracteristicas, seccionesDesdeFila(campaign));
 
     const existingCountResult = await pool.query(
       `SELECT COUNT(*)::int AS count FROM aportes WHERE campaign_id = $1 AND user_id = $2`,

@@ -23,6 +23,7 @@ export type AccionAuditada =
   | "supervision.tomar"
   | "supervision.dictaminar"
   | "campana.banear"
+  | "campana.desbanear"
   | "revisor.invitar"
   | "revisor.aceptar"
   | "root.acceso"

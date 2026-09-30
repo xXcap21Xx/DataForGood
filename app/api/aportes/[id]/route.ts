@@ -1,13 +1,9 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
+import { respuestasValidas, seccionesDesdeFila } from "@/lib/campanas/checklist";
 
 const ALLOWED_STATUS = new Set(["pendiente", "espera_final", "aceptado", "rechazado"]);
-
-function normalizeCaracteristicas(values: unknown[], allowed: string[]): string[] {
-  const allowedSet = new Set(allowed);
-  return Array.from(new Set(values.map(String).filter((value) => allowedSet.has(value))));
-}
 
 function mapAporte(row: Record<string, unknown>) {
   return {
@@ -30,7 +26,7 @@ function mapAporte(row: Record<string, unknown>) {
 
 async function loadAporteWithCampaign(id: string) {
   const result = await pool.query(
-    `SELECT a.*, c.creator_id AS campaign_creator_id, c.collection_mode AS campaign_collection_mode, c.checklist_opciones AS campaign_checklist_opciones
+    `SELECT a.*, c.creator_id AS campaign_creator_id, c.collection_mode AS campaign_collection_mode, c.checklist_opciones AS campaign_checklist_opciones, c.checklist_secciones AS campaign_checklist_secciones
      FROM aportes a
      JOIN campanas c ON c.id = a.campaign_id
      WHERE a.id = $1
@@ -172,11 +168,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       return NextResponse.json({ error: "La descripción no puede superar 1000 caracteres" }, { status: 400 });
     }
 
-    const campaignChecklistOpciones = Array.isArray(row.campaign_checklist_opciones) ? row.campaign_checklist_opciones : [];
-    const caracteristicas =
-      String(row.campaign_collection_mode ?? "checklist") === "checklist"
-        ? normalizeCaracteristicas(Array.isArray(body.caracteristicas) ? body.caracteristicas : [], campaignChecklistOpciones)
-        : [];
+    const secciones = seccionesDesdeFila({
+      checklist_secciones: row.campaign_checklist_secciones,
+      checklist_opciones: row.campaign_checklist_opciones,
+      collection_mode: row.campaign_collection_mode,
+    });
+    const caracteristicas = respuestasValidas(
+      Array.isArray(body.caracteristicas) ? body.caracteristicas.map(String) : [],
+      secciones
+    );
 
     const result = await pool.query(
       `UPDATE aportes SET description = $2, caracteristicas = $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING *`,

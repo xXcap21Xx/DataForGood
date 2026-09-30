@@ -60,7 +60,10 @@ export function proxy(request: NextRequest) {
   const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
 
   if (!hasSession) {
-    return NextResponse.redirect(absoluteUrl("/entrar"));
+    // Tras iniciar sesión, /entrar regresa a la pantalla que se pidió
+    // (p. ej. una campaña abierta desde /explorar).
+    const destino = encodeURIComponent(`${pathname}${request.nextUrl.search}`);
+    return NextResponse.redirect(absoluteUrl(`/entrar?next=${destino}`));
   }
 
   return NextResponse.next();

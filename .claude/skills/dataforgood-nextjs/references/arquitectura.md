@@ -27,7 +27,7 @@ Navegador ──► proxy.ts (¿hay cookie?  /api: ¿Origin propio?) ──► p
 ## 2. Flujo de una petición
 
 1. **`proxy.ts`** (antes `middleware.ts`):
-   - **Páginas:** solo mira si existe la cookie. Cubre `/campanas`, `/mis-aportes`, `/mis-campanas`, `/cuenta`, `/supervision` (cookie `session_token`; si falta, `/entrar`) y `/sistema` (cookie `root_session_token`; si falta, `/root`). **No valida el token ni el rol**, y no cubre `/revisiones`, `/usuarios` ni `/supervisar`: esas rutas dependen de sus layouts y páginas.
+   - **Páginas:** solo mira si existe la cookie. Cubre `/campanas`, `/mis-aportes`, `/mis-campanas`, `/cuenta`, `/supervision` (cookie `session_token`; si falta, `/entrar?next=<ruta pedida>`, y tras iniciar sesión, con correo o con Google, se regresa ahí; el destino también pasa por `/registro` → `/verificar` → `/bienvenida` con `conDestino()`, y se conserva si el login con Google falla; `destinoSeguro()` de `lib/redireccion.ts` solo acepta rutas internas) y `/sistema` (cookie `root_session_token`; si falta, `/root`). **No valida el token ni el rol**, y no cubre `/revisiones`, `/usuarios` ni `/supervisar`: esas rutas dependen de sus layouts y páginas.
    - **`/api`:** rechaza las mutaciones con `Origin` ajeno (CSRF, ver `roles-y-sesiones.md`).
 2. **Layout del grupo:** `(panel)/layout.tsx` llama a `hasRootSession()`; `(dashboard)/supervision/layout.tsx` exige rol `supervisor`.
 3. **Página o handler:** vuelve a verificar. Los layouts no bastan porque no se vuelven a ejecutar en cada navegación cliente y no protegen los route handlers ni las server actions.

@@ -82,11 +82,15 @@ export default async function DirectorioPage({
                         <p className="font-bold text-ink">{u.nombre}</p>
                         <p className="font-mono text-[11px] text-ink-3">{u.correo}</p>
                       </td>
-                      <td className="text-ink-2">
-                        {u.rol}
-                        {u.rolDetalle ? (
-                          <span className="text-ink-3"> {u.rolDetalle}</span>
-                        ) : null}
+                      <td>
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {u.roles.map((rol) => (
+                            <Tag key={rol}>{rol}</Tag>
+                          ))}
+                          {u.rolDetalle ? (
+                            <span className="text-[12.5px] text-ink-3">{u.rolDetalle}</span>
+                          ) : null}
+                        </div>
                       </td>
                       <td>
                         <Tag tone={estado.tono}>

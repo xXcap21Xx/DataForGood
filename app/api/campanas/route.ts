@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
+import { idsDeCampanasConBaneo } from "@/lib/campanas/baneos";
+import { normalizarSecciones, seccionesDesdeFila } from "@/lib/campanas/checklist";
 import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
 async function obtenerIdsGuardados(usuarioId: number): Promise<Set<number>> {
@@ -34,11 +36,6 @@ function normalizeCampaignStatus(input: unknown): string {
   ]);
 
   return allowed.has(value) ? value : "borrador";
-}
-
-function normalizeCollectionMode(input: unknown): string {
-  const value = String(input ?? "checklist").trim().toLowerCase();
-  return value === "texto_libre" ? "texto_libre" : "checklist";
 }
 
 function normalizeChecklistOpciones(input: unknown): string[] {
@@ -82,6 +79,7 @@ function mapCampaign(row: Record<string, unknown>) {
     dataTypes,
     collectionMode: String(row.collection_mode ?? "checklist"),
     checklistOpciones,
+    checklistSecciones: seccionesDesdeFila(row),
     goalContributions: Number(row.goal_contributions ?? 0),
     quotaPerUser: Number(row.quota_per_user ?? 0),
     currentContributions: Number(row.current_contributions ?? 0),
@@ -127,10 +125,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
     }
 
-    const savedIds = user ? await obtenerIdsGuardados(user.id) : new Set<number>();
+    const [savedIds, bannedIds] = user
+      ? await Promise.all([obtenerIdsGuardados(user.id), idsDeCampanasConBaneo(user.id)])
+      : [new Set<number>(), new Set<number>()];
     const conIsSaved = (row: Record<string, unknown>) => ({
       ...mapCampaign(row),
       isSaved: savedIds.has(Number(row.id)),
+      // Su creador lo baneó: las listas la marcan y no la ofrecen para aportar.
+      isBanned: bannedIds.has(Number(row.id)),
     });
 
     if (supervised) {
@@ -162,6 +164,8 @@ export async function GET(request: Request) {
         viewer: {
           isCreator: user ? campaign.creatorId === String(user.id) : false,
           isMySupervision: user ? campaign.supervisorId === String(user.id) : false,
+          // Baneado de esta campaña por su creador: la pantalla avisa antes de que intente aportar.
+          baneado: campaign.isBanned,
         },
       });
     }
@@ -169,7 +173,13 @@ export async function GET(request: Request) {
     const result = mine
       ? await pool.query(`SELECT * FROM campanas WHERE creator_id = $1 ORDER BY created_at DESC`, [user!.id])
       : available
-        ? await pool.query(`SELECT * FROM campanas WHERE creator_id <> $1 AND status = 'activa' ORDER BY created_at DESC`, [user!.id])
+        ? await pool.query(
+            `SELECT * FROM campanas
+             WHERE creator_id <> $1 AND status = 'activa'
+               AND NOT EXISTS (SELECT 1 FROM campana_baneados b WHERE b.campana_id = campanas.id AND b.usuario_id = $1)
+             ORDER BY created_at DESC`,
+            [user!.id],
+          )
         : misAportes
           ? await pool.query(
               `SELECT campanas.*,
@@ -227,11 +237,22 @@ export async function POST(request: Request) {
 
     const dataTypes = normalizeDataTypes(body.dataTypes ?? body.data_types ?? []);
     const status = normalizeCampaignStatus(body.status ?? "activa");
-    const collectionMode = normalizeCollectionMode(body.collectionMode ?? body.collection_mode);
-    const checklistOpciones =
-      collectionMode === "checklist"
-        ? normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones ?? [])
-        : [];
+    // Checklists con título (la descripción del aporte siempre es obligatoria:
+    // es el texto libre). Un cliente viejo que manda la lista plana
+    // checklistOpciones la guarda como un solo checklist titulado "Checklist".
+    const seccionesEnviadas =
+      body.checklistSecciones ?? body.checklist_secciones ??
+      (Array.isArray(body.checklistOpciones ?? body.checklist_opciones)
+        ? [{ titulo: "Checklist", opciones: normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones) }]
+        : []);
+    const secciones = normalizarSecciones(seccionesEnviadas);
+    if (!secciones.ok) {
+      return NextResponse.json({ error: secciones.error }, { status: 400 });
+    }
+    const checklistSecciones = secciones.secciones;
+    // Columnas anteriores a las secciones: se dejan coherentes para quien aún las lea.
+    const collectionMode = checklistSecciones.length > 0 ? "checklist" : "texto_libre";
+    const checklistOpciones: string[] = [];
 
     const goalContributions = Number(body.goalContributions ?? body.goal_contributions ?? 0);
     const quotaPerUser = Number(body.quotaPerUser ?? body.quota_per_user ?? 1);
@@ -268,9 +289,6 @@ export async function POST(request: Request) {
       }
       if (!quotaPerUser || quotaPerUser <= 0) {
         return NextResponse.json({ error: "La cuota por persona debe ser mayor a 0" }, { status: 400 });
-      }
-      if (collectionMode === "checklist" && checklistOpciones.length === 0) {
-        return NextResponse.json({ error: "Agrega al menos una opción al checklist" }, { status: 400 });
       }
       if (!startDate) {
         return NextResponse.json({ error: "La fecha de inicio es obligatoria" }, { status: 400 });
@@ -324,10 +342,11 @@ export async function POST(request: Request) {
         share_token_expires_at,
         aportes,
         start_time,
-        end_time
+        end_time,
+        checklist_secciones
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7, $8::jsonb, $9, $10::jsonb, $11, $12, $13, $14, $15,
-        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::jsonb, $31, $32
+        $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30::jsonb, $31, $32, $33::jsonb
       ) RETURNING *`,
       [
         creatorId,
@@ -362,6 +381,7 @@ export async function POST(request: Request) {
         JSON.stringify(aportes),
         startTime,
         endTime,
+        JSON.stringify(checklistSecciones),
       ]
     );
 

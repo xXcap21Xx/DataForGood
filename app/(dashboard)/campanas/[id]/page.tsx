@@ -13,6 +13,7 @@ export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [isCreator, setIsCreator] = useState(false);
+  const [baneado, setBaneado] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [guardando, setGuardando] = useState(false);
@@ -26,6 +27,7 @@ export default function CampaignDetailPage() {
         if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar la campaña");
         setCampaign(payload.data as Campaign);
         setIsCreator(Boolean(payload.viewer?.isCreator));
+        setBaneado(Boolean(payload.viewer?.baneado));
         setSaved(Boolean((payload.data as Campaign)?.isSaved));
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "No se pudo cargar la campaña");
@@ -159,6 +161,10 @@ export default function CampaignDetailPage() {
 
           {isCreator ? (
             <p className="rounded-lg bg-sunken p-3 text-center text-[12.5px] text-ink-2">Creaste esta campaña, por lo que no puedes aportar en ella.</p>
+          ) : baneado ? (
+            <p className="rounded-lg bg-danger-tint p-3 text-center text-[12.5px] text-danger">
+              Quien creó esta campaña te retiró la posibilidad de aportar en ella.
+            </p>
           ) : campaign.status === "activa" ? (
             <Link href={`/campanas/${campaign.id}/aportar`}>
               <Button variant="primary" className="w-full">Realizar un aporte</Button>

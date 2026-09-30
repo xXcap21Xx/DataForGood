@@ -4,12 +4,15 @@ import { pool } from "@/lib/db";
 import { createSession } from "@/lib/session";
 import { exchangeCodeForProfile } from "@/lib/google";
 import { absoluteUrl } from "@/lib/app-url";
-import { obtenerBloqueo } from "@/lib/sanciones";
+import { conDestino, destinoSeguro } from "@/lib/redireccion";
 
 const STATE_COOKIE = "google_oauth_state";
+const NEXT_COOKIE = "google_oauth_next";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  // Si algo falla, /entrar conserva el destino para reintentar (lib/redireccion.ts).
+  let destino: string | undefined;
 
   try {
     const code = url.searchParams.get("code");
@@ -18,9 +21,11 @@ export async function GET(request: Request) {
     const cookieStore = await cookies();
     const expectedState = cookieStore.get(STATE_COOKIE)?.value;
     cookieStore.delete(STATE_COOKIE);
+    destino = destinoSeguro(cookieStore.get(NEXT_COOKIE)?.value);
+    cookieStore.delete(NEXT_COOKIE);
 
     if (!code || !state || !expectedState || state !== expectedState) {
-      return NextResponse.redirect(absoluteUrl("/entrar?error=google"));
+      return NextResponse.redirect(absoluteUrl(conDestino("/entrar?error=google", destino)));
     }
 
     const profile = await exchangeCodeForProfile(code);
@@ -49,15 +54,13 @@ export async function GET(request: Request) {
       usuarioId = inserted.rows[0].id;
     }
 
-    if (await obtenerBloqueo(usuarioId)) {
-      return NextResponse.redirect(absoluteUrl("/entrar?error=bloqueada"));
-    }
-
+    // Una cuenta bloqueada también entra: al llegar a la app la mandan a
+    // /cuenta-bloqueada, donde ve el motivo (exigirUsuario en lib/session.ts).
     await createSession(usuarioId);
 
-    return NextResponse.redirect(absoluteUrl("/campanas"));
+    return NextResponse.redirect(absoluteUrl(destino));
   } catch (error) {
     console.error(error);
-    return NextResponse.redirect(absoluteUrl("/entrar?error=google"));
+    return NextResponse.redirect(absoluteUrl(conDestino("/entrar?error=google", destino)));
   }
 }

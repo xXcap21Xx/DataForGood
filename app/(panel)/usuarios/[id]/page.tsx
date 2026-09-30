@@ -14,6 +14,7 @@ import {
   formatearNumero,
 } from "@/components/sistema/ui";
 import { formatearFecha, obtenerUsuario } from "@/lib/usuarios/directorio";
+import { baneosDeUsuario } from "@/lib/campanas/baneos";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,8 @@ export default async function FichaDeUsuarioPage({
   const { id } = await params;
   const u = await obtenerUsuario(id);
   if (!u) notFound();
+  // Baneos que le pusieron los creadores de campañas (distintos de las sanciones de cuenta).
+  const baneosEnCampanas = await baneosDeUsuario(u.id);
 
   const baneado = u.estado === "BANEADA";
   const alLimite = u.strikes >= 2;
@@ -100,6 +103,36 @@ export default async function FichaDeUsuarioPage({
               Un strike más activa el baneo permanente.
             </Aviso>
           ) : null}
+
+          <div className="mt-6">
+            <TituloDeSeccion>Baneos en campañas</TituloDeSeccion>
+            {baneosEnCampanas.length === 0 ? (
+              <p className="text-[13px] text-ink-2">No está baneado de ninguna campaña.</p>
+            ) : (
+              <Tarjeta tenue>
+                <ListaClaveValor
+                  filas={baneosEnCampanas.map((b) => ({
+                    clave: (
+                      <span>
+                        <Link href={`/sistema/campanas/${b.campanaId}`} className="font-semibold text-ink hover:underline">
+                          {b.campana}
+                        </Link>
+                        <span className="block text-[12.5px] text-ink-2">{b.motivo}</span>
+                      </span>
+                    ),
+                    valor: (
+                      <span className="text-[12.5px] text-ink-3">
+                        {formatearFecha(b.baneadoEn)} · {b.baneadoPor}
+                      </span>
+                    ),
+                  }))}
+                />
+              </Tarjeta>
+            )}
+            <p className="mt-2 text-[12px] text-ink-3">
+              Los aplica y los quita quien creó cada campaña; solo impiden aportar a esa campaña.
+            </p>
+          </div>
         </section>
       </div>
     </div>

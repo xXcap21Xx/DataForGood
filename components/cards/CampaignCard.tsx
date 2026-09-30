@@ -34,7 +34,11 @@ export default function CampaignCard({ campaign }: { campaign: Campaign }) {
     <Card className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <Tag tone="ok">{campaign.tag}</Tag>
-        <Tag>{isActive ? "● Activa" : campaign.status === "en_revision" ? "◦ Próxima" : campaign.status}</Tag>
+        {campaign.isBanned ? (
+          <Tag tone="danger">Baneado</Tag>
+        ) : (
+          <Tag>{isActive ? "● Activa" : campaign.status === "en_revision" ? "◦ Próxima" : campaign.status}</Tag>
+        )}
       </div>
 
       <div>

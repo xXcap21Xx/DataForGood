@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import { BASE_PATH } from "@/lib/base-path";
+import { conDestino } from "@/lib/redireccion";
 
 interface Rule {
   label: string;
@@ -43,7 +44,17 @@ function GoogleLogo() {
 }
 
 export default function RegistroPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegistroForm />
+    </Suspense>
+  );
+}
+
+function RegistroForm() {
   const router = useRouter();
+  // Pantalla a la que volver al terminar el registro (?next=, ver lib/redireccion.ts).
+  const next = useSearchParams().get("next");
   const [nombre, setNombre] = useState("");
   const [apellidos, setApellidos] = useState("");
   const [email, setEmail] = useState("");
@@ -93,7 +104,7 @@ export default function RegistroPage() {
         return;
       }
 
-      router.push("/verificar");
+      router.push(conDestino("/verificar", next));
     } catch (error) {
       setServerError("No se pudo conectar con el servicio de usuarios");
     } finally {
@@ -218,7 +229,7 @@ export default function RegistroPage() {
           type="button"
           className="mt-3 w-full"
           onClick={() => {
-            window.location.href = `${BASE_PATH}/api/auth/google`;
+            window.location.href = `${BASE_PATH}${conDestino("/api/auth/google", next)}`;
           }}
         >
           <GoogleLogo />
@@ -228,7 +239,7 @@ export default function RegistroPage() {
 
       <p className="mt-6 text-center text-[13px] text-ink-2">
         ¿Ya tienes cuenta?{" "}
-        <Link href="/entrar" className="font-medium text-accent hover:underline">
+        <Link href={conDestino("/entrar", next)} className="font-medium text-accent hover:underline">
           Inicia sesión
         </Link>
       </p>

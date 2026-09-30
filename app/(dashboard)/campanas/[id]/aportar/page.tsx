@@ -6,12 +6,14 @@ import { Field, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import type { Campaign } from "@/types";
 import { BASE_PATH } from "@/lib/base-path";
+import { etiquetaDeRespuesta } from "@/lib/campanas/checklist";
 
 export default function AportarPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [isCreator, setIsCreator] = useState(false);
+  const [baneado, setBaneado] = useState(false);
   const [submittedCount, setSubmittedCount] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -33,6 +35,7 @@ export default function AportarPage() {
         if (!campaignRes.ok) throw new Error(campaignPayload.error ?? "No se pudo cargar la campaña");
         setCampaign(campaignPayload.data as Campaign);
         setIsCreator(Boolean(campaignPayload.viewer?.isCreator));
+        setBaneado(Boolean(campaignPayload.viewer?.baneado));
 
         const aportesPayload = await aportesRes.json().catch(() => ({}));
         if (aportesRes.ok) setSubmittedCount(Array.isArray(aportesPayload.data) ? aportesPayload.data.length : 0);
@@ -46,9 +49,12 @@ export default function AportarPage() {
   if (loadError) return <p className="text-sm text-danger">{loadError}</p>;
   if (!campaign) return <p className="text-sm text-ink-2">Cargando campaña...</p>;
   if (isCreator) return <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">No puedes aportar en una campaña que creaste.</p>;
+  // El servidor también lo rechaza (POST /api/aportes); esto evita llenar el formulario en balde.
+  if (baneado) return <p className="rounded-lg bg-danger-tint p-4 text-sm text-danger">Quien creó esta campaña te retiró la posibilidad de aportar en ella.</p>;
 
   const quotaReached = submittedCount >= campaign.quotaPerUser;
-  const checklistOpciones = campaign.collectionMode === "texto_libre" ? [] : (campaign.checklistOpciones ?? []);
+  // La API ya convierte las campañas viejas (lista plana) en un checklist sin título.
+  const checklists = campaign.checklistSecciones ?? [];
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = e.target.files?.[0];
@@ -152,23 +158,27 @@ export default function AportarPage() {
             {description.length} / 1000
           </p>
 
-          {checklistOpciones.length > 0 && (
-            <>
-              <p className="mb-2 text-[13px] font-medium text-ink">Marca lo que aplique</p>
-              <div className="mb-5 rounded-lg border border-line bg-surface p-3.5">
-                {checklistOpciones.map((opcion) => (
+          {checklists.map((checklist, i) => (
+            <fieldset key={checklist.titulo || i} className="mb-4 rounded-lg border border-line bg-surface p-3.5">
+              <legend className="px-1 text-[13px] font-medium text-ink">
+                {checklist.titulo || "Marca lo que aplique"}
+              </legend>
+              {checklist.opciones.map((opcion) => {
+                // Se guarda como "Título: opción" para saber a qué checklist pertenece.
+                const valor = etiquetaDeRespuesta(checklist.titulo, opcion);
+                return (
                   <label key={opcion} className="mb-2 flex items-center gap-2 text-[12.5px] text-ink-2 last:mb-0">
                     <input
                       type="checkbox"
-                      checked={caracteristicas.includes(opcion)}
-                      onChange={() => toggleCaracteristica(opcion)}
+                      checked={caracteristicas.includes(valor)}
+                      onChange={() => toggleCaracteristica(valor)}
                     />
                     {opcion}
                   </label>
-                ))}
-              </div>
-            </>
-          )}
+                );
+              })}
+            </fieldset>
+          ))}
 
           {submitError && <p className="mb-3 rounded border border-danger bg-danger-tint p-2 text-[12px] text-danger">{submitError}</p>}
 

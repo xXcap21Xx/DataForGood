@@ -7,6 +7,7 @@ import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import type { Campaign, Contribution } from "@/types";
 import { BASE_PATH } from "@/lib/base-path";
+import BaneadosDeCampana from "./baneados";
 
 const STAGE_LABEL: Record<string, string> = {
   pendiente: "Sin revisar",
@@ -139,6 +140,8 @@ export default function BandejaAportesPage() {
           filtran en primera instancia también aparecen aquí.
         </div>
       )}
+
+      <BaneadosDeCampana campaignId={campaign.id} />
     </div>
   );
 }

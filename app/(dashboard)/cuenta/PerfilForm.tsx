@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import SelectorDeTemas from "@/components/ui/SelectorDeTemas";
 import { TEMAS_DE_INTERES } from "@/lib/intereses";
 import { ESPECIALIDADES, OTRA_ESPECIALIDAD, opcionesCon } from "@/lib/perfil-opciones";
 import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
@@ -33,10 +34,6 @@ export default function PerfilForm({ usuario, children }: { usuario: Usuario; ch
   const [intereses, setIntereses] = useState<string[]>(usuario.intereses);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
-
-  function alternarInteres(tema: string) {
-    setIntereses((prev) => (prev.includes(tema) ? prev.filter((t) => t !== tema) : [...prev, tema]));
-  }
 
   function cambiarEstado(nuevoEstado: string) {
     setState(nuevoEstado);
@@ -179,28 +176,17 @@ export default function PerfilForm({ usuario, children }: { usuario: Usuario; ch
           <h2 className="mt-1 text-lg font-extrabold text-ink">Temáticas que guían tus aportes</h2>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {TEMAS_DE_INTERES.map((tema) => {
-            const activo = intereses.includes(tema);
-            return (
-              <button
-                key={tema}
-                type="button"
-                onClick={() => alternarInteres(tema)}
-                className={`inline-flex items-center gap-2 rounded-pill border px-4 py-2 text-[12px] font-bold transition-colors ${
-                  activo
-                    ? "border-accent bg-accent text-white"
-                    : "border-line-2 bg-surface text-ink-2 hover:border-accent"
-                }`}
-              >
-                {tema}
-                {activo && <span className="font-mono text-[11px]">×</span>}
-              </button>
-            );
-          })}
-        </div>
+        {/* Solo las elegidas; las demás se agregan desde la ventana. Un interés
+            guardado que ya no esté en la lista se conserva como opción. */}
+        <SelectorDeTemas
+          opciones={[...TEMAS_DE_INTERES, ...intereses.filter((t) => !TEMAS_DE_INTERES.includes(t))]}
+          seleccionados={intereses}
+          onAceptar={setIntereses}
+          quitables
+        />
         <p className="mt-3 text-[12.5px] text-ink-2">
-          Determinan qué campañas aparecen en “Sugeridas para ti”.
+          Determinan qué campañas aparecen en “Sugeridas para ti”. Los cambios se aplican al dar
+          “Guardar cambios”.
         </p>
       </section>
 

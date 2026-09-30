@@ -6,21 +6,22 @@ import Link from "next/link";
 import { Field, Input, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
-import type { Campaign, CollectionMode, DataType } from "@/types";
+import type { Campaign, DataType } from "@/types";
 import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
 import { opcionesCon } from "@/lib/perfil-opciones";
+import { TEMAS_DE_INTERES } from "@/lib/intereses";
 import { BASE_PATH } from "@/lib/base-path";
+import { MAX_LARGO_TEXTO } from "@/lib/campanas/checklist";
 
-const DEFAULT_CHECKLIST_OPCIONES = ["Especie del árbol", "Estado de salud aparente"];
+/** Un checklist en edición; `clave` solo sirve como key de React. */
+type ChecklistEditable = { clave: number; titulo: string; opciones: string[]; nuevaOpcion: string };
+let siguienteClave = 0;
+function nuevoChecklist(titulo = "", opciones: string[] = []): ChecklistEditable {
+  return { clave: siguienteClave++, titulo, opciones, nuevaOpcion: "" };
+}
 
-const THEMES = [
-  "Medio ambiente",
-  "Salud urbana",
-  "Educación",
-  "Infraestructura",
-  "Protección animal",
-  "Movilidad",
-];
+// Las temáticas de campaña son los mismos temas de interés del perfil.
+const THEMES = TEMAS_DE_INTERES;
 
 const DATA_TYPES: { value: DataType; label: string }[] = [
   { value: "texto", label: "Texto" },
@@ -118,13 +119,11 @@ function CampanaFormulario({
   const [description, setDescription] = useState(editingCampaign?.description ?? "");
   const [theme, setTheme] = useState(editingCampaign?.tag || THEMES[0]);
   const [dataTypes, setDataTypes] = useState<DataType[]>(editingCampaign?.dataTypes ?? ["foto"]);
-  const [collectionMode, setCollectionMode] = useState<CollectionMode>(
-    editingCampaign?.collectionMode ?? "checklist"
+  // Sin ejemplos: una campaña nueva empieza sin checklists. Los de campañas
+  // viejas (lista plana, sin título) se titulan "Checklist" para poder guardarlos.
+  const [checklists, setChecklists] = useState<ChecklistEditable[]>(() =>
+    (editingCampaign?.checklistSecciones ?? []).map((s) => nuevoChecklist(s.titulo || "Checklist", s.opciones))
   );
-  const [checklistOpciones, setChecklistOpciones] = useState<string[]>(
-    editingCampaign?.checklistOpciones ?? DEFAULT_CHECKLIST_OPCIONES
-  );
-  const [newOpcion, setNewOpcion] = useState("");
   const [goal, setGoal] = useState(String(editingCampaign?.goalContributions ?? 500));
   const [quota, setQuota] = useState(String(editingCampaign?.quotaPerUser ?? 10));
   const [startDate, setStartDate] = useState(editingCampaign?.startDate ?? "");
@@ -193,15 +192,37 @@ function CampanaFormulario({
     );
   }
 
-  function addChecklistOpcion() {
-    const value = newOpcion.trim();
-    if (!value || checklistOpciones.includes(value)) return;
-    setChecklistOpciones((prev) => [...prev, value]);
-    setNewOpcion("");
+  function cambiarChecklist(clave: number, cambios: Partial<ChecklistEditable>) {
+    setChecklists((prev) => prev.map((c) => (c.clave === clave ? { ...c, ...cambios } : c)));
   }
 
-  function removeChecklistOpcion(value: string) {
-    setChecklistOpciones((prev) => prev.filter((item) => item !== value));
+  function agregarOpcion(clave: number) {
+    setChecklists((prev) =>
+      prev.map((c) => {
+        const valor = c.nuevaOpcion.trim();
+        if (c.clave !== clave || !valor || c.opciones.includes(valor)) return c;
+        return { ...c, opciones: [...c.opciones, valor], nuevaOpcion: "" };
+      })
+    );
+  }
+
+  function quitarOpcion(clave: number, opcion: string) {
+    setChecklists((prev) =>
+      prev.map((c) => (c.clave === clave ? { ...c, opciones: c.opciones.filter((o) => o !== opcion) } : c))
+    );
+  }
+
+  function validarChecklists(): string | null {
+    const titulos = new Set<string>();
+    for (const [i, c] of checklists.entries()) {
+      const titulo = c.titulo.trim();
+      const nombre = titulo ? `"${titulo}"` : `número ${i + 1}`;
+      if (!titulo) return `El checklist ${nombre} necesita un título`;
+      if (c.opciones.length === 0) return `El checklist ${nombre} no tiene opciones`;
+      if (titulos.has(titulo.toLowerCase())) return `Hay dos checklists con el título ${nombre}`;
+      titulos.add(titulo.toLowerCase());
+    }
+    return null;
   }
 
   if (soloLectura) {
@@ -282,6 +303,9 @@ function CampanaFormulario({
       return null;
     }
 
+    const errorDeChecklist = validarChecklists();
+    if (errorDeChecklist) return errorDeChecklist;
+
     if (asDraft) return null;
 
     if (!name.trim()) return "Falta el nombre de la campaña";
@@ -289,9 +313,6 @@ function CampanaFormulario({
     if (dataTypes.length === 0) return "Selecciona al menos un tipo de dato";
     if (!goal || Number(goal) <= 0) return "La meta de aportes debe ser mayor a 0";
     if (!quota || Number(quota) <= 0) return "La cuota por persona debe ser mayor a 0";
-    if (collectionMode === "checklist" && checklistOpciones.length === 0) {
-      return "Agrega al menos una opción al checklist";
-    }
     if (!startDate) return "Falta la fecha de inicio";
     if (!endDate) return "Falta la fecha de finalización";
     if (endDate < startDate) return "La fecha de finalización no puede ser anterior a la de inicio";
@@ -328,8 +349,7 @@ function CampanaFormulario({
           tag: theme,
           status: asDraft ? "borrador" : "en_revision",
           dataTypes,
-          collectionMode,
-          checklistOpciones: collectionMode === "checklist" ? checklistOpciones : [],
+          checklistSecciones: checklists.map((c) => ({ titulo: c.titulo.trim(), opciones: c.opciones })),
           goalContributions: Number(goal),
           quotaPerUser: Number(quota),
           startDate,
@@ -445,7 +465,8 @@ function CampanaFormulario({
               Temática <span className="text-danger">*</span>
             </p>
             <div className="mb-1 flex flex-wrap gap-2">
-              {THEMES.map((t) => (
+              {/* opcionesCon conserva la temática de una campaña vieja aunque ya no esté en la lista. */}
+              {opcionesCon(theme, THEMES).map((t) => (
                 <button
                   key={t}
                   type="button"
@@ -536,73 +557,94 @@ function CampanaFormulario({
           </div>
 
           <div>
-            <p className="mb-1.5 text-[13px] font-medium text-ink">
+            <p className="mb-1 text-[13px] font-medium text-ink">
               Cómo describe su aporte el participante
             </p>
-            <div className="mb-2.5 flex gap-2">
-              {(["checklist", "texto_libre"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  disabled={edicionLimitada}
-                  onClick={() => setCollectionMode(mode)}
-                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    collectionMode === mode
-                      ? "border-accent bg-accent text-white"
-                      : "border-line-2 bg-surface text-ink-2 hover:border-accent"
-                  }`}
-                >
-                  {mode === "checklist" ? "Checklist" : "Texto libre"}
-                </button>
-              ))}
-            </div>
-            {collectionMode === "checklist" && (
-              <div className="rounded-lg border border-line bg-surface p-3.5">
-                {checklistOpciones.length === 0 && (
-                  <p className="mb-2 text-[12px] text-ink-3">Aún no agregas ninguna opción.</p>
+            <p className="mb-2.5 text-[12px] text-ink-3">
+              Siempre escribe una descripción con sus palabras. Además puedes agregar
+              checklists con título para que marque lo que aplique: los que necesites, o ninguno.
+            </p>
+
+            {checklists.map((c, i) => (
+              <div key={c.clave} className="mb-3 rounded-lg border border-line bg-surface p-3.5">
+                <div className="mb-2.5 flex items-center gap-2">
+                  <input
+                    type="text"
+                    value={c.titulo}
+                    onChange={(e) => cambiarChecklist(c.clave, { titulo: e.target.value })}
+                    maxLength={MAX_LARGO_TEXTO}
+                    placeholder="Título del checklist, p. ej. Estado del árbol"
+                    aria-label={`Título del checklist ${i + 1}`}
+                    disabled={edicionLimitada}
+                    className="w-full rounded border border-line-2 bg-surface px-3 py-2 text-[13px] font-semibold text-ink outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
+                  />
+                  <button
+                    type="button"
+                    disabled={edicionLimitada}
+                    onClick={() => setChecklists((prev) => prev.filter((x) => x.clave !== c.clave))}
+                    className="whitespace-nowrap text-[11.5px] font-medium text-danger disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    Quitar checklist
+                  </button>
+                </div>
+
+                {c.opciones.length === 0 && (
+                  <p className="mb-2 text-[12px] text-ink-3">Aún no agregas opciones a este checklist.</p>
                 )}
-                {checklistOpciones.map((opcion) => (
+                {c.opciones.map((opcion) => (
                   <div key={opcion} className="mb-2 flex items-center justify-between gap-2 text-[12.5px] text-ink-2">
-                    <label className="flex items-center gap-2">
-                      <input type="checkbox" defaultChecked readOnly /> {opcion}
-                    </label>
+                    <span className="flex items-center gap-2">
+                      <span className="inline-block h-3.5 w-3.5 rounded-sm border border-line-2" aria-hidden />
+                      {opcion}
+                    </span>
                     <button
                       type="button"
                       disabled={edicionLimitada}
-                      onClick={() => removeChecklistOpcion(opcion)}
+                      onClick={() => quitarOpcion(c.clave, opcion)}
                       className="text-[11.5px] font-medium text-danger disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       Quitar
                     </button>
                   </div>
                 ))}
+
                 <div className="mt-2 flex gap-2">
                   <input
                     type="text"
-                    value={newOpcion}
-                    onChange={(e) => setNewOpcion(e.target.value)}
+                    value={c.nuevaOpcion}
+                    onChange={(e) => cambiarChecklist(c.clave, { nuevaOpcion: e.target.value })}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         e.preventDefault();
-                        addChecklistOpcion();
+                        agregarOpcion(c.clave);
                       }
                     }}
-                    maxLength={120}
-                    placeholder="Nueva opción del checklist"
+                    maxLength={MAX_LARGO_TEXTO}
+                    placeholder="Nueva opción"
+                    aria-label={`Nueva opción del checklist ${c.titulo || i + 1}`}
                     disabled={edicionLimitada}
                     className="w-full rounded border border-line-2 bg-surface px-3 py-2 text-[12.5px] text-ink outline-none focus:border-accent disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <button
                     type="button"
-                    onClick={addChecklistOpcion}
-                    disabled={!newOpcion.trim() || edicionLimitada}
+                    onClick={() => agregarOpcion(c.clave)}
+                    disabled={!c.nuevaOpcion.trim() || edicionLimitada}
                     className="whitespace-nowrap text-[12.5px] font-medium text-accent disabled:opacity-40"
                   >
                     + Agregar opción
                   </button>
                 </div>
               </div>
-            )}
+            ))}
+
+            <Button
+              type="button"
+              size="sm"
+              disabled={edicionLimitada}
+              onClick={() => setChecklists((prev) => [...prev, nuevoChecklist()])}
+            >
+              + Agregar checklist
+            </Button>
           </div>
         </div>
 

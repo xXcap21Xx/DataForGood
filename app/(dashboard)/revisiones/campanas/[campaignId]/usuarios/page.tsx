@@ -1,12 +1,11 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { pool } from "@/lib/db";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 
 export default async function ReviewerUsersPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
-  const reviewer = await getSessionUser();
-  if (!reviewer) redirect("/entrar");
+  const reviewer = await exigirUsuario();
   const campaignResult = await pool.query(`SELECT c.id, c.name FROM campanas c JOIN campana_revisores cr ON cr.campana_id = c.id WHERE c.id = $1 AND cr.usuario_id = $2 AND cr.estado = 'aceptado' LIMIT 1`, [campaignId, reviewer.id]);
   if (campaignResult.rowCount === 0) notFound();
   const users = await pool.query(`SELECT a.user_id AS id, MAX(a.participant_name) AS name, MAX(a.participant_email) AS email, COUNT(*)::int AS contributions, MAX(a.reviewed_at) AS last_reviewed FROM aportes a WHERE a.campaign_id = $1 AND a.first_pass_by_user_id = $2 AND a.status = 'aceptado' AND a.user_id IS NOT NULL GROUP BY a.user_id ORDER BY MAX(a.reviewed_at) DESC`, [campaignId, reviewer.id]);

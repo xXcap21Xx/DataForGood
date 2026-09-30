@@ -50,7 +50,10 @@ export interface Campaign {
   status: CampaignStatus;
   dataTypes: DataType[];
   collectionMode?: CollectionMode;
+  /** Solo lectura de campañas viejas: hoy se usa checklistSecciones. */
   checklistOpciones?: string[];
+  /** Checklists con título que el participante marca, además de la descripción obligatoria. */
+  checklistSecciones?: { titulo: string; opciones: string[] }[];
   goalContributions: number;
   quotaPerUser: number;
   currentContributions: number;
@@ -75,6 +78,8 @@ export interface Campaign {
   contributions?: Contribution[];
   /** Si el usuario en sesión la guardó. Ausente cuando no hay sesión. */
   isSaved?: boolean;
+  /** El creador baneó de esta campaña a quien consulta (GET /api/campanas). */
+  isBanned?: boolean;
   /** Aportes del usuario en sesión a esta campaña. Solo viene en /api/campanas?misAportes=true. */
   myContributionsCount?: number;
 }

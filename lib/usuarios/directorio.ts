@@ -1,6 +1,7 @@
 import { pool } from "@/lib/db";
 import {
   nombreDeRolPrincipal,
+  nombresDeRoles,
   rolesVigentesDesde,
   type RolAsignable,
 } from "@/lib/usuarios/rol-asignable";
@@ -18,6 +19,8 @@ export type FilaDeUsuario = {
   nombre: string;
   correo: string;
   rol: string;
+  /** Los mismos roles, uno por etiqueta (la tabla del directorio los pinta como Tag). */
+  roles: string[];
   /** Aclaración bajo el rol, p. ej. "(y creador de campañas)". */
   rolDetalle?: string;
   estado: EstadoDeCuenta;
@@ -170,6 +173,7 @@ function filaDesdeDB(row: FilaUsuarioDB): FilaDeUsuario {
     nombre: `${row.nombre} ${row.apellidos}`.trim(),
     correo: row.email,
     rol: nombreDeRolPrincipal(roles),
+    roles: nombresDeRoles(roles),
     estado: estadoDesdeSanciones(strikes, Boolean(row.suspendida), Boolean(row.baneada)),
     strikes,
   };

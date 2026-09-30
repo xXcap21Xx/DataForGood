@@ -19,8 +19,8 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
 | Documentación de la API | `/api/docs` (Swagger UI de `openapi.yaml`) | Abierta en `next dev`; sesión raíz en producción |
-| Pública | `/`, `/datos`, `/datos/[id]`, `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
-| Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario) | Libre |
+| Pública | `/`, `/explorar` (campañas activas), `/datos`, `/datos/[id]`, `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
+| Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario); `/cuenta-bloqueada` (fuera del grupo: cuenta suspendida o baneada) | Libre |
 | Participar, `(dashboard)` | `/campanas`, `/campanas/[id]`, `/campanas/[id]/aportar`, `/mis-aportes`, `/mis-aportes/[campanaId]`, `/cuenta` | Sesión de usuario |
 | Administrar campañas propias | `/mis-campanas`, `/mis-campanas/nueva` (`?edit=id`), `/mis-campanas/[id]/{panel, aportes, aportes/[aporteId], aportes/agregar-revisor, compartir, especial}` | Creador |
 | Revisión de aportes | `/revisiones`, `/revisiones/finalizadas`, `/revisiones/[aporteId]`, `/revisiones/campanas/[campaignId]/usuarios/...` | Revisor aceptado de la campaña |

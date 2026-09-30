@@ -4,7 +4,6 @@ import { createSession } from "@/lib/session";
 import { verifyPassword, hashPassword, wasLegacyHash } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
-import { mensajeDeBloqueo, obtenerBloqueo } from "@/lib/sanciones";
 
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 1000 * 60 * 15; // 15 minutos
@@ -91,12 +90,9 @@ export async function POST(request: Request) {
       [usuario.id]
     );
 
-    // Se revisa después de validar la contraseña, para no revelar a quien no
-    // la conoce si la cuenta está sancionada.
-    const bloqueo = await obtenerBloqueo(usuario.id);
-    if (bloqueo) {
-      return NextResponse.json({ error: mensajeDeBloqueo(bloqueo) }, { status: 403 });
-    }
+    // Una cuenta suspendida o baneada sí inicia sesión: al entrar a la app la
+    // mandan a /cuenta-bloqueada, donde ve el motivo, y getSessionUser no la
+    // deja usar nada (lib/sanciones.ts).
 
     if (!usuario.email_verificado) {
       const response = NextResponse.json(

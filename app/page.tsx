@@ -188,7 +188,7 @@ export default async function LandingPage() {
           <ButtonLink href="/registro" variant="primary">
             Crear una campaña
           </ButtonLink>
-          <ButtonLink href="/campanas" variant="secondary">
+          <ButtonLink href="/explorar" variant="secondary">
             Explorar campañas
           </ButtonLink>
         </div>
@@ -267,7 +267,7 @@ export default async function LandingPage() {
         <section className="mx-auto max-w-4xl px-6 pb-24" aria-label="Campañas destacadas">
           <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
             <h2 className="text-2xl font-extrabold text-ink">Campañas destacadas</h2>
-            <Link href="/campanas" className="text-[13px] font-semibold text-accent hover:underline">
+            <Link href="/explorar" className="text-[13px] font-semibold text-accent hover:underline">
               Ver todas →
             </Link>
           </div>

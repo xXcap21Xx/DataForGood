@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { ACCIONES_DE_SUPERVISION, registrarDecisionDeCampana, tomarCampanaParaSupervisar, type AccionDeSupervision } from "@/lib/supervision/decision";
+import { normalizarSecciones, seccionesDesdeFila } from "@/lib/campanas/checklist";
 import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignEnded, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
 function normalizeDataTypes(input: unknown): string[] {
@@ -30,11 +31,6 @@ const MAX_ACTIVE_CAMPAIGNS = 5;
 function normalizeCampaignStatus(input: unknown): string | null {
   const value = String(input ?? "").trim().toLowerCase();
   return ALLOWED_STATUS.has(value) ? value : null;
-}
-
-function normalizeCollectionMode(input: unknown): string {
-  const value = String(input ?? "checklist").trim().toLowerCase();
-  return value === "texto_libre" ? "texto_libre" : "checklist";
 }
 
 function normalizeChecklistOpciones(input: unknown): string[] {
@@ -67,6 +63,7 @@ function mapCampaign(row: Record<string, unknown>) {
     dataTypes,
     collectionMode: String(row.collection_mode ?? "checklist"),
     checklistOpciones,
+    checklistSecciones: seccionesDesdeFila(row),
     goalContributions: Number(row.goal_contributions ?? 0),
     quotaPerUser: Number(row.quota_per_user ?? 0),
     currentContributions: Number(row.current_contributions ?? 0),
@@ -274,8 +271,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const tematica = "tematica" in body || "tag" in body ? String(body.tematica ?? body.tag ?? "").trim() : null;
     const status = "status" in body ? normalizeCampaignStatus(body.status) : null;
     const dataTypes = "dataTypes" in body || "data_types" in body ? normalizeDataTypes(body.dataTypes ?? body.data_types) : null;
-    const collectionMode = "collectionMode" in body || "collection_mode" in body ? normalizeCollectionMode(body.collectionMode ?? body.collection_mode) : null;
-    const checklistOpciones = "checklistOpciones" in body || "checklist_opciones" in body ? normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones) : null;
+    // Checklists con título. Un cliente viejo que manda la lista plana
+    // checklistOpciones la guarda como un solo checklist titulado "Checklist".
+    const traeSecciones = "checklistSecciones" in body || "checklist_secciones" in body;
+    const traeLegado = "checklistOpciones" in body || "checklist_opciones" in body;
+    let checklistSecciones: ReturnType<typeof normalizarSecciones> | null = null;
+    if (traeSecciones || traeLegado) {
+      checklistSecciones = normalizarSecciones(
+        traeSecciones
+          ? body.checklistSecciones ?? body.checklist_secciones
+          : [{ titulo: "Checklist", opciones: normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones) }]
+      );
+      if (!checklistSecciones.ok) {
+        return NextResponse.json({ error: checklistSecciones.error }, { status: 400 });
+      }
+    }
+    const seccionesNuevas = checklistSecciones?.ok ? checklistSecciones.secciones : null;
+    // Columnas anteriores a las secciones: se dejan coherentes para quien aún las lea.
+    const collectionMode = seccionesNuevas ? (seccionesNuevas.length > 0 ? "checklist" : "texto_libre") : null;
+    const checklistOpciones = seccionesNuevas ? [] : null;
     const goalContributions = "goalContributions" in body || "goal_contributions" in body ? Number(body.goalContributions ?? body.goal_contributions) : null;
     const quotaPerUser = "quotaPerUser" in body || "quota_per_user" in body ? Number(body.quotaPerUser ?? body.quota_per_user) : null;
     const startDate = "startDate" in body || "start_date" in body ? normalizeCampaignDate(body.startDate ?? body.start_date) : undefined;
@@ -343,6 +357,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         checklist_opciones = COALESCE($18::jsonb, checklist_opciones),
         start_time = COALESCE($19, start_time),
         end_time = COALESCE($20, end_time),
+        checklist_secciones = COALESCE($21::jsonb, checklist_secciones),
         updated_at = NOW()
       WHERE id = $1
       RETURNING *`,
@@ -367,6 +382,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         checklistOpciones ? JSON.stringify(checklistOpciones) : null,
         startTime === undefined ? null : startTime,
         endTime === undefined ? null : endTime,
+        seccionesNuevas ? JSON.stringify(seccionesNuevas) : null,
       ]
     );
 
@@ -407,11 +423,18 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
 
     const dataTypes = normalizeDataTypes(body.dataTypes ?? body.data_types ?? []);
-    const collectionMode = normalizeCollectionMode(body.collectionMode ?? body.collection_mode);
-    const checklistOpciones =
-      collectionMode === "checklist"
-        ? normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones ?? [])
-        : [];
+    const secciones = normalizarSecciones(
+      body.checklistSecciones ?? body.checklist_secciones ??
+        (Array.isArray(body.checklistOpciones ?? body.checklist_opciones)
+          ? [{ titulo: "Checklist", opciones: normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones) }]
+          : [])
+    );
+    if (!secciones.ok) {
+      return NextResponse.json({ error: secciones.error }, { status: 400 });
+    }
+    const checklistSecciones = secciones.secciones;
+    const collectionMode = checklistSecciones.length > 0 ? "checklist" : "texto_libre";
+    const checklistOpciones: string[] = [];
     const goalContributions = Number(body.goalContributions ?? body.goal_contributions ?? 0);
     const quotaPerUser = Number(body.quotaPerUser ?? body.quota_per_user ?? 1);
     const startDate = normalizeCampaignDate(body.startDate ?? body.start_date);
@@ -436,9 +459,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       }
       if (!quotaPerUser || quotaPerUser <= 0) {
         return NextResponse.json({ error: "La cuota por persona debe ser mayor a 0" }, { status: 400 });
-      }
-      if (collectionMode === "checklist" && checklistOpciones.length === 0) {
-        return NextResponse.json({ error: "Agrega al menos una opción al checklist" }, { status: 400 });
       }
       if (!startDate) {
         return NextResponse.json({ error: "La fecha de inicio es obligatoria" }, { status: 400 });
@@ -479,6 +499,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         checklist_opciones = $18::jsonb,
         start_time = $19,
         end_time = $20,
+        checklist_secciones = $21::jsonb,
         updated_at = NOW()
       WHERE id = $1
       RETURNING *`,
@@ -503,6 +524,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         JSON.stringify(checklistOpciones),
         startTime,
         endTime,
+        JSON.stringify(checklistSecciones),
       ]
     );
 

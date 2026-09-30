@@ -27,16 +27,23 @@ export const CODIGO_DE_ROL: Record<RolAsignable, string> = {
   REVISOR_DE_APORTES: "revisor",
 };
 
-/** Ya no son mutuamente excluyentes: alguien puede ser Supervisor y Revisor de aportes a la vez. */
-export function nombreDeRolPrincipal(roles: string[]): string {
-  if (roles.includes("admin")) return "SuperUsuario";
+/**
+ * Un nombre por rol, para mostrarlos como etiquetas separadas. Ya no son
+ * mutuamente excluyentes: alguien puede ser Supervisor y Revisor de aportes a la vez.
+ */
+export function nombresDeRoles(roles: string[]): string[] {
+  if (roles.includes("admin")) return ["SuperUsuario"];
 
   const nombres = [
     roles.includes("supervisor") && "Supervisor",
     roles.includes("revisor") && "Revisor de aportes",
   ].filter((n): n is string => Boolean(n));
 
-  return nombres.length > 0 ? nombres.join(" y ") : "Usuario común";
+  return nombres.length > 0 ? nombres : ["Usuario común"];
+}
+
+export function nombreDeRolPrincipal(roles: string[]): string {
+  return nombresDeRoles(roles).join(" y ");
 }
 
 /** Todos los roles delegados vigentes (puede haber cero, uno o los dos). */

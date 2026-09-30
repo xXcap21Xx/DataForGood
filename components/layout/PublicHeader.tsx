@@ -12,7 +12,7 @@ export default function PublicHeader() {
         <Link href="/#como-funciona" className="hover:text-ink">
           Cómo funciona
         </Link>
-        <Link href="/campanas" className="hover:text-ink">
+        <Link href="/explorar" className="hover:text-ink">
           Campañas
         </Link>
         <Link href="/datos" className="hover:text-ink">

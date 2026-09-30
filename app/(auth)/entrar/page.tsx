@@ -6,10 +6,10 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import { BASE_PATH } from "@/lib/base-path";
+import { conDestino, destinoSeguro } from "@/lib/redireccion";
 
 const ERRORES_DE_URL: Record<string, string> = {
   google: "No se pudo iniciar sesión con Google. Intenta de nuevo.",
-  bloqueada: "Tu cuenta está suspendida o bloqueada. Si crees que es un error, contáctanos.",
 };
 
 export default function EntrarPage() {
@@ -31,6 +31,9 @@ function EntrarForm() {
     () => ERRORES_DE_URL[searchParams.get("error") ?? ""] ?? ""
   );
   const [submitting, setSubmitting] = useState(false);
+  // Pantalla que se pidió sin sesión (proxy.ts la manda en ?next=).
+  const next = searchParams.get("next");
+  const destino = destinoSeguro(next);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +51,7 @@ function EntrarForm() {
         const payload = await response.json().catch(() => ({}));
 
         if (payload.requiresVerification) {
-          router.push("/verificar");
+          router.push(conDestino("/verificar", next));
           return;
         }
 
@@ -56,7 +59,7 @@ function EntrarForm() {
         return;
       }
 
-      router.push("/campanas");
+      router.push(destino);
       router.refresh();
     } catch {
       setServerError("No se pudo conectar con el servicio de usuarios");
@@ -111,7 +114,7 @@ function EntrarForm() {
           type="button"
           className="mt-2.5 w-full"
           onClick={() => {
-            window.location.href = `${BASE_PATH}/api/auth/google`;
+            window.location.href = `${BASE_PATH}${conDestino("/api/auth/google", next)}`;
           }}
         >
           Continuar con Google
@@ -120,7 +123,7 @@ function EntrarForm() {
 
       <p className="mt-6 text-center text-[13px] text-ink-2">
         ¿No tienes cuenta?{" "}
-        <Link href="/registro" className="font-medium text-accent hover:underline">
+        <Link href={conDestino("/registro", next)} className="font-medium text-accent hover:underline">
           Regístrate
         </Link>
       </p>

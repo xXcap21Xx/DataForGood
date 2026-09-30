@@ -258,9 +258,9 @@
       "parameters": [],
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"name\": \"Baches en Tepic\",\n  \"description\": \"Fotos de baches en calles de la ciudad\",\n  \"tematica\": \"infraestructura\",\n  \"dataTypes\": [\n    \"foto\"\n  ],\n  \"collectionMode\": \"texto_libre\",\n  \"checklistOpciones\": [],\n  \"goalContributions\": 100,\n  \"quotaPerUser\": 5,\n  \"xpPerContribution\": 30,\n  \"startDate\": \"2026-10-01\",\n  \"startTime\": \"08:00\",\n  \"endDate\": \"2026-10-31\",\n  \"endTime\": \"20:00\",\n  \"locationState\": \"Nayarit\",\n  \"locationCity\": \"Tepic\",\n  \"locationColonia\": \"\",\n  \"organizer\": \"\",\n  \"status\": \"en_revision\"\n}"
+        "text": "{\n  \"name\": \"Baches en Tepic\",\n  \"description\": \"Fotos de baches en calles de la ciudad\",\n  \"tematica\": \"infraestructura\",\n  \"dataTypes\": [\n    \"foto\"\n  ],\n  \"checklistSecciones\": [\n    {\n      \"titulo\": \"Tamaño del bache\",\n      \"opciones\": [\n        \"Chico\",\n        \"Mediano\",\n        \"Grande\"\n      ]\n    }\n  ],\n  \"goalContributions\": 100,\n  \"quotaPerUser\": 5,\n  \"xpPerContribution\": 30,\n  \"startDate\": \"2026-10-01\",\n  \"startTime\": \"08:00\",\n  \"endDate\": \"2026-10-31\",\n  \"endTime\": \"20:00\",\n  \"locationState\": \"Nayarit\",\n  \"locationCity\": \"Tepic\",\n  \"locationColonia\": \"\",\n  \"organizer\": \"\",\n  \"status\": \"en_revision\"\n}"
       },
-      "description": "status: borrador, en_revision, aceptada, activa, pausada, finalizada, rechazada. dataTypes: texto, foto, video, audio, documento. collectionMode: texto_libre o checklist (con checklist, checklistOpciones no puede ir vacío).",
+      "description": "status: borrador, en_revision, aceptada, activa, pausada, finalizada, rechazada. dataTypes: texto, foto, video, audio, documento. checklistSecciones: cero o más checklists { titulo, opciones } además de la descripción obligatoria del aporte.",
       "metaSortKey": 11
     },
     {
@@ -440,6 +440,40 @@
       },
       "description": "Solo el creador. Se banea a quien envió ese aporte.",
       "metaSortKey": 21
+    },
+    {
+      "_id": "req_26a",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Listar baneados de la campaña",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/baneos",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Solo el creador.",
+      "metaSortKey": 21.1
+    },
+    {
+      "_id": "req_26b",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Quitar baneo de la campaña",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/baneos",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"usuarioId\": {{ _.usuarioId }}\n}"
+      },
+      "description": "Solo el creador. La persona vuelve a poder aportar a la campaña.",
+      "metaSortKey": 21.2
     },
     {
       "_id": "req_27",

@@ -71,7 +71,7 @@ Fuentes: `mis-campanas`, `NuevaCampanaForm`, `campanas/[id]` y `panel`.
 - **Límite:** máximo **5 campañas activas a la vez** por persona. Pasado ese número, solo se permite guardar como borrador.
 - **Formulario en tres bloques:**
   - **Datos básicos:** nombre (máx. 80), temática (una) y descripción (máx. 500).
-  - **Qué se recolecta:** tipos de dato (uno o más entre texto, foto, video, audio y documento); meta total de aportes; cuota por persona; modo de descripción `checklist` (con opciones editables) o `texto_libre`.
+  - **Qué se recolecta:** tipos de dato (uno o más entre texto, foto, video, audio y documento); meta total de aportes; cuota por persona; y **checklists con título** (cero o varios, cada uno con sus opciones) que el participante marca además de la descripción, que siempre es texto libre y obligatoria. *(2026-09-30: reemplaza el antiguo modo `checklist` / `texto_libre`, que era excluyente, y se quitaron los checklists de ejemplo. Datos en `campanas.checklist_secciones`; lógica en `lib/campanas/checklist.ts`. Las campañas viejas con `checklist_opciones` se leen como un checklist sin título.)*
   - **Vigencia:** fecha de inicio y de fin, más ubicación textual (hoy fija en "Tepic, Nayarit").
 - **Otros datos:** organizador y XP por aporte aprobado.
 - **Panel:** aportes aprobados, participantes, pendientes, porcentaje de la meta, recolección diaria, desglose por tipo de dato y días restantes. Mientras está activa, la pantalla dice "actualiza cada 3 s".
@@ -84,7 +84,7 @@ Fuentes: `mis-campanas`, `NuevaCampanaForm`, `campanas/[id]` y `panel`.
 
 Fuentes: `campanas/[id]/aportar`, `mis-aportes` y `mis-aportes/[campanaId]`.
 
-- **Un aporte tiene:** un archivo (según los tipos de la campaña), una descripción (obligatoria, máx. 1000) y respuestas del checklist de la campaña.
+- **Un aporte tiene:** un archivo (según los tipos de la campaña), una descripción (obligatoria, máx. 1000) y respuestas de los checklists de la campaña, guardadas en `aportes.caracteristicas` como "Título: opción" (solo se aceptan opciones que existen en la campaña).
 - **Fotos:** `.jpg`, `.jpeg` o `.png`, **máximo 10 MB**, **sin compresión automática**; si pesa más, se rechaza y la persona elige otra. Los límites de video, audio y documento no están definidos (punto abierto).
 - **Tras enviar,** el aporte queda "Pendiente de revisión".
 - **Cuota por persona:** al alcanzarla ya no se puede enviar más a esa campaña, aunque siga abierta para otras personas.

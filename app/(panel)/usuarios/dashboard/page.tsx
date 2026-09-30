@@ -108,16 +108,23 @@ export default async function DashboardDeUsuariosPage({
       <div className="mb-6 grid grid-cols-1 gap-5 lg:grid-cols-2">
         <section>
           <TituloDeSeccion>Temáticas de interés declaradas</TituloDeSeccion>
-          <Reparto
-            anchoEtiqueta={110}
-            anchoValor={38}
-            maximo={100}
-            filas={d.interesesDeclarados.map((i) => ({
-              etiqueta: i.etiqueta,
-              valor: i.porcentaje,
-              display: `${i.porcentaje}%`,
-            }))}
-          />
+          {d.interesesDeclarados.length === 0 ? (
+            <p className="text-[13px] text-ink-2">Ningún usuario ha declarado intereses todavía.</p>
+          ) : (
+            <Reparto
+              anchoEtiqueta={150}
+              anchoValor={38}
+              maximo={100}
+              filas={d.interesesDeclarados.map((i) => ({
+                etiqueta: i.etiqueta,
+                valor: i.porcentaje,
+                display: `${i.porcentaje}%`,
+              }))}
+            />
+          )}
+          <p className="mt-2.5 text-[12.5px] text-ink-3">
+            Los cinco temas más elegidos, en porcentaje del total de usuarios registrados.
+          </p>
         </section>
 
         <section>

@@ -1,8 +1,15 @@
 import { randomBytes, createHash } from "crypto";
 import { cache } from "react";
 import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
 import { pool } from "@/lib/db";
-import { SQL_SANCION_BLOQUEANTE } from "@/lib/sanciones";
+import {
+  SQL_SANCION_BLOQUEANTE,
+  contarSanciones,
+  obtenerBloqueo,
+  type Bloqueo,
+  type HistorialDeSanciones,
+} from "@/lib/sanciones";
 
 const COOKIE_NAME = "session_token";
 const SESSION_DURATION_MS = 1000 * 60 * 60 * 24 * 30; // 30 días
@@ -85,6 +92,48 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
   }
   return sessionUser;
 });
+
+/**
+ * Si la sesión es válida pero la cuenta está suspendida o baneada,
+ * devuelve quién es y por qué está bloqueada; si no, null. Solo sirve para
+ * mostrar la pantalla de cuenta bloqueada: no da acceso a nada (para eso
+ * está getSessionUser, que para estas cuentas devuelve null).
+ */
+export const obtenerBloqueoDeLaSesion = cache(
+  async (): Promise<{ nombre: string; bloqueo: Bloqueo; historial: HistorialDeSanciones } | null> => {
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value;
+    if (!token) return null;
+
+    const result = await pool.query<{ id: number; nombre: string }>(
+      `SELECT u.id, u.nombre
+       FROM sessions s
+       JOIN usuarios u ON u.id = s.usuario_id
+       WHERE s.token_hash = $1 AND s.expires_at > NOW()
+       LIMIT 1`,
+      [hashToken(token)]
+    );
+    if (result.rowCount === 0) return null;
+
+    const { id, nombre } = result.rows[0];
+    const bloqueo = await obtenerBloqueo(id);
+    if (!bloqueo) return null;
+    return { nombre, bloqueo, historial: await contarSanciones(id) };
+  }
+);
+
+/**
+ * Para layouts y páginas de servidor de la zona de usuario: el usuario de la
+ * sesión, o redirige. Una cuenta suspendida o baneada va a /cuenta-bloqueada
+ * (ahí ve el motivo); sin sesión, a /entrar. Layout y página corren en
+ * paralelo, así que ambos deben llevar al mismo lugar.
+ */
+export async function exigirUsuario(): Promise<SessionUser> {
+  const usuario = await getSessionUser();
+  if (usuario) return usuario;
+  if (await obtenerBloqueoDeLaSesion()) redirect("/cuenta-bloqueada");
+  redirect("/entrar");
+}
 
 export async function destroySession() {
   const cookieStore = await cookies();

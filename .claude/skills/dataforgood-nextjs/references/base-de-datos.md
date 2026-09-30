@@ -55,7 +55,7 @@
 
 ## 5. JSONB
 
-Se usa JSONB para listas cortas que se leen completas: `usuarios.role`, `usuarios.intereses`, `campanas.data_types`, `campanas.checklist_opciones`, `aportes.caracteristicas` y `notificaciones.metadata`. Para filtrar usa `@>` o `?`. Por ejemplo, `role @> '["supervisor"]'::jsonb` o `data_types ? $1`. Si algo necesita relaciones, contadores o historial, va en tabla propia.
+Se usa JSONB para listas cortas que se leen completas: `usuarios.role`, `usuarios.intereses`, `campanas.data_types`, `campanas.checklist_secciones` (`[{ titulo, opciones }]`; `checklist_opciones` es el formato viejo, solo lectura), `aportes.caracteristicas` y `notificaciones.metadata`. Para filtrar usa `@>` o `?`. Por ejemplo, `role @> '["supervisor"]'::jsonb` o `data_types ? $1`. Si algo necesita relaciones, contadores o historial, va en tabla propia.
 
 ## 6. Fechas y zonas horarias
 

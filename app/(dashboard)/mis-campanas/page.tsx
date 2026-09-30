@@ -1,8 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
+import ButtonLink from "@/components/ui/ButtonLink";
 import Tag from "@/components/ui/Tag";
 import ProgressBar from "@/components/ui/ProgressBar";
 import type { Campaign, CampaignStatus } from "@/types";
@@ -10,13 +10,26 @@ import { BASE_PATH } from "@/lib/base-path";
 
 const labels: Record<CampaignStatus, string> = {
   borrador: "Borrador",
-  en_revision: "En revision",
+  en_revision: "En revisión",
   aceptada: "Aceptada",
   activa: "Activa",
   pausada: "Pausada",
   finalizada: "Finalizada",
   rechazada: "Rechazada",
 };
+
+type Filtro = "todas" | CampaignStatus;
+
+const FILTROS: { valor: Filtro; etiqueta: string; fijo?: boolean }[] = [
+  { valor: "todas", etiqueta: "Todas", fijo: true },
+  { valor: "en_revision", etiqueta: "En revisión", fijo: true },
+  { valor: "aceptada", etiqueta: "Aceptadas", fijo: true },
+  { valor: "activa", etiqueta: "Activas", fijo: true },
+  { valor: "pausada", etiqueta: "Pausadas" },
+  { valor: "finalizada", etiqueta: "Finalizadas", fijo: true },
+  { valor: "rechazada", etiqueta: "Rechazadas" },
+  { valor: "borrador", etiqueta: "Borradores" },
+];
 
 function mapCampaign(row: Record<string, unknown>): Campaign {
   const status = String(row.status ?? "borrador") as CampaignStatus;
@@ -52,22 +65,28 @@ export default function MisCampanasPage() {
   const [error, setError] = useState<string | null>(null);
   const [finalizandoId, setFinalizandoId] = useState<string | null>(null);
   const [finalizarError, setFinalizarError] = useState<Record<string, string>>({});
+  const [cargando, setCargando] = useState(true);
+  const [filtro, setFiltro] = useState<Filtro>("todas");
 
   useEffect(() => {
     void fetch(`${BASE_PATH}/api/campanas?mine=true`, { cache: "no-store" })
       .then(async (response) => {
         const payload = await response.json();
-        if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campanas");
+        if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campañas");
         setCampaigns(
           (Array.isArray(payload.data) ? payload.data : []).map((item: unknown) =>
             mapCampaign(item as Record<string, unknown>)
           )
         );
       })
-      .catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudieron cargar las campanas"));
+      .catch((cause) => setError(cause instanceof Error ? cause.message : "No se pudieron cargar las campañas"))
+      .finally(() => setCargando(false));
   }, []);
 
   const count = (status: CampaignStatus) => campaigns.filter((campaign) => campaign.status === status).length;
+  // Los estados fijos siempre se ven; el resto solo si hay alguna campaña en él.
+  const filtros = FILTROS.filter((f) => f.fijo || (f.valor !== "todas" && count(f.valor) > 0));
+  const visibles = filtro === "todas" ? campaigns : campaigns.filter((campaign) => campaign.status === filtro);
 
   // Solo el creador ve esta pantalla (viene de mine=true): no hace falta
   // revisar rol ni dueño aparte, ya está filtrado por sesión.
@@ -99,29 +118,43 @@ export default function MisCampanasPage() {
     <div className="mx-auto max-w-5xl">
       <div className="mb-2 flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-extrabold text-ink">Mis campanas</h1>
-          <p className="mt-1 text-[13px] text-ink-2">Administra las campanas que has creado.</p>
+          <h1 className="text-2xl font-extrabold text-ink">Mis campañas</h1>
+          <p className="mt-1 text-[13px] text-ink-2">Administra las campañas que has creado.</p>
         </div>
-        <Link href="/mis-campanas/nueva">
-          <Button variant="primary" size="sm">Nueva campana</Button>
-        </Link>
+        <ButtonLink href="/mis-campanas/nueva" variant="primary" size="sm">Nueva campaña</ButtonLink>
       </div>
 
-      <div className="mb-5 mt-4 flex flex-wrap gap-2">
-        <Tag tone="on">Todas {campaigns.length}</Tag>
-        <Tag tone="warn">En revision {count("en_revision")}</Tag>
-        <Tag tone="warn">Aceptadas {count("aceptada")}</Tag>
-        <Tag>Finalizadas {count("finalizada")}</Tag>
-        <Tag>Activas {count("activa")}</Tag>
+      <div className="mb-5 mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+        {filtros.map((f) => {
+          const activo = filtro === f.valor;
+          const total = f.valor === "todas" ? campaigns.length : count(f.valor);
+          return (
+            <button
+              key={f.valor}
+              type="button"
+              aria-pressed={activo}
+              onClick={() => setFiltro(f.valor)}
+              className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+                activo ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"
+              }`}
+            >
+              {f.etiqueta} <span className="font-mono text-[11.5px] opacity-80">{total}</span>
+            </button>
+          );
+        })}
       </div>
 
       {error ? (
         <p className="rounded-lg bg-danger-tint p-4 text-sm text-danger">{error}</p>
+      ) : cargando ? (
+        <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">Cargando tus campañas…</p>
       ) : campaigns.length === 0 ? (
-        <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">Cargando o no tienes campanas creadas.</p>
+        <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">Todavía no has creado campañas.</p>
+      ) : visibles.length === 0 ? (
+        <p className="rounded-lg bg-sunken p-4 text-sm text-ink-2">No tienes campañas en este estado.</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {campaigns.map((campaign) => {
+          {visibles.map((campaign) => {
             const pct = campaign.goalContributions
               ? Math.min(100, Math.round((campaign.currentContributions / campaign.goalContributions) * 100))
               : 0;
@@ -144,15 +177,9 @@ export default function MisCampanasPage() {
                   {campaign.currentContributions} / {campaign.goalContributions} - {campaign.pendingContributions} aportes pendientes
                 </p>
                 <div className="flex flex-wrap gap-1.5">
-                  <Link href={`/mis-campanas/${campaign.id}/aportes`}>
-                    <Button variant="primary" size="sm">Revisar aportes</Button>
-                  </Link>
-                  <Link href={`/mis-campanas/${campaign.id}/panel`}>
-                    <Button size="sm">Panel</Button>
-                  </Link>
-                  <Link href={`/mis-campanas/nueva?edit=${campaign.id}`}>
-                    <Button size="sm">Editar</Button>
-                  </Link>
+                  <ButtonLink href={`/mis-campanas/${campaign.id}/aportes`} variant="primary" size="sm">Revisar aportes</ButtonLink>
+                  <ButtonLink href={`/mis-campanas/${campaign.id}/panel`} size="sm">Panel</ButtonLink>
+                  <ButtonLink href={`/mis-campanas/nueva?edit=${campaign.id}`} size="sm">Editar</ButtonLink>
                   {puedeFinalizar && (
                     <Button
                       size="sm"

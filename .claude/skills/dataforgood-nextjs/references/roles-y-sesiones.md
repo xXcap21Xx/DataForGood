@@ -71,17 +71,17 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 ## 6. Sanciones y baneos
 
-- **Baneo por campaña:** el creador lo aplica con `POST /api/campanas/[id]/baneos` (tabla `campana_baneados`), y bloquea aportar a esa campaña.
-- **Sanciones del panel** (`aplicarSancion` / `restaurarAcceso`): `STRIKE`, `BANEO_DE_CAMPANA` y `SUSPENSION_TEMPORAL` (con días). El detalle debe tener al menos 20 caracteres. El estado de la cuenta (`ACTIVA`, `CON_STRIKES`, `SUSPENDIDA`, `BANEADA`) se calcula en `lib/usuarios/directorio.ts`.
+- **Baneo por campaña:** el creador lo aplica con `POST /api/campanas/[id]/baneos` (tabla `campana_baneados`), y bloquea aportar a esa campaña. Lo ve y lo quita con `GET`/`DELETE` en la misma ruta, desde el detalle del aporte o la sección "Participantes baneados" de la bandeja. Las consultas viven en `lib/campanas/baneos.ts`. El participante ve el aviso antes de aportar gracias a `viewer.baneado` de `GET /api/campanas?id=`; en las listas cada campaña trae `isBanned` (etiqueta "Baneado" en `/campanas` y `/mis-aportes`), y `available=true` y el filtro "Puedo aportar" la excluyen. La ficha del usuario en el panel (`/usuarios/[id]`) lista sus baneos por campaña.
+- **Sanciones del panel** (`aplicarSancion` / `restaurarAcceso`): `STRIKE`, `BANEO_DE_CAMPANA` y `SUSPENSION_TEMPORAL` (con días). El servidor valida que el tipo sea uno de `TIPOS_DE_SANCION`, que el detalle tenga al menos 20 caracteres y que una suspensión traiga días enteros mayores que cero. El estado de la cuenta (`ACTIVA`, `CON_STRIKES`, `SUSPENDIDA`, `BANEADA`) se calcula en `lib/usuarios/directorio.ts`.
 - **Qué bloquea cada una** (`lib/sanciones.ts`, según los textos del formulario del panel):
   - `STRIKE` suma al contador. Al llegar a `STRIKES_PARA_BANEO` (3), `aplicarSancion` agrega en la misma transacción un `BANEO_DE_CAMPANA` con `aplicada_por = 'Automático'`, salvo que ya tenga un baneo activo. Bloquea la fila del usuario (`FOR UPDATE`) para que dos strikes simultáneos no generen dos baneos. En la bitácora queda como `sancion.aplicar` con `automatico: true`.
   - `SUSPENSION_TEMPORAL` bloquea la cuenta durante `dias` desde `aplicada_en`.
   - `BANEO_DE_CAMPANA` (en la interfaz, "Baneo permanente") bloquea la cuenta hasta que se restaure.
 - **Qué significa "bloquear":**
-  - `getSessionUser()` devuelve `null`, así que ninguna ruta ni página lo deja pasar;
-  - el login con correo responde 403 con la fecha de fin de la suspensión (solo si la contraseña es correcta, para no revelarlo a otros);
-  - el login con Google redirige a `/entrar?error=bloqueada`;
-  - al aplicar la sanción se borran sus filas de `sessions`.
+  - `getSessionUser()` devuelve `null`, así que ninguna ruta, página ni acción lo deja pasar;
+  - **no** se le saca de la app: conserva sus sesiones y puede iniciar sesión (correo o Google), pero `exigirUsuario()` (`lib/session.ts`) lo manda a `/cuenta-bloqueada`, que muestra si es baneo o suspensión (con fecha de fin), el motivo (`sanciones.detalle`) y un botón para cerrar sesión;
+  - en páginas de servidor de la zona de usuario usa `exigirUsuario()` en vez de `getSessionUser()` + `redirect("/entrar")`: layout y página corren en paralelo y ambos deben llevar al mismo lugar;
+  - `VigilanteDeSesion` (en el layout de `(dashboard)`) revisa la sesión en cada navegación en el cliente, para que una sanción aplicada a media sesión lleve a `/cuenta-bloqueada` sin esperar a recargar.
 - **Restaurar** (`restaurarAcceso`) desbloquea de inmediato. Una suspensión vencida deja de bloquear sola.
 
 ## 7. Bitácora (`audit_log`)
@@ -89,7 +89,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 `registrarAuditoria()` en `lib/auditoria.ts`, llamado después de que la acción se completó. Si el registro falla, solo se reporta en consola: no revierte la acción.
 
 - **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`).
-- **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
+- **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
 - **Sin pantalla:** todavía no hay vista en el panel para consultarla; se lee con SQL.
 
 ## 8. Huecos conocidos

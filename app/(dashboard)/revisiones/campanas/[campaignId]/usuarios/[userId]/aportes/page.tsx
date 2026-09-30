@@ -1,13 +1,12 @@
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import { pool } from "@/lib/db";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 
 export default async function ReviewerUserContributionsPage({ params }: { params: Promise<{ campaignId: string; userId: string }> }) {
   const { campaignId, userId } = await params;
-  const reviewer = await getSessionUser();
-  if (!reviewer) redirect("/entrar");
+  const reviewer = await exigirUsuario();
   const result = await pool.query(`SELECT a.id, a.participant_name, a.participant_email, a.description, a.file_type, a.file_size_bytes, a.submitted_at, c.name AS campaign_name FROM aportes a JOIN campanas c ON c.id = a.campaign_id JOIN campana_revisores cr ON cr.campana_id = c.id WHERE a.campaign_id = $1 AND a.user_id = $2 AND a.first_pass_by_user_id = $3 AND a.status = 'aceptado' AND cr.usuario_id = $3 AND cr.estado = 'aceptado' ORDER BY a.reviewed_at DESC`, [campaignId, userId, reviewer.id]);
   if (result.rowCount === 0) notFound();
   const participant = result.rows[0];
