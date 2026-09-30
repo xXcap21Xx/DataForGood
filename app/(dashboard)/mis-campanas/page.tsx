@@ -116,15 +116,22 @@ export default function MisCampanasPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-2 flex items-start justify-between gap-4">
+      <div className="mb-2 flex items-start justify-between gap-4 max-md:gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-ink">Mis campañas</h1>
-          <p className="mt-1 text-[13px] text-ink-2">Administra las campañas que has creado.</p>
+          <h1 className="text-2xl font-extrabold text-ink max-md:text-xl max-md:leading-tight">Mis campañas</h1>
+          <p className="mt-1 text-[13px] text-ink-2 max-md:text-[12px] max-md:leading-5">Administra las campañas que has creado.</p>
         </div>
-        <ButtonLink href="/mis-campanas/nueva" variant="primary" size="sm">Nueva campaña</ButtonLink>
+        <ButtonLink
+          href="/mis-campanas/nueva"
+          variant="primary"
+          size="sm"
+          className="max-md:max-w-[108px] max-md:px-2.5 max-md:py-1.5 max-md:text-[11.5px] max-md:leading-4"
+        >
+          Nueva campaña
+        </ButtonLink>
       </div>
 
-      <div className="mb-5 mt-4 flex flex-wrap gap-2" role="group" aria-label="Filtrar por estado">
+      <div className="mb-5 mt-4 flex flex-wrap gap-2 max-md:gap-1.5" role="group" aria-label="Filtrar por estado">
         {filtros.map((f) => {
           const activo = filtro === f.valor;
           const total = f.valor === "todas" ? campaigns.length : count(f.valor);
@@ -134,7 +141,7 @@ export default function MisCampanasPage() {
               type="button"
               aria-pressed={activo}
               onClick={() => setFiltro(f.valor)}
-              className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+              className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${
                 activo ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"
               }`}
             >
@@ -161,29 +168,30 @@ export default function MisCampanasPage() {
             const puedeFinalizar = campaign.status === "activa" || campaign.status === "pausada";
 
             return (
-              <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4">
+              <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4 max-md:p-3.5">
                 <div className="mb-1 flex items-start justify-between gap-2">
-                  <p className="text-[13.5px] font-medium text-ink">{campaign.name}</p>
+                  <p className="text-[13.5px] font-medium text-ink max-md:text-[13px]">{campaign.name}</p>
                   <Tag tone={campaign.status === "activa" ? "ok" : campaign.status === "aceptada" ? "warn" : "default"}>{labels[campaign.status]}</Tag>
                 </div>
-                <p className="mb-2.5 font-mono text-[11.5px] text-ink-2">
+                <p className="mb-2.5 font-mono text-[11.5px] text-ink-2 max-md:text-[10.5px]">
                   {campaign.startDate ?? "Sin fecha"} - {campaign.endDate ?? "Sin fecha"}
                 </p>
                 <ProgressBar
                   pct={campaign.status === "finalizada" ? 100 : pct}
                   tone={campaign.status === "finalizada" ? "ok" : "accent"}
                 />
-                <p className="my-2.5 font-mono text-[12px] text-ink-2">
+                <p className="my-2.5 font-mono text-[12px] text-ink-2 max-md:text-[11px]">
                   {campaign.currentContributions} / {campaign.goalContributions} - {campaign.pendingContributions} aportes pendientes
                 </p>
-                <div className="flex flex-wrap gap-1.5">
-                  <ButtonLink href={`/mis-campanas/${campaign.id}/aportes`} variant="primary" size="sm">Revisar aportes</ButtonLink>
-                  <ButtonLink href={`/mis-campanas/${campaign.id}/panel`} size="sm">Panel</ButtonLink>
-                  <ButtonLink href={`/mis-campanas/nueva?edit=${campaign.id}`} size="sm">Editar</ButtonLink>
+                <div className="flex flex-wrap gap-1.5 max-md:gap-1">
+                  <ButtonLink href={`/mis-campanas/${campaign.id}/aportes`} variant="primary" size="sm" className="max-md:px-2 max-md:py-1.5 max-md:text-[11px]">Revisar aportes</ButtonLink>
+                  <ButtonLink href={`/mis-campanas/${campaign.id}/panel`} size="sm" className="max-md:px-2 max-md:py-1.5 max-md:text-[11px]">Panel</ButtonLink>
+                  <ButtonLink href={`/mis-campanas/nueva?edit=${campaign.id}`} size="sm" className="max-md:px-2 max-md:py-1.5 max-md:text-[11px]">Editar</ButtonLink>
                   {puedeFinalizar && (
                     <Button
                       size="sm"
                       variant="danger"
+                      className="max-md:px-2 max-md:py-1.5 max-md:text-[11px]"
                       disabled={finalizandoId === campaign.id}
                       onClick={() => finalizarCampana(campaign.id)}
                     >

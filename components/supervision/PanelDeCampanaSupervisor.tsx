@@ -85,11 +85,11 @@ export default function PanelDeCampanaSupervisor({
         <Tag tone={enVivo ? "ok" : "default"}>{enVivo ? "En vivo · actualiza cada 3 s" : "Solo lectura"}</Tag>
       </div>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="supervision-metrics-grid mb-6 grid grid-cols-4 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {metricas.map(([etiqueta, valor]) => (
-          <section key={etiqueta} className="rounded-lg border border-line bg-surface p-5 shadow-sm">
-            <p className="text-[12.5px] text-ink-2">{etiqueta}</p>
-            <p className="mt-2 text-3xl font-extrabold tracking-tight text-ink">{valor}</p>
+          <section key={etiqueta} className="min-w-0 rounded-lg border border-line bg-surface p-5 shadow-sm max-md:rounded-md max-md:p-2.5">
+            <p className="break-words text-[12.5px] text-ink-2 max-md:text-[10px] max-md:leading-tight">{etiqueta}</p>
+            <p className="mt-2 text-3xl font-extrabold tracking-tight text-ink max-md:mt-1 max-md:text-xl">{valor}</p>
           </section>
         ))}
       </div>
