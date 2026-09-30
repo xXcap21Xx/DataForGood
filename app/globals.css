@@ -100,6 +100,11 @@ body {
     display: block;
   }
 
+  .supervision-metrics-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
   .dashboard-user-nav {
     position: sticky;
     top: var(--dashboard-topbar-height, 76px);
