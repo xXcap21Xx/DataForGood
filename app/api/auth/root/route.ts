@@ -69,7 +69,6 @@ export async function POST(request: Request) {
   const idEsperado = process.env.ROOT_USER_ID;
   const hashEsperado = process.env.ROOT_PASSWORD_HASH;
 
-
   if (!idEsperado || !hashEsperado) {
     console.error("Faltan ROOT_USER_ID o ROOT_PASSWORD_HASH en el entorno.");
     return NextResponse.json({ error: "Acceso raíz no configurado." }, { status: 500 });
@@ -79,8 +78,6 @@ export async function POST(request: Request) {
   // de respuesta no revele cuál de los dos falló.
   const idOk = identificadorCoincide(identificador, idEsperado);
   const credOk = await bcrypt.compare(credencial, hashEsperado);
-
-  console.log({ idOk, credOk, idEsperado, credencial, hashEsperado })
 
   if (!idOk || !credOk) {
     // No se guarda el identificador recibido: si alguien teclea la
