@@ -42,21 +42,21 @@ export default function CampanasPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="mb-6 flex items-start justify-between gap-4 max-md:mb-4 max-md:gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-ink">Campañas disponibles</h1>
-          <p className="mt-1 text-[13px] text-ink-2">
+          <h1 className="text-2xl font-extrabold text-ink max-md:text-xl max-md:leading-tight">Campañas disponibles</h1>
+          <p className="mt-1 text-[13px] text-ink-2 max-md:max-w-[220px] max-md:text-[12px] max-md:leading-5">
             Descubre proyectos con impacto social cerca de ti.
           </p>
         </div>
         <Link href="/mis-campanas/nueva">
-          <Button variant="primary" size="sm">
-            Crear campaña +
+          <Button variant="primary" size="sm" className="max-md:max-w-[116px] max-md:px-2.5 max-md:py-1.5 max-md:text-[11.5px] max-md:leading-4">
+            Crear campaña
           </Button>
         </Link>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2">
+      <div className="mb-6 flex flex-wrap gap-2 max-md:mb-4 max-md:gap-1.5">
         {FILTROS.map((filtro) => {
           const active = filtro === activeTag;
           const contador =
@@ -70,7 +70,7 @@ export default function CampanasPage() {
               key={filtro}
               type="button"
               onClick={() => setActiveTag(filtro)}
-              className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
+              className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${
                 active
                   ? "border-accent bg-accent text-white"
                   : "border-line-2 bg-surface text-ink-2 hover:border-accent"

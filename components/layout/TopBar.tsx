@@ -4,7 +4,7 @@ import NotificationsBell from "./NotificationsBell";
 
 export default function TopBar({ usuario }: { usuario: SessionUser }) {
   return (
-    <header className="dashboard-topbar flex items-center justify-between gap-4 border-b border-line bg-surface px-4 py-3 sm:px-6">
+    <header className="dashboard-user-topbar dashboard-topbar flex items-center justify-between gap-4 border-b border-line bg-surface px-4 py-3 sm:px-6">
       <input
         type="search"
         placeholder="Buscar campañas, temas o palabras clave…"
@@ -26,22 +26,6 @@ export default function TopBar({ usuario }: { usuario: SessionUser }) {
               <p className="text-[11.5px] text-ink-3">Ver perfil</p>
             </div>
           </Link>
-          {Array.isArray(usuario.role) && usuario.role.includes("supervisor") && (
-            <Link
-              href="/supervision"
-              className="rounded-pill border border-line-2 bg-sunken px-3 py-1.5 text-[11px] font-bold text-accent hover:border-accent hover:bg-accent-tint"
-            >
-              Supervisor
-            </Link>
-          )}
-          {Array.isArray(usuario.role) && usuario.role.includes("revisor") && (
-            <Link
-              href="/revisiones"
-              className="rounded-pill border border-line-2 bg-sunken px-3 py-1.5 text-[11px] font-bold text-accent hover:border-accent hover:bg-accent-tint"
-            >
-              Revisor de aportes
-            </Link>
-          )}
         </div>
       </div>
     </header>

@@ -97,17 +97,17 @@ export default function MisCampanasPage() {
 
   return (
     <div className="mx-auto max-w-5xl">
-      <div className="mb-2 flex items-start justify-between gap-4">
+      <div className="mb-2 flex items-start justify-between gap-4 max-md:gap-3">
         <div>
-          <h1 className="text-2xl font-extrabold text-ink">Mis campanas</h1>
-          <p className="mt-1 text-[13px] text-ink-2">Administra las campanas que has creado.</p>
+          <h1 className="text-2xl font-extrabold text-ink max-md:text-xl max-md:leading-tight">Mis campanas</h1>
+          <p className="mt-1 text-[13px] text-ink-2 max-md:text-[12px] max-md:leading-5">Administra las campanas que has creado.</p>
         </div>
         <Link href="/mis-campanas/nueva">
-          <Button variant="primary" size="sm">Nueva campana</Button>
+          <Button variant="primary" size="sm" className="max-md:max-w-[108px] max-md:px-2.5 max-md:py-1.5 max-md:text-[11.5px] max-md:leading-4">Nueva campana</Button>
         </Link>
       </div>
 
-      <div className="mb-5 mt-4 flex flex-wrap gap-2">
+      <div className="mb-5 mt-4 flex flex-wrap gap-2 max-md:gap-1.5">
         <Tag tone="on">Todas {campaigns.length}</Tag>
         <Tag tone="warn">En revision {count("en_revision")}</Tag>
         <Tag tone="warn">Aceptadas {count("aceptada")}</Tag>
@@ -128,35 +128,36 @@ export default function MisCampanasPage() {
             const puedeFinalizar = campaign.status === "activa" || campaign.status === "pausada";
 
             return (
-              <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4">
+              <div key={campaign.id} className="rounded-lg border border-line bg-surface p-4 max-md:p-3.5">
                 <div className="mb-1 flex items-start justify-between gap-2">
-                  <p className="text-[13.5px] font-medium text-ink">{campaign.name}</p>
+                  <p className="text-[13.5px] font-medium text-ink max-md:text-[13px]">{campaign.name}</p>
                   <Tag tone={campaign.status === "activa" ? "ok" : campaign.status === "aceptada" ? "warn" : "default"}>{labels[campaign.status]}</Tag>
                 </div>
-                <p className="mb-2.5 font-mono text-[11.5px] text-ink-2">
+                <p className="mb-2.5 font-mono text-[11.5px] text-ink-2 max-md:text-[10.5px]">
                   {campaign.startDate ?? "Sin fecha"} - {campaign.endDate ?? "Sin fecha"}
                 </p>
                 <ProgressBar
                   pct={campaign.status === "finalizada" ? 100 : pct}
                   tone={campaign.status === "finalizada" ? "ok" : "accent"}
                 />
-                <p className="my-2.5 font-mono text-[12px] text-ink-2">
+                <p className="my-2.5 font-mono text-[12px] text-ink-2 max-md:text-[11px]">
                   {campaign.currentContributions} / {campaign.goalContributions} - {campaign.pendingContributions} aportes pendientes
                 </p>
-                <div className="flex flex-wrap gap-1.5">
+                <div className="flex flex-wrap gap-1.5 max-md:gap-1">
                   <Link href={`/mis-campanas/${campaign.id}/aportes`}>
-                    <Button variant="primary" size="sm">Revisar aportes</Button>
+                    <Button variant="primary" size="sm" className="max-md:px-2 max-md:py-1.5 max-md:text-[11px]">Revisar aportes</Button>
                   </Link>
                   <Link href={`/mis-campanas/${campaign.id}/panel`}>
-                    <Button size="sm">Panel</Button>
+                    <Button size="sm" className="max-md:px-2 max-md:py-1.5 max-md:text-[11px]">Panel</Button>
                   </Link>
                   <Link href={`/mis-campanas/nueva?edit=${campaign.id}`}>
-                    <Button size="sm">Editar</Button>
+                    <Button size="sm" className="max-md:px-2 max-md:py-1.5 max-md:text-[11px]">Editar</Button>
                   </Link>
                   {puedeFinalizar && (
                     <Button
                       size="sm"
                       variant="danger"
+                      className="max-md:px-2 max-md:py-1.5 max-md:text-[11px]"
                       disabled={finalizandoId === campaign.id}
                       onClick={() => finalizarCampana(campaign.id)}
                     >
