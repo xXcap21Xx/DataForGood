@@ -65,7 +65,7 @@ export default function BandejaAportesPage() {
       </div>
 
       {campaign.hasReviewerAssigned ? (
-        <div className="mb-5 rounded-lg bg-accent-tint p-3.5 text-[12.5px] text-accent-deep">
+        <div className="mb-5 rounded-lg border-l-4 border-accent bg-sunken p-3.5 text-[12.5px] text-ink-2">
           Esta campaña tiene revisor asignado: los aportes marcados como validados ya
           pasaron la primera instancia.
         </div>

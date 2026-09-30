@@ -145,7 +145,7 @@ export default function AgregarRevisorPage() {
       </div>
 
       {invitedName && (
-        <div className="mb-5 rounded-lg bg-accent-tint p-3.5 text-[12.5px] text-accent-deep">
+        <div className="mb-5 rounded-lg border-l-4 border-accent bg-sunken p-3.5 text-[12.5px] text-ink-2">
           Invitaste a {invitedName} como revisor de aportes. Queda pendiente hasta que la acepte.
         </div>
       )}
