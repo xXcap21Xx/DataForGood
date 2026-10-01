@@ -1,5 +1,10 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/aportes/[aporteId]: detalle de un aporte para el creador.
+// Componente cliente. Datos: GET /api/aportes/[id]; imagen desde GET /api/aportes/[id]/archivo.
+// Acciones: aceptar/rechazar con PATCH /api/aportes/[id] { status, rejectionReason };
+// banear o desbanear al participante con POST/DELETE /api/campanas/[id]/baneos.
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -7,6 +12,7 @@ import { Field, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Contribution } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 const REJECTION_REASONS = [
   "Contenido borroso o ilegible",
@@ -28,20 +34,32 @@ export default function RevisionAportePage() {
   const [submitting, setSubmitting] = useState(false);
   const [showBanForm, setShowBanForm] = useState(false);
   const [banReason, setBanReason] = useState("");
+  // Si el autor ya está baneado de la campaña se ofrece quitar el baneo en vez de banearlo otra vez.
+  const [autorBaneado, setAutorBaneado] = useState(false);
 
   useEffect(() => {
     async function load() {
       try {
-        const response = await fetch(`/api/aportes/${params.aporteId}`, { cache: "no-store" });
+        const [response, baneosRes] = await Promise.all([
+          fetch(`${BASE_PATH}/api/aportes/${params.aporteId}`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/campanas/${params.id}/baneos`, { cache: "no-store" }),
+        ]);
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar el aporte");
-        setItem(payload.data as Contribution);
+        const aporte = payload.data as Contribution;
+        setItem(aporte);
+
+        // Si la lista falla, la pantalla sigue sirviendo: solo no sabrá si ya está baneado.
+        const baneos = await baneosRes.json().catch(() => ({}));
+        if (baneosRes.ok && Array.isArray(baneos.data) && aporte.userId !== null) {
+          setAutorBaneado(baneos.data.some((b: { usuarioId: string }) => b.usuarioId === String(aporte.userId)));
+        }
       } catch (cause) {
         setLoadError(cause instanceof Error ? cause.message : "No se pudo cargar el aporte");
       }
     }
     void load();
-  }, [params.aporteId]);
+  }, [params.aporteId, params.id]);
 
   if (loadError) return <p className="text-sm text-danger">{loadError}</p>;
   if (!item) return <p className="text-sm text-ink-2">Cargando...</p>;
@@ -52,7 +70,7 @@ export default function RevisionAportePage() {
     setSubmitting(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/aportes/${params.aporteId}`, {
+      const response = await fetch(`${BASE_PATH}/api/aportes/${params.aporteId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, rejectionReason }),
@@ -80,7 +98,7 @@ export default function RevisionAportePage() {
     setSubmitting(true);
     setActionError(null);
     try {
-      const response = await fetch(`/api/campanas/${params.id}/baneos`, {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${params.id}/baneos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ contributionId, reason: banReason.trim() }),
@@ -88,8 +106,30 @@ export default function RevisionAportePage() {
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "No se pudo banear al usuario");
       setShowBanForm(false);
+      setBanReason("");
+      setAutorBaneado(true);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "No se pudo banear al usuario");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function unbanUser() {
+    if (!item?.userId) return;
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${params.id}/baneos`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ usuarioId: item.userId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo quitar el baneo");
+      setAutorBaneado(false);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "No se pudo quitar el baneo");
     } finally {
       setSubmitting(false);
     }
@@ -125,7 +165,7 @@ export default function RevisionAportePage() {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
         {item.fileType === "foto" ? (
           <img
-            src={`/api/aportes/${item.id}/archivo`}
+            src={`${BASE_PATH}/api/aportes/${item.id}/archivo`}
             alt="Archivo del aporte"
             className="h-44 w-full rounded-lg border border-line-2 bg-sunken object-contain"
           />
@@ -245,9 +285,18 @@ export default function RevisionAportePage() {
 
       {(item.userId !== null || !alreadyReviewed) && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-          <Button variant="danger" size="sm" onClick={() => setShowBanForm(true)} disabled={submitting || item.userId === null}>
-            Banear usuario de la campaña
-          </Button>
+          {autorBaneado ? (
+            <div className="flex flex-wrap items-center gap-2">
+              <Tag tone="danger">Baneado de esta campaña</Tag>
+              <Button size="sm" onClick={() => void unbanUser()} disabled={submitting}>
+                Quitar baneo
+              </Button>
+            </div>
+          ) : (
+            <Button variant="danger" size="sm" onClick={() => setShowBanForm(true)} disabled={submitting || item.userId === null}>
+              Banear usuario de la campaña
+            </Button>
+          )}
           {!alreadyReviewed && (
             <div className="flex gap-2">
               <Button onClick={() => setShowRejectForm(true)} disabled={submitting}>Rechazar</Button>

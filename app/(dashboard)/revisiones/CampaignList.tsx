@@ -1,8 +1,12 @@
 "use client";
 
+// Lista de campañas del revisor (pestañas "en curso" y "finalizadas").
+// Datos: GET /api/revisiones (campañas con campana_revisores.estado = 'aceptado').
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Tag from "@/components/ui/Tag";
+import { BASE_PATH } from "@/lib/base-path";
 
 type ReviewCampaign = {
   id: string;
@@ -22,7 +26,7 @@ export default function CampaignList({ completed = false }: { completed?: boolea
   useEffect(() => {
     async function load() {
       try {
-        const response = await fetch("/api/revisiones", { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/revisiones`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "No se pudieron cargar las campañas");
         const rows = Array.isArray(payload.data) ? payload.data as ReviewCampaign[] : [];

@@ -1,7 +1,6 @@
 import { randomBytes, createHash } from "crypto";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
-import { ensureRootSessionsTable } from "@/lib/db-schema";
 
 /**
  * Sesión de SuperUsuario, separada de `lib/session.ts`: la credencial raíz
@@ -19,8 +18,6 @@ function hashToken(token: string) {
 }
 
 export async function createRootSession() {
-  await ensureRootSessionsTable();
-
   const token = randomBytes(32).toString("hex");
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
@@ -41,8 +38,6 @@ export async function createRootSession() {
 }
 
 export async function hasRootSession(): Promise<boolean> {
-  await ensureRootSessionsTable();
-
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
   if (!token) return false;
@@ -56,8 +51,6 @@ export async function hasRootSession(): Promise<boolean> {
 }
 
 export async function destroyRootSession() {
-  await ensureRootSessionsTable();
-
   const cookieStore = await cookies();
   const token = cookieStore.get(COOKIE_NAME)?.value;
 

@@ -1,11 +1,15 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/especial: convertir la campaña en especial (multiplicador de XP).
+// Componente cliente. Datos: GET /api/campanas?id=. La regla de XP especial aún no está implementada en el servidor.
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Field, Input } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 const MAX_MULTIPLIER = 3;
 
@@ -19,7 +23,7 @@ export default function CampanaEspecialPage() {
 
   useEffect(() => {
     async function loadCampaign() {
-      const response = await fetch(`/api/campanas?id=${params.id}`);
+      const response = await fetch(`${BASE_PATH}/api/campanas?id=${params.id}`);
       if (!response.ok) return;
       const body = await response.json();
       setCampaign(body.data ?? null);

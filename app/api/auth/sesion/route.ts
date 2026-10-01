@@ -1,3 +1,6 @@
+// GET /api/auth/sesion — usuario de la sesión actual, o null.
+// Lo usan /bienvenida, /campanas, /supervision y VigilanteDeSesion (para detectar sanciones a media sesión).
+
 import { NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/session";
 

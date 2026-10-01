@@ -1,14 +1,21 @@
+// GET /api/auth/google/callback — Google regresa aquí con code y state.
+// Vincula google_id a la cuenta con ese correo o crea una ya verificada, abre sesión y redirige.
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
-import { ensureUsuariosTable } from "@/lib/db-schema";
 import { createSession } from "@/lib/session";
 import { exchangeCodeForProfile } from "@/lib/google";
+import { absoluteUrl } from "@/lib/app-url";
+import { conDestino, destinoSeguro } from "@/lib/redireccion";
 
 const STATE_COOKIE = "google_oauth_state";
+const NEXT_COOKIE = "google_oauth_next";
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  // Si algo falla, /entrar conserva el destino para reintentar (lib/redireccion.ts).
+  let destino: string | undefined;
 
   try {
     const code = url.searchParams.get("code");
@@ -17,14 +24,15 @@ export async function GET(request: Request) {
     const cookieStore = await cookies();
     const expectedState = cookieStore.get(STATE_COOKIE)?.value;
     cookieStore.delete(STATE_COOKIE);
+    destino = destinoSeguro(cookieStore.get(NEXT_COOKIE)?.value);
+    cookieStore.delete(NEXT_COOKIE);
 
     if (!code || !state || !expectedState || state !== expectedState) {
-      return NextResponse.redirect(new URL("/entrar?error=google", request.url));
+      return NextResponse.redirect(absoluteUrl(conDestino("/entrar?error=google", destino)));
     }
 
     const profile = await exchangeCodeForProfile(code);
 
-    await ensureUsuariosTable();
 
     const existing = await pool.query(
       `SELECT id FROM usuarios WHERE email = $1 OR google_id = $2 LIMIT 1`,
@@ -49,11 +57,13 @@ export async function GET(request: Request) {
       usuarioId = inserted.rows[0].id;
     }
 
+    // Una cuenta bloqueada también entra: al llegar a la app la mandan a
+    // /cuenta-bloqueada, donde ve el motivo (exigirUsuario en lib/session.ts).
     await createSession(usuarioId);
 
-    return NextResponse.redirect(new URL("/campanas", request.url));
+    return NextResponse.redirect(absoluteUrl(destino));
   } catch (error) {
     console.error(error);
-    return NextResponse.redirect(new URL("/entrar?error=google", request.url));
+    return NextResponse.redirect(absoluteUrl(conDestino("/entrar?error=google", destino)));
   }
 }

@@ -1,13 +1,11 @@
+// Directorio de usuarios del panel (/usuarios/**): búsqueda, ficha, estado de la cuenta y sanciones.
+// Ojo: estas consultas no verifican la sesión raíz; dependen del layout del panel (docs/README.md § 8).
+
 import { pool } from "@/lib/db";
 import {
-  ensureAportesTable,
-  ensureCampanasTable,
-  ensureSancionesTable,
-  ensureUsuariosTable,
-} from "@/lib/db-schema";
-import {
   nombreDeRolPrincipal,
-  rolVigenteDesde,
+  nombresDeRoles,
+  rolesVigentesDesde,
   type RolAsignable,
 } from "@/lib/usuarios/rol-asignable";
 import type { TonoDeEtiqueta } from "@/lib/usuarios/supervisores";
@@ -24,6 +22,8 @@ export type FilaDeUsuario = {
   nombre: string;
   correo: string;
   rol: string;
+  /** Los mismos roles, uno por etiqueta (la tabla del directorio los pinta como Tag). */
+  roles: string[];
   /** Aclaración bajo el rol, p. ej. "(y creador de campañas)". */
   rolDetalle?: string;
   estado: EstadoDeCuenta;
@@ -37,7 +37,8 @@ export type Usuario = FilaDeUsuario & {
   campanasCreadas: number;
   aportesEnviados: number;
   aportesAceptados: number;
-  rolVigente: RolAsignable | null;
+  /** Puede tener cero, uno o los dos roles delegados a la vez. */
+  rolesVigentes: RolAsignable[];
   rolDesde: Date | null;
   interesesDeclarados: { tema: string; campanas: number }[];
   historialDeStrikes: { motivo: string; fecha: Date; campana: string }[];
@@ -128,9 +129,6 @@ export const formatearFechaYHora = (f: Date) => fechaConHora.format(f);
  *     queda en 0.
  *   - obtenerReporteDeSancion: no hay flujo de "reportar un aporte para
  *     sanción" en la app y ninguna pantalla la usa; se deja como estaba.
- *   - El TODO de acciones-usuarios.ts sigue abierto: al tercer STRIKE no hay
- *     escalamiento automático a BANEADA todavía (hay que aplicar el baneo a
- *     mano). El contador de strikes ya es real y visible.
  * ────────────────────────────────────────────────────────────────────────────
  */
 
@@ -178,6 +176,7 @@ function filaDesdeDB(row: FilaUsuarioDB): FilaDeUsuario {
     nombre: `${row.nombre} ${row.apellidos}`.trim(),
     correo: row.email,
     rol: nombreDeRolPrincipal(roles),
+    roles: nombresDeRoles(roles),
     estado: estadoDesdeSanciones(strikes, Boolean(row.suspendida), Boolean(row.baneada)),
     strikes,
   };
@@ -199,9 +198,6 @@ export async function buscarUsuarios(opciones: {
   // try/catch, la primera visita al directorio tumba la página con
   // "relation ... does not exist" en vez de mostrar la lista vacía.
   try {
-    await ensureUsuariosTable();
-    await ensureSancionesTable();
-
     const condiciones: string[] = [];
     const valores: Array<string | number> = [];
 
@@ -270,9 +266,6 @@ export async function obtenerUsuario(id: string): Promise<Usuario | null> {
   if (!Number.isInteger(numericId)) return null;
 
   try {
-    await ensureUsuariosTable();
-    await ensureSancionesTable();
-
     const result = await pool.query<
       FilaUsuarioDB & {
         state: string | null;
@@ -321,8 +314,6 @@ export async function obtenerUsuario(id: string): Promise<Usuario | null> {
     let aportesAceptados = 0;
 
     try {
-      await Promise.all([ensureCampanasTable(), ensureAportesTable()]);
-
       const [campanasResult, aportesResult] = await Promise.all([
         pool.query<{ count: string }>(`SELECT COUNT(*) FROM campanas WHERE creator_id = $1`, [
           numericId,
@@ -349,7 +340,7 @@ export async function obtenerUsuario(id: string): Promise<Usuario | null> {
       campanasCreadas,
       aportesEnviados,
       aportesAceptados,
-      rolVigente: rolVigenteDesde(row.role ?? []),
+      rolesVigentes: rolesVigentesDesde(row.role ?? []),
       rolDesde: null,
       interesesDeclarados: (row.intereses ?? []).map((tema) => ({ tema, campanas: 0 })),
       historialDeStrikes,
@@ -390,9 +381,6 @@ export async function obtenerReporteDeSancion(
  */
 export async function listarSancionesActivas(): Promise<SancionActiva[]> {
   try {
-    await ensureUsuariosTable();
-    await ensureSancionesTable();
-
     const result = await pool.query<{
       id: number;
       tipo: string;

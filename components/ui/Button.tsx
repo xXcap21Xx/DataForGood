@@ -1,3 +1,5 @@
+// Botón de la zona de usuario y buttonClasses() para dar forma de botón a otros elementos.
+
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
 type Variant = "primary" | "secondary" | "danger" | "ghost";

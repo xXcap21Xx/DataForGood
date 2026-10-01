@@ -1,3 +1,5 @@
+// Tarjeta de aporte con su estado (Tag). Recibe un Contribution de types/index.ts.
+
 import Tag from "@/components/ui/Tag";
 import Card from "@/components/ui/Card";
 import type { Contribution } from "@/types";

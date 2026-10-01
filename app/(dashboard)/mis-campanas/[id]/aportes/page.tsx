@@ -1,11 +1,17 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/aportes: bandeja de aportes del creador.
+// Componente cliente. Datos: GET /api/campanas/[id] y GET /api/aportes?campaignId= (solo el creador).
+// Incluye la sección de participantes baneados (baneados.tsx).
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import Button from "@/components/ui/Button";
 import type { Campaign, Contribution } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
+import BaneadosDeCampana from "./baneados";
 
 const STAGE_LABEL: Record<string, string> = {
   pendiente: "Sin revisar",
@@ -24,8 +30,8 @@ export default function BandejaAportesPage() {
     async function load() {
       try {
         const [campaignRes, aportesRes] = await Promise.all([
-          fetch(`/api/campanas/${params.id}`, { cache: "no-store" }),
-          fetch(`/api/aportes?campaignId=${encodeURIComponent(params.id)}`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/campanas/${params.id}`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/aportes?campaignId=${encodeURIComponent(params.id)}`, { cache: "no-store" }),
         ]);
 
         const campaignPayload = await campaignRes.json().catch(() => ({}));
@@ -64,7 +70,7 @@ export default function BandejaAportesPage() {
       </div>
 
       {campaign.hasReviewerAssigned ? (
-        <div className="mb-5 rounded-lg bg-accent-tint p-3.5 text-[12.5px] text-accent-deep">
+        <div className="mb-5 rounded-lg border-l-4 border-accent bg-sunken p-3.5 text-[12.5px] text-ink-2">
           Esta campaña tiene revisor asignado: los aportes marcados como validados ya
           pasaron la primera instancia.
         </div>
@@ -138,6 +144,8 @@ export default function BandejaAportesPage() {
           filtran en primera instancia también aparecen aquí.
         </div>
       )}
+
+      <BaneadosDeCampana campaignId={campaign.id} />
     </div>
   );
 }

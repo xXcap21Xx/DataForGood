@@ -1,14 +1,12 @@
+// /api/aportes/[id] — detalle, revisión, edición y borrado de un aporte.
+// Cada cambio de estado actualiza también los contadores de la campaña.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
+import { respuestasValidas, seccionesDesdeFila } from "@/lib/campanas/checklist";
 
 const ALLOWED_STATUS = new Set(["pendiente", "espera_final", "aceptado", "rechazado"]);
-
-function normalizeCaracteristicas(values: unknown[], allowed: string[]): string[] {
-  const allowedSet = new Set(allowed);
-  return Array.from(new Set(values.map(String).filter((value) => allowedSet.has(value))));
-}
 
 function mapAporte(row: Record<string, unknown>) {
   return {
@@ -31,7 +29,7 @@ function mapAporte(row: Record<string, unknown>) {
 
 async function loadAporteWithCampaign(id: string) {
   const result = await pool.query(
-    `SELECT a.*, c.creator_id AS campaign_creator_id, c.collection_mode AS campaign_collection_mode, c.checklist_opciones AS campaign_checklist_opciones
+    `SELECT a.*, c.creator_id AS campaign_creator_id, c.collection_mode AS campaign_collection_mode, c.checklist_opciones AS campaign_checklist_opciones, c.checklist_secciones AS campaign_checklist_secciones
      FROM aportes a
      JOIN campanas c ON c.id = a.campaign_id
      WHERE a.id = $1
@@ -41,10 +39,9 @@ async function loadAporteWithCampaign(id: string) {
   return result.rowCount ? result.rows[0] : null;
 }
 
+// GET: detalle de un aporte. Lo ven quien aportó, el creador y los revisores aceptados.
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -73,8 +70,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 // El revisor aceptado valida en primera instancia y el creador puede revisar el aporte.
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -153,8 +148,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 // Uso previsto: quien envió el aporte edita descripción/caracteristicas mientras sigue pendiente (Insomnia: PUT { "description": "...", "caracteristicas": [...] })
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -179,11 +172,15 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       return NextResponse.json({ error: "La descripción no puede superar 1000 caracteres" }, { status: 400 });
     }
 
-    const campaignChecklistOpciones = Array.isArray(row.campaign_checklist_opciones) ? row.campaign_checklist_opciones : [];
-    const caracteristicas =
-      String(row.campaign_collection_mode ?? "checklist") === "checklist"
-        ? normalizeCaracteristicas(Array.isArray(body.caracteristicas) ? body.caracteristicas : [], campaignChecklistOpciones)
-        : [];
+    const secciones = seccionesDesdeFila({
+      checklist_secciones: row.campaign_checklist_secciones,
+      checklist_opciones: row.campaign_checklist_opciones,
+      collection_mode: row.campaign_collection_mode,
+    });
+    const caracteristicas = respuestasValidas(
+      Array.isArray(body.caracteristicas) ? body.caracteristicas.map(String) : [],
+      secciones
+    );
 
     const result = await pool.query(
       `UPDATE aportes SET description = $2, caracteristicas = $3::jsonb, updated_at = NOW() WHERE id = $1 RETURNING *`,
@@ -197,12 +194,11 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   }
 }
 
+// DELETE: quien aportó borra su aporte si todavía no está aceptado; descuenta los contadores de la campaña.
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const client = await pool.connect();
 
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });

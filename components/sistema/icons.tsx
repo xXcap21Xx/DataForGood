@@ -1,3 +1,5 @@
+// Íconos SVG del panel del SuperUsuario.
+
 import type { ReactNode, SVGProps } from "react";
 
 type IconoProps = SVGProps<SVGSVGElement>;

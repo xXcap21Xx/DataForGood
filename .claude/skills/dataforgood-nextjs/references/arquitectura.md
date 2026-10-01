@@ -1,174 +1,113 @@
 # Arquitectura
 
 ## Contenido
-1. Un proceso, dos responsabilidades
+1. Un solo proceso: Next.js
 2. Flujo de una petición
-3. Leer datos en páginas
-4. Mutaciones desde el cliente
-5. Servidor personalizado: detalles que importan
-6. Docker: desarrollo y despliegue
-7. Probar desde un teléfono real
-8. Errores, carga y estados vacíos
-9. Notificaciones
-10. Pruebas
+3. Route handlers (zona de usuario)
+4. Server actions (panel del SuperUsuario)
+5. Patrones de página
+6. Docker y variables de entorno
+7. Problemas conocidos
 
-## 1. Un proceso, dos responsabilidades
+## 1. Un solo proceso: Next.js
 
-`server.ts` crea un `http.Server` y cuelga de él una app de Express:
+No hay servidor personalizado. `next start` (en Docker, el `server.js` de `.next/standalone`) atiende páginas, route handlers y server actions. Todo el código de servidor vive en `lib/` y se importa desde `app/`.
 
-- **Express** atiende `/api/v1/*`: JSON, sesión, validación, permisos y errores con formato único.
-- **Next.js** atiende todo lo demás: páginas, layouts, assets y `/_next/*`.
+```
+Arranque: instrumentation.ts ──► ensureCoreSchema() (crea o actualiza las tablas, una vez)
 
-Ambos importan los mismos módulos de `server/`, así que no hay que duplicar la lógica. La otra cara es que hay dos grafos de módulos: Next empaqueta su copia y Express usa la suya. Por eso los singletons van en `globalThis` (regla 3).
-
-El proceso corre dentro del contenedor `app` y alcanza a `postgres` y `minio` por sus nombres de servicio en la red interna de Docker.
+Navegador ──► proxy.ts (¿hay cookie?  /api: ¿Origin propio?) ──► página / route handler / server action
+                                                             │
+                                                             ├─ lib/session.ts o lib/rootSession.ts  (¿quién es? ¿está sancionado?)
+                                                             ├─ lib/db.ts pool.query(sql, params)    (PostgreSQL)
+                                                             ├─ lib/minio.ts                         (archivos)
+                                                             └─ lib/auditoria.ts                     (bitácora de acciones sensibles)
+```
 
 ## 2. Flujo de una petición
 
-```
-Navegador ──► http.Server ──► Express
-                               ├─ /api/v1/* ─► json() → sameOriginMutations → loadSession
-                               │               → router del módulo → requirePermission
-                               │               → parseInput (Zod) → service (assertCan) → Drizzle / S3
-                               │               → JSON  |  error → apiErrorHandler → { error: {code, message} }
-                               └─ resto ─────► handle(req, res) de Next
-                                               → proxy.ts (opcional, solo redirecciones)
-                                               → layout/page (Server Components)
-                                               → _data/current-user → service → Drizzle
-```
+1. **`proxy.ts`** (antes `middleware.ts`):
+   - **Páginas:** solo mira si existe la cookie. Cubre `/campanas`, `/mis-aportes`, `/mis-campanas`, `/cuenta`, `/supervision` (cookie `session_token`; si falta, `/entrar?next=<ruta pedida>`, y tras iniciar sesión, con correo o con Google, se regresa ahí; el destino también pasa por `/registro` → `/verificar` → `/bienvenida` con `conDestino()`, y se conserva si el login con Google falla; `destinoSeguro()` de `lib/redireccion.ts` solo acepta rutas internas) y `/sistema` (cookie `root_session_token`; si falta, `/root`). **No valida el token ni el rol**, y no cubre `/revisiones`, `/usuarios` ni `/supervisar`: esas rutas dependen de sus layouts y páginas.
+   - **`/api`:** rechaza las mutaciones con `Origin` ajeno (CSRF, ver `roles-y-sesiones.md`).
+2. **Layout del grupo:** `(panel)/layout.tsx` llama a `hasRootSession()`; `(dashboard)/supervision/layout.tsx` exige rol `supervisor`.
+3. **Página o handler:** vuelve a verificar. Los layouts no bastan porque no se vuelven a ejecutar en cada navegación cliente y no protegen los route handlers ni las server actions.
 
-## 3. Leer datos en páginas
+## 3. Route handlers (zona de usuario)
 
-La página es un Server Component asíncrono. Obtiene el actor, llama al service y pasa datos serializables (los tipos de `types/index.ts`) a un componente cliente hermano.
+`app/api/**/route.ts`, sin versión en la URL. Forma habitual:
 
-```tsx
-// app/(dashboard)/mis-campanas/[id]/aportes/page.tsx
-import { notFound } from "next/navigation";
-import { requirePagePermission } from "@/app/_data/current-user";
-import { getCampaignInbox } from "@/server/modules/aportes/service";
-import BandejaView from "./BandejaView";
-
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const user = await requirePagePermission("campanas.ver");
-  const { id } = await params;                       // Next 16: siempre await
-  const data = await getCampaignInbox(user, id);     // hace assertCampaignOwner adentro
-  if (!data) notFound();
-  return <BandejaView campaign={data.campaign} inbox={data.inbox} />;
+```ts
+export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+    // validar entrada → 400; comprobar permiso sobre la campaña → 403/404
+    // pool.query(...) parametrizado; transacción si hay varias escrituras
+    return NextResponse.json({ data });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: "Mensaje para la persona" }, { status: 500 });
+  }
 }
 ```
 
-Reglas:
+- **Respuesta:** `{ data }` si sale bien, `{ error }` si no. Los clientes leen `payload.error`.
+- **Mapeo:** las filas vienen en snake_case y se convierten a los tipos de `types/index.ts` con una función `mapX(row)` en el mismo archivo.
+- **Endpoints actuales:** `auth/{login, logout, root, sesion, verificar, verificar/reenviar, google, google/callback}`, `usuarios`, `usuarios/[id]`, `campanas`, `campanas/[id]{, /guardar, /revisores, /baneos, /recoleccion-diaria}`, `aportes`, `aportes/[id]{, /archivo}`, `revisiones`, `notificaciones`, `notificaciones/[id]/aceptar` y `datos/[id]/descarga` (ZIP con `archiver`), y `docs` + `docs/spec` (Swagger UI).
+- **Documentación para personas:** `docs/` (guía en `docs/README.md`, rutas en `docs/rutas.md`, tablas y estados en `docs/datos.md`, permisos en `docs/permisos.md`, módulos en `docs/lib.md`) y un comentario de cabecera en cada archivo de `app/`, `lib/` y `components/`. Mantenlos al día en el mismo commit que el cambio.
+- **Documentación OpenAPI:** `openapi.yaml` (raíz) describe todos los route handlers y se escribe a mano. **Si agregas o cambias un endpoint, actualiza `openapi.yaml` en el mismo commit.** `/api/docs` sirve Swagger UI (desde jsdelivr) y `/api/docs/spec` entrega el YAML con el servidor actual (`BASE_PATH`) como primero. Acceso (`lib/api-docs.ts`): abierto en `next dev`; en producción, incluido Docker local, exige sesión root. `next.config.ts` incluye el YAML en el build con `outputFileTracingIncludes`. La colección de Insomnia equivalente es `dataforgood-insomnia.json`.
 
-- **Verifica permisos en la página y en el service, no solo en el layout.** En la navegación del lado del cliente, los layouts compartidos no vuelven a renderizarse.
-- **Nunca `'use client'` en una función `async`:** en la rama eso produce un 500 (`conectar-mocks.md`, sección 6).
-- **Pasa a los componentes cliente solo datos serializables.**
-- **Los datos de cada usuario son dinámicos:** no uses `'use cache'` en funciones que dependen de la sesión.
+## 4. Server actions (panel del SuperUsuario)
 
-## 4. Mutaciones desde el cliente
+Archivos `"use server"` en `lib/`: `lib/usuarios/acciones-usuarios.ts` (`asignarRol`, `revocarRol`, `aplicarSancion`, `restaurarAcceso`), `lib/usuarios/acciones-supervisor.ts` (`revertirAccion`) y `lib/supervision/acciones-root.ts` (`decidirComoSuperUsuario`, `tomarComoSuperUsuario`).
 
-```tsx
-"use client";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
-import Button from "@/components/ui/Button";
-
-export default function AprobarAporte({ aporteId }: { aporteId: string }) {
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-
-  return (
-    <>
-      <Button
-        variant="primary"
-        disabled={pending}
-        onClick={() =>
-          start(async () => {
-            setError(null);
-            const res = await fetch(`/api/v1/aportes/${aporteId}/decision`, {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ decision: "aceptado" }),
-            });
-            if (!res.ok) return setError((await res.json()).error?.message ?? "No se pudo aprobar");
-            router.refresh(); // vuelve a renderizar los Server Components con datos nuevos
-          })
-        }
-      >
-        {pending ? "Aprobando…" : "Aprobar aporte"}
-      </Button>
-      {error && <p role="alert" className="mt-2 text-[12px] text-danger">{error}</p>}
-    </>
-  );
+```ts
+"use server";
+export async function hacerAlgo(id: string, ...): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!(await hasRootSession())) throw new Error("No autorizado");   // guardia SIEMPRE primero
+  if (!/^\d+$/.test(id)) return { ok: false, error: "Petición inválida." };
+  // lógica (idealmente una función de lib/ compartida con el route handler equivalente)
+  // si es sensible: await registrarAuditoria({ actor: { tipo: "superusuario" }, accion: ..., objetivo: ... });
+  revalidatePath("/ruta", "layout");
+  return { ok: true };
 }
 ```
 
-Para no repetir `fetch`, crea en `lib/api.ts` un helper `apiFetch` que agregue el header JSON y convierta `{ error }` en excepción. El navegador envía `Origin` por su cuenta.
+Una server action es un endpoint público: cualquiera puede invocarla con su ID. Por eso **la guardia va dentro de la acción**, no en la página que la usa.
 
-## 5. Servidor personalizado: detalles que importan
+## 5. Patrones de página
 
-- **Crea el `http.Server` antes y pásalo a `next({ httpServer })`.** Así el HMR por websockets funciona en desarrollo.
-- **`server.ts` no pasa por el compilador de Next.** Se ejecuta con `tsx` en desarrollo y se empaqueta con esbuild para producción. esbuild resuelve los alias `@/` de `tsconfig.json`.
-- **Fija los headers propios antes de `handle(req, res)`.** Después de esa llamada se descartan sin aviso.
-- **Usa la variable `HOST` para escuchar, no `HOSTNAME`.** Docker rellena `HOSTNAME` con el id del contenedor.
-- **Configura `app.set('trust proxy', 1)`** cuando haya Nginx o Caddy delante; si no, `req.ip` y `req.protocol` salen equivocados.
-- **No uses `output: 'standalone'`.** Ignora el servidor personalizado.
-- **Los websockets propios** (por ejemplo, avisos en vivo a revisores) se cuelgan del mismo `httpServer`. Filtra el evento `upgrade` por ruta para no interceptar el HMR de Next.
-- **`next build` importa las páginas**, y con ellas `env.ts`. Por eso `env.ts` no valida durante `NEXT_PHASE === 'phase-production-build'`. No agregues código con efectos secundarios al nivel superior de los módulos (conexiones, lecturas de archivos): usa inicialización perezosa.
-
-## 6. Docker: desarrollo y despliegue
-
-Todo el sistema corre en contenedores. No hay Postgres ni MinIO instalados en la máquina.
-
-| Servicio | Imagen | Función |
-| --- | --- | --- |
-| `postgres` | `postgres:17-alpine` | Base de datos, sin puertos publicados en el compose base |
-| `minio` | `minio/minio:RELEASE.2025-09-07T16-13-09Z` | Almacenamiento; API 9000, consola solo en `127.0.0.1:9001` |
-| `minio-setup` | la misma de MinIO | Crea el bucket privado y el usuario de la app, y termina |
-| `app` | `Dockerfile` (etapa `dev` o `runtime`) | Express + Next; arranca cuando Postgres está sano y `minio-setup` terminó bien |
-
-| Tarea | Comando |
+| Zona | Patrón actual |
 | --- | --- |
-| Desarrollo con recarga | `npm run docker:dev` (añade `-V` tras cambiar `package.json`) |
-| Migraciones en desarrollo | `docker compose exec app npm run db:migrate` |
-| Cualquier script | `docker compose exec app npm run <script>` |
-| Despliegue o demo | `docker compose up -d --build` (aplica migraciones al arrancar) |
-| Logs | `docker compose logs -f app minio-setup` |
+| `(dashboard)` | Página `"use client"` que carga con `fetch("/api/...")` en `useEffect` y maneja `cargando` / `error`. Algunas, como `mis-campanas/nueva`, separan un formulario cliente (`NuevaCampanaForm.tsx`) |
+| `(panel)` | Server Component `async` que debe llamar a `exigirSesionRoot()` o a una función de `lib/` que ya la exija (hoy `/sistema` y `/usuarios/**` no lo hacen, ver `roles-y-sesiones.md` § 8), lee con funciones de `lib/<modulo>/` y pasa props a componentes cliente hermanos (`filtros.tsx`, `botones-de-rol.tsx`, `formulario.tsx`) que llaman a server actions |
+| Públicas (`/`, `/datos`) | Server Components. `/` usa `revalidate = 300`: sus consultas van en `try/catch` con valores por defecto porque el build no tiene base de datos |
 
-Detalles:
+Actualización en vivo: `components/supervision/RefrescoEnVivo.tsx` hace `router.refresh()` periódico (polling) en los paneles de campañas activas.
 
-- **El override de desarrollo** monta el código con un bind mount y guarda `node_modules` y `.next` en volúmenes del contenedor, para no mezclar binarios del sistema anfitrión (por ejemplo, `@node-rs/argon2`) con los de Linux.
-- **En Windows, clona el repositorio dentro de WSL2.** Sobre carpetas de Windows montadas, los cambios de archivo pueden no detectarse y la recarga falla.
-- **`.dockerignore` excluye `.env`.** Los secretos llegan por `environment` en tiempo de ejecución, nunca dentro de la imagen.
-- **`next build` corre dentro de la etapa `build`, sin variables de entorno** (por eso `env.ts` no valida en esa fase). `next/font/google` descarga Plus Jakarta Sans y JetBrains Mono durante la compilación: sin internet el build falla (comprobado con la rama). Si el servidor de despliegue no tiene salida a internet, cambia a `next/font/local` con los archivos de las fuentes en el repositorio.
-- **`RUN_MIGRATIONS=true` en `runtime`** sirve para una sola instancia de la app, que es el caso del proyecto.
-- **La imagen `runtime` tiene `HEALTHCHECK`** contra `/api/v1/health` y corre como usuario `node`.
-- **Respaldos:** `docker compose exec postgres pg_dump -U <usuario> <base> > respaldo.sql`, más una copia del volumen `miniodata`.
+## 6. Docker y variables de entorno
 
-## 7. Probar desde un teléfono real
+- **Levantar:** `docker compose up -d` (agrega `--build` si cambió código, `Dockerfile` o dependencias). Logs: `docker compose logs -f app`.
+- **Servicios:** `postgres` (16-alpine, con healthcheck), `minio`, `minio-init` (crea el bucket privado y el usuario limitado, y termina) y `app`, que espera a `postgres` healthy y a que `minio-init` termine bien.
+- **Puertos:** solo la app publica un puerto, `APP_PORT` (3000 por defecto, 3002 en producción) → 3000 del contenedor; Postgres y MinIO no. Para `next dev` o la consola de MinIO, usa `docker compose -f docker-compose.yml -f docker-compose.local.yml up -d`, que los publica en `127.0.0.1`. No publiques Postgres ni MinIO en el compose base.
+- **Secretos:** todos salen de `.env` (plantilla versionada en `.env.example`). Los `${VAR:?}` hacen que Compose no arranque si falta alguno. `DATABASE_URL` se arma con `POSTGRES_USER/PASSWORD/DB`. `lib/db.ts` y `lib/minio.ts` no tienen credenciales por defecto: crean la conexión en el primer uso y fallan si falta la variable (no al importar, porque `next build` los importa sin entorno). Migrar un servidor existente: ver `README.md`.
+- **Dos `.env`, ambos gitignored y no intercambiables:**
+  - `.env.local` lo lee `next dev`. Ahí un `$` literal se escapa con `\$`.
+  - `.env` lo lee Compose para sustituir `${VAR}` en `docker-compose.yml`. Ahí un `$` literal se escapa con `$$`.
+  - `ROOT_PASSWORD_HASH` (bcrypt, lleno de `$`) tiene que estar en los dos, cada uno con su escape.
+- **Variables:** `POSTGRES_USER/PASSWORD/DB` (Compose) o `DATABASE_URL` (`next dev`), `MINIO_ROOT_USER/PASSWORD` (solo `minio` y `minio-init`), `MINIO_ENDPOINT/PORT/USE_SSL/ACCESS_KEY/SECRET_KEY/BUCKET` (`ACCESS_KEY` es el usuario limitado), `MINIO_DATA` (opcional), `APP_PORT` (opcional), `BASE_PATH`, `APP_ORIGIN`, `ROOT_USER_ID`, `ROOT_PASSWORD_HASH`, `GMAIL_USER`, `GMAIL_APP_PASSWORD`, `EMAIL_FROM`, `GOOGLE_CLIENT_ID/SECRET/REDIRECT_URI`.
+- **Subruta (`basePath`):** en producción la app se publica en `https://multimodal-ai-lab.cicese.mx/dataforgood/`. `BASE_PATH` es un `ARG` del Dockerfile (por defecto `/dataforgood`; `docker-compose.yml` lo pasa como build arg) y `next.config.ts` lo usa como `basePath` y `NEXT_PUBLIC_BASE_PATH`. Como se incrusta en el bundle, cambiarlo exige reconstruir la imagen. El proxy inverso del servidor **debe reenviar la ruta completa, con `/dataforgood`**, sin recortarla. En local, con `docker compose`, la app queda en `http://localhost:3000/dataforgood`, y `next dev` sin `BASE_PATH` queda en la raíz. En Git Bash, `BASE_PATH=/dataforgood` se convierte en una ruta de Windows: usa PowerShell o `MSYS_NO_PATHCONV=1`.
+- **`Dockerfile`:** multi-stage `deps → builder → runner` sobre `node:24-alpine`. Usa `npm install` (no `npm ci`) porque el lockfile se genera en Windows. El runner copia `.next/standalone`.
+- **Imagen con nombre fijo:** el servicio `app` se etiqueta `dataforgood-app:latest`. En producción el servidor no compila: recibe un paquete `despliegue/dataforgood-<commit>/` (imágenes `.tar`, `README.md`, `docker-compose.yml`, `.env.example`; `despliegue/`, `*.tar` e `*.img` están en `.gitignore`), hace `docker load` y `docker compose up -d` **sin `--build`**. La imagen de MinIO también se lleva en `.tar` porque ya no se puede descargar. Pasos completos en `README.md`.
+- **Sin `DATABASE_URL`** (ni `POSTGRES_URL`) la app termina al arrancar con un mensaje claro (`instrumentation-node.ts`), en vez de reintentar. Pasa si se corre la imagen con `docker run` sin el stack: usa `docker compose`.
 
-Es parte central del proyecto, porque la mayoría de quienes aportan usarán el celular. Hay tres trampas comunes:
+## 7. Problemas conocidos (pendientes de despliegue)
 
-1. **Al abrir `http://192.168.x.x:3000`, el header `Origin` ya no coincide con `APP_ORIGIN`** y las mutaciones responden 403 (se resuelve con el paso siguiente).
-2. **`S3_PUBLIC_ENDPOINT=http://localhost:9000` no existe desde el teléfono.** En `.env`, cambia `APP_ORIGIN` y `S3_PUBLIC_ENDPOINT` a la IP de tu máquina y recrea los contenedores con `docker compose up -d`. El CORS de MinIO sigue a `APP_ORIGIN` automáticamente.
-3. **`getUserMedia` (cámara y micrófono en vivo) solo funciona en contexto seguro.** Eso significa HTTPS, o `localhost` en la misma máquina; en una IP de la red local sin HTTPS no funciona. `<input type="file" capture>` sí funciona sin HTTPS. Para probar grabación en vivo, usa un túnel con HTTPS.
+Críticos resueltos el 2026-09-25: puertos, credenciales en el compose, usuario limitado de MinIO, volumen de Windows y límite de intentos de `/root`. Siguen pendientes:
 
-## 8. Errores, carga y estados vacíos
+- **Imagen de MinIO:** ya no se puede descargar (MinIO dejó de publicar en `quay.io/minio/*` y en Docker Hub); solo sirve la que está en caché (`RELEASE.2025-09-07T16-13-09Z`), y no recibe parches. Hay que decidir el reemplazo (compilar desde el código fuente o migrar a otro almacenamiento compatible con S3).
+- La app publica `APP_PORT` en todas las interfaces: si el proxy vive en el mismo host, conviene `127.0.0.1:${APP_PORT}:3000`.
+- Sin `/api/health` y sin respaldos (`pg_dump` + copia del volumen de MinIO).
 
-- **`loading.tsx`** en cada segmento con datos lentos, con esqueletos del tamaño real para evitar saltos en móvil.
-- **`error.tsx`** (componente cliente) con un botón para reintentar. **`not-found.tsx`** para recursos inexistentes; en la página se usa `notFound()` cuando el service lanza 404.
-- **Cada lista tiene su estado vacío** con una acción clara, por ejemplo "Aún no hay aportes. Participa en una campaña".
-- **La API siempre responde `{ error: { code, message, details? } }`.** La interfaz decide qué mostrar según `code`.
-
-## 9. Notificaciones
-
-El plan anterior usaba FCM para la app móvil, que ya no existe. Hay dos etapas posibles:
-
-1. **Notificaciones dentro de la app:** una tabla `notifications` más un contador en el header. Cubre la mayoría de los casos y no depende del navegador.
-2. **Web Push (opcional, después):** requiere service worker y HTTPS. En iOS solo funciona si el sitio se instaló en la pantalla de inicio, así que no puede ser el único canal para avisos importantes.
-
-## 10. Pruebas
-
-- **Services (lo más valioso):** reglas de permisos y transiciones de estado. Aísla el acceso a datos o usa una base de datos de prueba.
-- **Permisos:** `permissions.test.ts` protege la regla del Colaborador de Supervisor. Agrega un caso por cada permiso nuevo.
-- **Routers:** levanta `createApp()` en un puerto y usa `fetch`. Para las mutaciones, envía los headers `origin` y `cookie`.
+No los "arregles de paso": son una tarea propia que hay que acordar.

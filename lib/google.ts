@@ -1,3 +1,6 @@
+// Login con Google (OAuth 2.0, google-auth-library): arma la URL de autorización y cambia el code por el perfil.
+// Variables: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI.
+
 import { OAuth2Client } from "google-auth-library";
 
 function getClient() {

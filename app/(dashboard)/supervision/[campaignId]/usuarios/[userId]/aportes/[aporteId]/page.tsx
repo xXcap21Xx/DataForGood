@@ -1,15 +1,16 @@
+// Pantalla .../usuarios/[userId]/aportes/[aporteId] de /supervision: detalle de un aporte (solo lectura).
+// Server Component con SQL directo; solo si supervisas la campaña.
+
 import { notFound, redirect } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import { BackLink } from "../../../../../_ui";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 
 export default async function SupervisedContributionPage({ params }: { params: Promise<{ campaignId: string; userId: string; aporteId: string }> }) {
   const { campaignId, userId, aporteId } = await params;
-  await ensureCoreSchema();
-  const user = await getSessionUser();
-  if (!user || !user.role.includes("supervisor")) redirect("/campanas");
+  const user = await exigirUsuario();
+  if (!user.role.includes("supervisor")) redirect("/campanas");
 
   const result = await pool.query(
     `SELECT a.id, a.user_id, a.participant_name, a.participant_email, a.description,

@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/panel: métricas de una campaña propia.
+// Componente cliente. Datos: GET /api/campanas?id= y GET /api/campanas/[id]/recoleccion-diaria.
+// Ojo: ni la página ni esos endpoints comprueban que seas el creador (docs/README.md § 8).
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -7,6 +11,7 @@ import Tag from "@/components/ui/Tag";
 import MetricCard from "@/components/ui/MetricCard";
 import ProgressBar from "@/components/ui/ProgressBar";
 import type { Campaign } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 type DiaDeRecoleccion = { fecha: string; etiqueta: string; valor: number };
 type TipoDeAporte = { tipo: string; etiqueta: string; valor: number; porcentaje: number };
@@ -22,8 +27,8 @@ export default function PanelCampanaPage() {
 
     async function loadCampaign() {
       const [campaignResponse, recoleccionResponse] = await Promise.all([
-        fetch(`/api/campanas?id=${params.id}`, { cache: "no-store" }),
-        fetch(`/api/campanas/${params.id}/recoleccion-diaria`, { cache: "no-store" }),
+        fetch(`${BASE_PATH}/api/campanas?id=${params.id}`, { cache: "no-store" }),
+        fetch(`${BASE_PATH}/api/campanas/${params.id}/recoleccion-diaria`, { cache: "no-store" }),
       ]);
       if (!activo) return;
 

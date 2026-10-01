@@ -1,12 +1,13 @@
 import { pool } from "@/lib/db";
 
 /**
- * Métricas del Panel del sistema (SCR-WEB-28). Los tres totales son de solo
+ * Métricas del Panel del sistema (SCR-WEB-28). Los totales son de solo
  * lectura: el SuperUsuario consulta, no opera.
  */
 export type MetricasDelSistema = {
   usuariosRegistrados: number;
   campanasActivas: number;
+  campanasFinalizadas: number;
   aportesRecolectados: number;
   /** Si es false, el panel muestra el aviso de arranque de la plataforma. */
   haySupervisores: boolean;
@@ -36,13 +37,25 @@ async function haySupervisoresActivos(): Promise<boolean> {
 }
 
 export async function obtenerMetricasDelSistema(): Promise<MetricasDelSistema> {
-  const [usuariosRegistrados, campanasActivas, aportesRecolectados, haySupervisores] =
-    await Promise.all([
-      contarFilas(`SELECT COUNT(*)::int AS n FROM usuarios`),
-      contarFilas(`SELECT COUNT(*)::int AS n FROM campanas WHERE status = 'activa'`),
-      contarFilas(`SELECT COUNT(*)::int AS n FROM aportes`),
-      haySupervisoresActivos(),
-    ]);
+  const [
+    usuariosRegistrados,
+    campanasActivas,
+    campanasFinalizadas,
+    aportesRecolectados,
+    haySupervisores,
+  ] = await Promise.all([
+    contarFilas(`SELECT COUNT(*)::int AS n FROM usuarios`),
+    contarFilas(`SELECT COUNT(*)::int AS n FROM campanas WHERE status = 'activa'`),
+    contarFilas(`SELECT COUNT(*)::int AS n FROM campanas WHERE status = 'finalizada'`),
+    contarFilas(`SELECT COUNT(*)::int AS n FROM aportes`),
+    haySupervisoresActivos(),
+  ]);
 
-  return { usuariosRegistrados, campanasActivas, aportesRecolectados, haySupervisores };
+  return {
+    usuariosRegistrados,
+    campanasActivas,
+    campanasFinalizadas,
+    aportesRecolectados,
+    haySupervisores,
+  };
 }

@@ -1,3 +1,6 @@
+// Pantalla /usuarios/[id]/sancion: aplicar una sanción.
+// Server Component. Datos: obtenerReporteDeSancion(). Formulario en formulario.tsx.
+
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 

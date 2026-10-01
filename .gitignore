@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # uploaded files (local disk storage, not part of the repo)
 /uploads
@@ -42,3 +43,10 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Paquetes de despliegue (imagen de Docker + archivos para el servidor)
+/despliegue/
+*.tar
+*.img
+
+/data

@@ -1,6 +1,8 @@
+// Métricas de /usuarios/dashboard por rango de fechas y pestañas de la sección Usuarios.
+// Ojo: no verifica la sesión raíz; depende del layout del panel.
+
 import type { Pestana } from "@/components/sistema/subtabs";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { ETIQUETA_DE_ESTADO, RESUMEN_DE_SANCIONES, estadoDesdeSanciones } from "@/lib/usuarios/directorio";
 import { TEMAS_DE_INTERES } from "@/lib/intereses";
 
@@ -96,8 +98,6 @@ export async function obtenerDashboardDeUsuarios(
   rango: RangoDeFechas = "30d",
 ): Promise<DashboardDeUsuarios> {
   try {
-    await ensureCoreSchema();
-
     const dias = DIAS_POR_RANGO[rango];
     const meses = mesesRecientes(MESES_DE_TENDENCIA[rango]);
     const desdeMes = meses[0]?.clave ?? "1970-01";
@@ -222,12 +222,17 @@ export async function obtenerDashboardDeUsuarios(
     }
 
     const interesesPorTema = new Map(interesesResult.rows.map((r) => [r.tema, Number(r.n)]));
-    const interesesDeclarados = TEMAS_DE_INTERES.map((tema) => ({
-      etiqueta: tema,
-      porcentaje: totalRegistrados > 0 ? Math.round(((interesesPorTema.get(tema) ?? 0) / totalRegistrados) * 100) : 0,
-    }))
-      .sort((a, b) => b.porcentaje - a.porcentaje)
-      .slice(0, 5);
+    // Solo temas que declaró al menos un usuario: con 23 temas, el top 5
+    // se llenaba de filas en 0% cuando pocos habían elegido intereses.
+    const interesesDeclarados = TEMAS_DE_INTERES.filter((tema) => (interesesPorTema.get(tema) ?? 0) > 0)
+      .map((tema) => ({
+        etiqueta: tema,
+        n: interesesPorTema.get(tema) ?? 0,
+        porcentaje: totalRegistrados > 0 ? Math.round(((interesesPorTema.get(tema) ?? 0) / totalRegistrados) * 100) : 0,
+      }))
+      .sort((a, b) => b.n - a.n || a.etiqueta.localeCompare(b.etiqueta, "es"))
+      .slice(0, 5)
+      .map(({ etiqueta, porcentaje }) => ({ etiqueta, porcentaje }));
 
     const porUbicacion = ubicacionResult.rows.map((r) => ({ etiqueta: r.etiqueta, valor: Number(r.n) }));
 

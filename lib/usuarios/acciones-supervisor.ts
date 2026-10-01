@@ -1,7 +1,12 @@
 "use server";
 
+// Server action revertirAccion (revertir un dictamen de supervisor). Verifica la sesión raíz,
+// pero su lógica sigue pendiente (TODO). Cuando se implemente, debe registrar supervision.revertir en audit_log.
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+
+import { hasRootSession } from "@/lib/rootSession";
 
 export type DatosDeReversion = {
   causal: string;
@@ -13,8 +18,7 @@ export type DatosDeReversion = {
 const MINIMO_DESCRIPCION = 40;
 
 async function exigirSuperUsuario(): Promise<void> {
-  // const sesion = await obtenerSesion();
-  // if (sesion?.rol !== "SUPERUSUARIO") throw new Error("No autorizado");
+  if (!(await hasRootSession())) throw new Error("No autorizado");
 }
 
 /**

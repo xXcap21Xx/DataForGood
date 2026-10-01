@@ -1,3 +1,5 @@
+// Utilidades de presentación del panel (formato de números, piezas pequeñas).
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 
@@ -68,7 +70,7 @@ export type TonoDeAviso = "neutro" | "info" | "aviso" | "riesgo";
 
 const CLASES_AVISO: Record<TonoDeAviso, string> = {
   neutro: "bg-sunken text-ink-2",
-  info: "bg-accent-tint text-accent-deep",
+  info: "border-l-4 border-accent bg-sunken text-ink-2",
   aviso: "bg-warn-tint text-warn",
   riesgo: "bg-danger-tint text-danger",
 };

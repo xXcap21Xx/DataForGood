@@ -1,5 +1,7 @@
 "use client";
 
+// Menú lateral de la zona de usuario. Agrega "Supervisión" si el usuario tiene rol supervisor.
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { SessionUser } from "@/lib/session";
@@ -14,7 +16,7 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
   const pathname = usePathname();
 
   return (
-    <aside className="dashboard-sidebar w-64 shrink-0 border-r border-line bg-surface p-4 lg:sticky lg:top-0 lg:h-[calc(100vh-61px)]">
+    <aside className="dashboard-user-nav dashboard-sidebar w-64 shrink-0 border-r border-line bg-surface p-4 lg:sticky lg:top-0 lg:h-[calc(100vh-61px)]">
       <p className="mb-3 px-2 text-[10px] font-semibold uppercase tracking-wider text-ink-3">
         Participar
       </p>
@@ -49,7 +51,7 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
           </Link>
         )}
 
-        {Array.isArray(usuario.role) && usuario.role.includes("revisor") && !usuario.role.includes("supervisor") && (
+        {Array.isArray(usuario.role) && usuario.role.includes("revisor") && (
           <Link
             href="/revisiones"
             className={`rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors ${

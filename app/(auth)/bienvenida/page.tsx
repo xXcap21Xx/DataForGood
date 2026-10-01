@@ -1,12 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+// Pantalla /bienvenida: perfil inicial tras verificar (estado, ciudad, especialidad, intereses). Se puede omitir.
+// Datos: GET /api/auth/sesion. Guarda con PATCH /api/usuarios/[id].
+// Catálogos: lib/mexico-geo.ts, lib/intereses.ts, lib/perfil-opciones.ts.
+
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import SelectorDeTemas from "@/components/ui/SelectorDeTemas";
 import { TEMAS_DE_INTERES as INTERESTS } from "@/lib/intereses";
 import { ESPECIALIDADES, OTRA_ESPECIALIDAD, opcionesCon } from "@/lib/perfil-opciones";
 import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
+import { BASE_PATH } from "@/lib/base-path";
+import { conDestino, destinoSeguro } from "@/lib/redireccion";
 
 type SessionUser = {
   id: number;
@@ -19,7 +26,17 @@ type SessionUser = {
 };
 
 export default function BienvenidaPage() {
+  return (
+    <Suspense fallback={null}>
+      <BienvenidaForm />
+    </Suspense>
+  );
+}
+
+function BienvenidaForm() {
   const router = useRouter();
+  // Pantalla a la que volver al terminar el registro (?next=, ver lib/redireccion.ts).
+  const next = useSearchParams().get("next");
   const [user, setUser] = useState<SessionUser | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [state, setState] = useState("");
@@ -29,9 +46,9 @@ export default function BienvenidaPage() {
 
   useEffect(() => {
     async function loadUser() {
-      const response = await fetch("/api/auth/sesion");
+      const response = await fetch(`${BASE_PATH}/api/auth/sesion`);
       if (!response.ok) {
-        router.push("/entrar");
+        router.push(conDestino("/entrar", next));
         return;
       }
 
@@ -49,13 +66,7 @@ export default function BienvenidaPage() {
     }
 
     loadUser();
-  }, [router]);
-
-  function toggleInterest(tag: string) {
-    setSelected((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
-    );
-  }
+  }, [router, next]);
 
   function cambiarEstado(nuevoEstado: string) {
     setState(nuevoEstado);
@@ -75,12 +86,12 @@ export default function BienvenidaPage() {
 
   async function finish() {
     if (!user?.id) {
-      router.push("/campanas");
+      router.push(destinoSeguro(next));
       return;
     }
 
     try {
-      await fetch(`/api/usuarios/${user.id}`, {
+      await fetch(`${BASE_PATH}/api/usuarios/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -94,7 +105,7 @@ export default function BienvenidaPage() {
       console.error("No se pudo guardar el perfil del usuario", error);
     }
 
-    router.push("/campanas");
+    router.push(destinoSeguro(next));
   }
 
   return (
@@ -174,24 +185,9 @@ export default function BienvenidaPage() {
       </Field>
 
       <p className="mb-2 text-[13px] font-medium text-ink">¿Qué temas te interesan?</p>
-      <div className="mb-4 flex flex-wrap gap-2">
-        {INTERESTS.map((tag) => {
-          const active = selected.includes(tag);
-          return (
-            <button
-              key={tag}
-              type="button"
-              onClick={() => toggleInterest(tag)}
-              className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors ${
-                active
-                  ? "border-accent bg-accent text-white"
-                  : "border-line-2 bg-surface text-ink-2 hover:border-accent"
-              }`}
-            >
-              {tag}
-            </button>
-          );
-        })}
+      {/* Con 23 temáticas, se eligen en una ventana en vez de mostrarlas todas aquí. */}
+      <div className="mb-3">
+        <SelectorDeTemas opciones={INTERESTS} seleccionados={selected} onAceptar={setSelected} />
       </div>
       <p className="mb-5 text-[11.5px] text-ink-3">
         Podrás agregar o quitar etiquetas en cualquier momento desde tu perfil.

@@ -1,14 +1,43 @@
+// /api/campanas/[id]/baneos — baneos de participantes en esta campaña (lib/campanas/baneos.ts).
+// Solo el creador. Lo usan el detalle del aporte y la sección de baneados de la bandeja.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
-import { getSessionUser } from "@/lib/session";
+import { getSessionUser, type SessionUser } from "@/lib/session";
+import { registrarAuditoria } from "@/lib/auditoria";
+import { listarBaneadosDeCampana, quitarBaneoDeCampana } from "@/lib/campanas/baneos";
 
+/** Solo quien creó la campaña administra sus baneos. Devuelve la respuesta de error, o null si puede. */
+async function exigirCreador(campaignId: string, user: SessionUser | null): Promise<NextResponse | null> {
+  if (!user) return NextResponse.json({ error: "Debes iniciar sesión" }, { status: 401 });
+  const result = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1 LIMIT 1`, [campaignId]);
+  if (!result.rowCount) return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
+  if (Number(result.rows[0].creator_id) !== Number(user.id)) {
+    return NextResponse.json({ error: "Solo el dueño de la campaña puede ver o quitar baneos" }, { status: 403 });
+  }
+  return null;
+}
+
+// GET: participantes baneados de la campaña.
+export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: campaignId } = await context.params;
+    const denegado = await exigirCreador(campaignId, await getSessionUser());
+    if (denegado) return denegado;
+
+    return NextResponse.json({ data: await listarBaneadosDeCampana(campaignId) });
+  } catch (error) {
+    console.error("Error listando baneados de campaña", error);
+    return NextResponse.json({ error: "No se pudieron cargar los baneos" }, { status: 500 });
+  }
+}
+
+// POST: banea a un participante de esta campaña (no de toda la app).
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
     const { id: campaignId } = await context.params;
     const user = await getSessionUser();
-    if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+    if (!user) return NextResponse.json({ error: "Debes iniciar sesión" }, { status: 401 });
 
     const body = await request.json().catch(() => ({}));
     const contributionId = String(body.contributionId ?? "").trim();
@@ -42,9 +71,47 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       [campaignId, row.user_id, reason, user.id]
     );
 
+    await registrarAuditoria({
+      actor: { tipo: "usuario", id: Number(user.id) },
+      accion: "campana.banear",
+      objetivo: { tipo: "usuario", id: Number(row.user_id) },
+      detalle: { campanaId: Number(campaignId), aporteId: Number(contributionId), motivo: reason },
+    });
+
     return NextResponse.json({ message: "Usuario baneado de la campaña" });
   } catch (error) {
     console.error("Error baneando usuario de campaña", error);
     return NextResponse.json({ error: "No se pudo banear al usuario de la campaña" }, { status: 500 });
+  }
+}
+// DELETE: quita el baneo.
+export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id: campaignId } = await context.params;
+    const user = await getSessionUser();
+    const denegado = await exigirCreador(campaignId, user);
+    if (denegado) return denegado;
+
+    const body = await request.json().catch(() => ({}));
+    const usuarioId = Number(body.usuarioId);
+    if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
+      return NextResponse.json({ error: "usuarioId es obligatorio" }, { status: 400 });
+    }
+
+    if (!(await quitarBaneoDeCampana(campaignId, usuarioId))) {
+      return NextResponse.json({ error: "Esa persona no está baneada de esta campaña" }, { status: 404 });
+    }
+
+    await registrarAuditoria({
+      actor: { tipo: "usuario", id: Number(user!.id) },
+      accion: "campana.desbanear",
+      objetivo: { tipo: "usuario", id: usuarioId },
+      detalle: { campanaId: Number(campaignId) },
+    });
+
+    return NextResponse.json({ message: "Baneo quitado" });
+  } catch (error) {
+    console.error("Error quitando baneo de campaña", error);
+    return NextResponse.json({ error: "No se pudo quitar el baneo" }, { status: 500 });
   }
 }

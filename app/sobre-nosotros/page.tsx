@@ -1,3 +1,5 @@
+// Pantalla /sobre-nosotros (pública). Texto fijo.
+
 import type { Metadata } from "next";
 import PublicHeader from "@/components/layout/PublicHeader";
 import PublicFooter from "@/components/layout/PublicFooter";

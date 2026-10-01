@@ -1,3 +1,5 @@
+// Etiqueta de estado de la zona de usuario (tonos: default, ok, warn, danger...).
+
 import { ReactNode } from "react";
 
 type Tone = "default" | "ok" | "warn" | "danger" | "on";

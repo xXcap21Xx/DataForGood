@@ -1,8 +1,10 @@
+// Pantalla /cuenta: perfil del usuario. Server Component.
+// Datos: exigirUsuario(). El formulario (PerfilForm.tsx) guarda con PATCH /api/usuarios/[id].
+
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import Button from "@/components/ui/Button";
 import LogoutButton from "@/components/auth/LogoutButton";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 import PerfilForm from "./PerfilForm";
 
 const ROLE_LABELS: Record<string, string> = {
@@ -13,11 +15,7 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export default async function CuentaPage() {
-  const currentUser = await getSessionUser();
-
-  if (!currentUser) {
-    redirect("/entrar");
-  }
+  const currentUser = await exigirUsuario();
 
   const primaryRole = currentUser.role[0] ?? "usuario";
   const roleLabel = ROLE_LABELS[primaryRole] ?? primaryRole;

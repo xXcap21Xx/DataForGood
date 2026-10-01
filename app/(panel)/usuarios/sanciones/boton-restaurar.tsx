@@ -1,5 +1,7 @@
 "use client";
 
+// Botón "Restaurar acceso". Llama a la server action restaurarAcceso (lib/usuarios/acciones-usuarios.ts).
+
 import { useState, useTransition } from "react";
 
 import Button from "@/components/sistema/Button";

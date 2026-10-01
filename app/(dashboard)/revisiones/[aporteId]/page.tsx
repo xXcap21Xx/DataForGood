@@ -1,11 +1,16 @@
 "use client";
 
+// Pantalla /revisiones/[aporteId]: revisar un aporte como revisor.
+// Componente cliente. Datos: GET /api/aportes/[id]. Acción: PATCH /api/aportes/[id] { status: "aceptado" }.
+// Ojo: hoy el servidor lo deja en "aceptado", no en "espera_final" (docs/README.md § 8).
+
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Contribution } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 const STATUS_LABELS: Record<string, string> = {
   pendiente: "Sin revisar",
@@ -24,7 +29,7 @@ export default function RevisionAportePage() {
   useEffect(() => {
     async function load() {
       try {
-        const response = await fetch(`/api/aportes/${aporteId}`, { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/aportes/${aporteId}`, { cache: "no-store" });
         const payload = await response.json().catch(() => ({}));
         if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar el aporte");
         setItem(payload.data as Contribution);
@@ -40,7 +45,7 @@ export default function RevisionAportePage() {
     setSubmitting(true);
     setError(null);
     try {
-      const response = await fetch(`/api/aportes/${aporteId}`, {
+      const response = await fetch(`${BASE_PATH}/api/aportes/${aporteId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: "aceptado" }),
@@ -89,7 +94,7 @@ export default function RevisionAportePage() {
           <p className="mb-3 text-[12.5px] font-semibold text-ink">Archivo enviado</p>
           {item.fileType === "foto" ? (
             <img
-              src={`/api/aportes/${item.id}/archivo`}
+              src={`${BASE_PATH}/api/aportes/${item.id}/archivo`}
               alt={`Vista previa del aporte de ${item.participantName}`}
               className="aspect-video w-full rounded-lg border border-line-2 bg-sunken object-contain"
             />

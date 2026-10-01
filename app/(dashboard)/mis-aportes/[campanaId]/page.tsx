@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /mis-aportes/[campanaId]: tus aportes en una campaña.
+// Componente cliente. Datos: GET /api/campanas?id= y GET /api/aportes?campaignId=&mine=true.
+// Acción: borrar un aporte no aceptado con DELETE /api/aportes/[id].
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
@@ -8,6 +12,7 @@ import Button from "@/components/ui/Button";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
 import type { Campaign, Contribution } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default function CampaignContributionsPage() {
   const params = useParams<{ campanaId: string }>();
@@ -22,8 +27,8 @@ export default function CampaignContributionsPage() {
     async function load() {
       try {
         const [campaignRes, aportesRes] = await Promise.all([
-          fetch(`/api/campanas?id=${encodeURIComponent(params.campanaId)}`, { cache: "no-store" }),
-          fetch(`/api/aportes?campaignId=${encodeURIComponent(params.campanaId)}&mine=true`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/campanas?id=${encodeURIComponent(params.campanaId)}`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/aportes?campaignId=${encodeURIComponent(params.campanaId)}&mine=true`, { cache: "no-store" }),
         ]);
 
         const campaignPayload = await campaignRes.json().catch(() => ({}));
@@ -72,7 +77,7 @@ export default function CampaignContributionsPage() {
     setError(null);
 
     try {
-      const response = await fetch(`/api/aportes/${contributionId}`, { method: "DELETE" });
+      const response = await fetch(`${BASE_PATH}/api/aportes/${contributionId}`, { method: "DELETE" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "No se pudo eliminar el aporte");
       setRemovedIds((current) => [...current, contributionId]);

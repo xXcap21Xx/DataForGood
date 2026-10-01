@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { timingSafeEqual } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { createRootSession } from "@/lib/rootSession";
+import { registrarAuditoria } from "@/lib/auditoria";
+import { ipDelCliente } from "@/lib/ip";
 
 /**
  * POST /api/auth/root — valida la credencial de SuperUsuario y abre su
- * sesión. El registro en audit_log sigue pendiente (no existe esa tabla
- * todavía en el proyecto).
+ * sesión. Los accesos, exitosos o fallidos, quedan en audit_log.
  */
 
 /** Ventana simple en memoria. En producción conviene moverla a Redis. */
@@ -14,22 +15,33 @@ const INTENTOS_MAX = 5;
 const VENTANA_MS = 60_000;
 const intentos = new Map<string, { n: number; desde: number }>();
 
-function obtenerIp(request: Request): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  return forwarded?.split(",")[0]?.trim() || "desconocida";
-}
+/**
+ * Tope global, sin importar la IP. X-Forwarded-For lo puede escribir el
+ * cliente, así que cambiarlo en cada intento esquivaría el límite por IP;
+ * este tope acota la fuerza bruta aunque el encabezado venga falsificado.
+ */
+const INTENTOS_MAX_GLOBAL = 30;
+const CLAVE_GLOBAL = "*";
 
-function excedeIntentos(ip: string): boolean {
+function contarIntento(clave: string, maximo: number): boolean {
   const ahora = Date.now();
-  const registro = intentos.get(ip);
+  const registro = intentos.get(clave);
 
   if (!registro || ahora - registro.desde > VENTANA_MS) {
-    intentos.set(ip, { n: 1, desde: ahora });
+    intentos.set(clave, { n: 1, desde: ahora });
     return false;
   }
 
   registro.n += 1;
-  return registro.n > INTENTOS_MAX;
+  return registro.n > maximo;
+}
+
+function excedeIntentos(ip: string): boolean {
+  // Se cuentan los dos siempre (sin cortocircuito) para que el tope global
+  // registre también los intentos de IPs ya bloqueadas.
+  const porIp = contarIntento(ip, INTENTOS_MAX);
+  const global = contarIntento(CLAVE_GLOBAL, INTENTOS_MAX_GLOBAL);
+  return porIp || global;
 }
 
 function identificadorCoincide(recibido: string, esperado: string): boolean {
@@ -40,7 +52,7 @@ function identificadorCoincide(recibido: string, esperado: string): boolean {
 }
 
 export async function POST(request: Request) {
-  const ip = obtenerIp(request);
+  const ip = ipDelCliente(request.headers);
 
   if (excedeIntentos(ip)) {
     return NextResponse.json({ error: "Demasiados intentos." }, { status: 429 });
@@ -68,15 +80,16 @@ export async function POST(request: Request) {
   const credOk = await bcrypt.compare(credencial, hashEsperado);
 
   if (!idOk || !credOk) {
-    // TODO(flujo): registrar el intento fallido en audit_log.
+    // No se guarda el identificador recibido: si alguien teclea la
+    // contraseña en ese campo, quedaría en claro en la bitácora.
+    await registrarAuditoria({ actor: { tipo: "anonimo" }, accion: "root.acceso_fallido" });
     return NextResponse.json({ error: "Credencial no válida." }, { status: 401 });
   }
 
   intentos.delete(ip);
 
   await createRootSession();
-
-  // TODO(flujo): registrar el acceso exitoso en audit_log.
+  await registrarAuditoria({ actor: { tipo: "superusuario" }, accion: "root.acceso" });
 
   return new NextResponse(null, { status: 204 });
 }

@@ -1,8 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+// Pantalla /verificar: código de 6 dígitos enviado por correo.
+// Datos y acciones: GET/POST /api/auth/verificar y POST /api/auth/verificar/reenviar.
+// La cuenta pendiente se identifica por la cookie pending_verification_id. Siguiente: /bienvenida.
+
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
+import { BASE_PATH } from "@/lib/base-path";
+import { conDestino } from "@/lib/redireccion";
 
 const CODE_LENGTH = 6;
 const MAX_ATTEMPTS = 3;
@@ -16,7 +22,17 @@ function formatRemaining(ms: number) {
 }
 
 export default function VerificarPage() {
+  return (
+    <Suspense fallback={null}>
+      <VerificarForm />
+    </Suspense>
+  );
+}
+
+function VerificarForm() {
   const router = useRouter();
+  // Pantalla a la que volver al terminar el registro (?next=, ver lib/redireccion.ts).
+  const next = useSearchParams().get("next");
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
@@ -25,37 +41,40 @@ export default function VerificarPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [resending, setResending] = useState(false);
-  const [now, setNow] = useState(Date.now());
+  // Hora de referencia de la cuenta regresiva. Se fija junto con expiresAt
+  // (nunca durante el render: Date.now() no es puro) y el intervalo la avanza.
+  const [now, setNow] = useState<number | null>(null);
   const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     async function loadPending() {
       try {
-        const response = await fetch("/api/auth/verificar");
+        const response = await fetch(`${BASE_PATH}/api/auth/verificar`);
         if (!response.ok) {
-          router.replace("/entrar");
+          router.replace(conDestino("/entrar", next));
           return;
         }
         const payload = await response.json();
         setEmail(payload.data.email);
         setExpiresAt(payload.data.expiresAt ? new Date(payload.data.expiresAt).getTime() : null);
+        setNow(Date.now());
         setAttemptsLeft(payload.data.attemptsLeft ?? MAX_ATTEMPTS);
       } catch {
-        router.replace("/entrar");
+        router.replace(conDestino("/entrar", next));
       } finally {
         setLoading(false);
       }
     }
     loadPending();
-  }, [router]);
+  }, [router, next]);
 
   useEffect(() => {
     const interval = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(interval);
   }, []);
 
-  const remainingMs = expiresAt ? expiresAt - now : 0;
-  const expired = expiresAt !== null && remainingMs <= 0;
+  const remainingMs = expiresAt && now !== null ? expiresAt - now : 0;
+  const expired = expiresAt !== null && now !== null && remainingMs <= 0;
 
   function handleChange(index: number, value: string) {
     const clean = value.replace(/[^0-9]/g, "").slice(-1);
@@ -84,7 +103,7 @@ export default function VerificarPage() {
 
     setSubmitting(true);
     try {
-      const response = await fetch("/api/auth/verificar", {
+      const response = await fetch(`${BASE_PATH}/api/auth/verificar`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code }),
@@ -102,7 +121,7 @@ export default function VerificarPage() {
         return;
       }
 
-      router.push("/bienvenida");
+      router.push(conDestino("/bienvenida", next));
       router.refresh();
     } catch {
       setError("No se pudo conectar con el servicio de verificación");
@@ -115,7 +134,7 @@ export default function VerificarPage() {
     setError("");
     setResending(true);
     try {
-      const response = await fetch("/api/auth/verificar/reenviar", { method: "POST" });
+      const response = await fetch(`${BASE_PATH}/api/auth/verificar/reenviar`, { method: "POST" });
       const payload = await response.json().catch(() => ({}));
 
       if (!response.ok) {
@@ -124,6 +143,7 @@ export default function VerificarPage() {
       }
 
       setExpiresAt(payload.data.expiresAt ? new Date(payload.data.expiresAt).getTime() : null);
+      setNow(Date.now());
       setAttemptsLeft(MAX_ATTEMPTS);
       setDigits(Array(CODE_LENGTH).fill(""));
       inputsRef.current[0]?.focus();

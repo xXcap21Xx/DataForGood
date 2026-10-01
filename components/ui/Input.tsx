@@ -1,3 +1,5 @@
+// Campos de formulario de la zona de usuario (Field, Input...).
+
 import { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 interface FieldWrapperProps {

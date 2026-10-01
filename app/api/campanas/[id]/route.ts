@@ -1,8 +1,13 @@
+// /api/campanas/[id] — detalle, edición y supervisión de una campaña.
+// El PATCH tiene tres usos según el body: { action: "tomar" }, dictamen del supervisor
+// ({ action: "aceptada" | "rechazada" | "reportada", motivo }) o edición del creador.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
-import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignStarted, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
+import { ACCIONES_DE_SUPERVISION, registrarDecisionDeCampana, tomarCampanaParaSupervisar, type AccionDeSupervision } from "@/lib/supervision/decision";
+import { normalizarSecciones, seccionesDesdeFila } from "@/lib/campanas/checklist";
+import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignEnded, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
 function normalizeDataTypes(input: unknown): string[] {
   if (!Array.isArray(input)) {
@@ -32,11 +37,6 @@ function normalizeCampaignStatus(input: unknown): string | null {
   return ALLOWED_STATUS.has(value) ? value : null;
 }
 
-function normalizeCollectionMode(input: unknown): string {
-  const value = String(input ?? "checklist").trim().toLowerCase();
-  return value === "texto_libre" ? "texto_libre" : "checklist";
-}
-
 function normalizeChecklistOpciones(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
   return Array.from(
@@ -58,6 +58,7 @@ function mapCampaign(row: Record<string, unknown>) {
     creatorId: String(row.creator_id ?? ""),
     creatorName: String(row.creator_name ?? ""),
     supervisorId: row.supervisor_id != null ? String(row.supervisor_id) : null,
+    supervisedByRoot: Boolean(row.supervisado_por_root),
     name: String(row.name ?? ""),
     description: String(row.description ?? ""),
     tematica: String(row.tematica ?? row.tag ?? ""),
@@ -66,6 +67,7 @@ function mapCampaign(row: Record<string, unknown>) {
     dataTypes,
     collectionMode: String(row.collection_mode ?? "checklist"),
     checklistOpciones,
+    checklistSecciones: seccionesDesdeFila(row),
     goalContributions: Number(row.goal_contributions ?? 0),
     quotaPerUser: Number(row.quota_per_user ?? 0),
     currentContributions: Number(row.current_contributions ?? 0),
@@ -91,10 +93,9 @@ function mapCampaign(row: Record<string, unknown>) {
   };
 }
 
+// GET: detalle de una campaña (público) + viewer.isCreator.
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
 
@@ -117,84 +118,51 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
 // Actualización parcial (Insomnia: PATCH { "status": "activa" }, o cualquier subconjunto de campos editables)
 export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
 
     const body = await request.json().catch(() => ({}));
     const accion = String(body.action ?? body.accion ?? "").trim().toLowerCase();
-    const allowedDecision = new Set(["aceptada", "rechazada", "reportada"]);
 
-    if (allowedDecision.has(accion)) {
+    // "Supervisar esta campaña": la toma en exclusiva para este supervisor.
+    if (accion === "tomar") {
+      const roles = Array.isArray(user.role) ? user.role : typeof user.role === "string" ? [user.role] : [];
+      if (!roles.includes("supervisor")) {
+        return NextResponse.json({ error: "Solo un supervisor puede supervisar campañas" }, { status: 403 });
+      }
+
+      const resultado = await tomarCampanaParaSupervisar(id, { tipo: "usuario", usuarioId: Number(user.id) });
+      if (!resultado.ok) {
+        return NextResponse.json({ error: resultado.error }, { status: resultado.status });
+      }
+
+      const updated = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+      return NextResponse.json({ message: "Ahora supervisas esta campaña", data: mapCampaign(updated.rows[0]) });
+    }
+
+    if (ACCIONES_DE_SUPERVISION.has(accion)) {
       const roles = Array.isArray(user.role) ? user.role : typeof user.role === "string" ? [user.role] : [];
       if (!roles.includes("supervisor")) {
         return NextResponse.json({ error: "Solo un supervisor puede decidir esta campaña" }, { status: 403 });
       }
 
-      const existing = await pool.query(`SELECT id, status, creator_id, name, start_date, start_time FROM campanas WHERE id = $1 LIMIT 1`, [id]);
-      if (existing.rowCount === 0) {
-        return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
-      }
-
-      // Aceptada con fecha/hora de inicio futura: el estado de la campaña
-      // queda "aceptada" (en_revision -> aceptada -> activa) y se activa sola
-      // cuando lleguen (activateScheduledCampaigns); sin fecha definida se
-      // activa de inmediato igual que antes.
-      const nextStatus =
-        accion === "aceptada"
-          ? hasCampaignStarted(existing.rows[0].start_date, existing.rows[0].start_time) ? "activa" : "aceptada"
-          : accion === "rechazada" ? "rechazada" : existing.rows[0].status;
-      const motivo = String(body.motivo ?? body.reason ?? "").trim() || null;
-      if (accion === "rechazada" && !motivo) {
-        return NextResponse.json({ error: "El motivo es obligatorio al rechazar una campaña" }, { status: 400 });
-      }
-
-      await pool.query(
-        `UPDATE campanas
-         SET status = $2,
-             supervisor_id = $3,
-             updated_at = NOW()
-         WHERE id = $1`,
-        [id, nextStatus, user.id]
-      );
-
-      await pool.query(
-        `INSERT INTO campana_supervisores (campana_id, supervisor_id, accion, motivo, created_at)
-         VALUES ($1, $2, $3, $4, NOW())`,
-        [id, user.id, accion, motivo]
-      );
-
-      if (accion === "rechazada") {
-        await pool.query(
-          `INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, campana_id, metadata)
-           VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
-          [
-            existing.rows[0].creator_id,
-            "campana_rechazada",
-            "Campaña rechazada",
-            `Tu campaña "${existing.rows[0].name}" fue rechazada. Motivo: ${motivo}`,
-            id,
-            JSON.stringify({ motivo }),
-          ]
-        );
+      const resultado = await registrarDecisionDeCampana(id, accion as AccionDeSupervision, body.motivo ?? body.reason, {
+        tipo: "usuario",
+        usuarioId: Number(user.id),
+      });
+      if (!resultado.ok) {
+        return NextResponse.json({ error: resultado.error }, { status: resultado.status });
       }
 
       const updated = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [id]);
-      return NextResponse.json({
-        message: accion === "aceptada"
-          ? nextStatus === "activa"
-            ? "Campaña aceptada y puesta en activo"
-            : "Campaña aceptada; se activará el día de su fecha de inicio"
-          : accion === "rechazada"
-            ? "Campaña rechazada"
-            : "Campaña reportada",
-        data: mapCampaign(updated.rows[0]),
-      });
+      return NextResponse.json({ message: resultado.mensaje, data: mapCampaign(updated.rows[0]) });
     }
 
-    const existing = await pool.query(`SELECT creator_id, status FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+    const existing = await pool.query(
+      `SELECT creator_id, status, start_date, end_date, end_time FROM campanas WHERE id = $1 LIMIT 1`,
+      [id]
+    );
     if (existing.rowCount === 0) {
       return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
     }
@@ -205,14 +173,23 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const currentStatus = String(existing.rows[0].status ?? "borrador");
 
     // Reglas de edición por estado: una finalizada es de solo lectura salvo
-    // para reactivarla (solo status: "activa", sin tocar más campos, y con
-    // cupo libre de campañas activas); activa, pausada y aceptada solo dejan
-    // tocar meta y fecha de fin (sin cambiar su estado); borrador, en_revision
-    // y rechazada se editan por completo.
+    // para reactivarla (status: "activa", con cupo libre de campañas activas);
+    // activa, pausada y aceptada solo dejan tocar meta y fecha de fin (sin
+    // cambiar su estado); borrador, en_revision y rechazada se editan por
+    // completo.
     if (currentStatus === "finalizada") {
-      const soloReactiva = Object.keys(body).length === 1 && normalizeCampaignStatus(body.status) === "activa";
-      if (!soloReactiva) {
+      const reactiva = normalizeCampaignStatus(body.status) === "activa";
+      if (!reactiva) {
         return NextResponse.json({ error: "Una campaña finalizada es de solo lectura y no se puede editar" }, { status: 403 });
+      }
+
+      const camposPermitidos = new Set(["status", "endDate", "end_date", "endTime", "end_time"]);
+      const camposNoPermitidos = Object.keys(body).filter((key) => !camposPermitidos.has(key));
+      if (camposNoPermitidos.length > 0) {
+        return NextResponse.json(
+          { error: "Al reactivar una campaña solo puedes ajustar su fecha/hora de finalización" },
+          { status: 400 }
+        );
       }
 
       const activas = await pool.query(
@@ -225,7 +202,39 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
           { status: 400 }
         );
       }
-      // Cae al UPDATE genérico de abajo, que solo aplicará status = "activa".
+
+      // Una campaña llega aquí finalizada casi siempre porque su fecha/hora
+      // de fin ya se cumplió (finalizeExpiredCampaigns). Si se reactiva sin
+      // mover esa fecha, la siguiente lectura de /api/campanas la vuelve a
+      // finalizar de inmediato: hay que exigir una fecha de fin nueva y
+      // futura (o dejarla pasar solo si la que ya tenía no cambia por otro
+      // motivo, ej. se finalizó a mano antes de tiempo).
+      const nuevaEndDate =
+        "endDate" in body || "end_date" in body
+          ? normalizeCampaignDate(body.endDate ?? body.end_date)
+          : normalizeCampaignDate(existing.rows[0].end_date);
+      if (("endDate" in body || "end_date" in body) && !nuevaEndDate) {
+        return NextResponse.json({ error: "La fecha de finalización no es válida" }, { status: 400 });
+      }
+
+      const nuevaEndTime =
+        "endTime" in body || "end_time" in body
+          ? normalizeCampaignTime(body.endTime ?? body.end_time)
+          : normalizeCampaignTime(existing.rows[0].end_time);
+
+      const startDateExistente = normalizeCampaignDate(existing.rows[0].start_date);
+      if (startDateExistente && nuevaEndDate && nuevaEndDate < startDateExistente) {
+        return NextResponse.json({ error: "La fecha de finalización no puede ser anterior a la de inicio" }, { status: 400 });
+      }
+
+      if (hasCampaignEnded(nuevaEndDate, nuevaEndTime)) {
+        return NextResponse.json(
+          { error: "Para reactivar la campaña, indica una nueva fecha/hora de finalización posterior a ahora" },
+          { status: 400 }
+        );
+      }
+      // Cae al UPDATE genérico de abajo, que aplica status = "activa" y,
+      // si llegaron, endDate/endTime.
     }
 
     if (currentStatus === "activa" || currentStatus === "pausada") {
@@ -267,8 +276,25 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const tematica = "tematica" in body || "tag" in body ? String(body.tematica ?? body.tag ?? "").trim() : null;
     const status = "status" in body ? normalizeCampaignStatus(body.status) : null;
     const dataTypes = "dataTypes" in body || "data_types" in body ? normalizeDataTypes(body.dataTypes ?? body.data_types) : null;
-    const collectionMode = "collectionMode" in body || "collection_mode" in body ? normalizeCollectionMode(body.collectionMode ?? body.collection_mode) : null;
-    const checklistOpciones = "checklistOpciones" in body || "checklist_opciones" in body ? normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones) : null;
+    // Checklists con título. Un cliente viejo que manda la lista plana
+    // checklistOpciones la guarda como un solo checklist titulado "Checklist".
+    const traeSecciones = "checklistSecciones" in body || "checklist_secciones" in body;
+    const traeLegado = "checklistOpciones" in body || "checklist_opciones" in body;
+    let checklistSecciones: ReturnType<typeof normalizarSecciones> | null = null;
+    if (traeSecciones || traeLegado) {
+      checklistSecciones = normalizarSecciones(
+        traeSecciones
+          ? body.checklistSecciones ?? body.checklist_secciones
+          : [{ titulo: "Checklist", opciones: normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones) }]
+      );
+      if (!checklistSecciones.ok) {
+        return NextResponse.json({ error: checklistSecciones.error }, { status: 400 });
+      }
+    }
+    const seccionesNuevas = checklistSecciones?.ok ? checklistSecciones.secciones : null;
+    // Columnas anteriores a las secciones: se dejan coherentes para quien aún las lea.
+    const collectionMode = seccionesNuevas ? (seccionesNuevas.length > 0 ? "checklist" : "texto_libre") : null;
+    const checklistOpciones = seccionesNuevas ? [] : null;
     const goalContributions = "goalContributions" in body || "goal_contributions" in body ? Number(body.goalContributions ?? body.goal_contributions) : null;
     const quotaPerUser = "quotaPerUser" in body || "quota_per_user" in body ? Number(body.quotaPerUser ?? body.quota_per_user) : null;
     const startDate = "startDate" in body || "start_date" in body ? normalizeCampaignDate(body.startDate ?? body.start_date) : undefined;
@@ -336,6 +362,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         checklist_opciones = COALESCE($18::jsonb, checklist_opciones),
         start_time = COALESCE($19, start_time),
         end_time = COALESCE($20, end_time),
+        checklist_secciones = COALESCE($21::jsonb, checklist_secciones),
         updated_at = NOW()
       WHERE id = $1
       RETURNING *`,
@@ -360,6 +387,7 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
         checklistOpciones ? JSON.stringify(checklistOpciones) : null,
         startTime === undefined ? null : startTime,
         endTime === undefined ? null : endTime,
+        seccionesNuevas ? JSON.stringify(seccionesNuevas) : null,
       ]
     );
 
@@ -373,8 +401,6 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
 // Reemplazo completo de los campos editables (Insomnia: PUT con el mismo shape que POST /api/campanas)
 export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -402,11 +428,18 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     }
 
     const dataTypes = normalizeDataTypes(body.dataTypes ?? body.data_types ?? []);
-    const collectionMode = normalizeCollectionMode(body.collectionMode ?? body.collection_mode);
-    const checklistOpciones =
-      collectionMode === "checklist"
-        ? normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones ?? [])
-        : [];
+    const secciones = normalizarSecciones(
+      body.checklistSecciones ?? body.checklist_secciones ??
+        (Array.isArray(body.checklistOpciones ?? body.checklist_opciones)
+          ? [{ titulo: "Checklist", opciones: normalizeChecklistOpciones(body.checklistOpciones ?? body.checklist_opciones) }]
+          : [])
+    );
+    if (!secciones.ok) {
+      return NextResponse.json({ error: secciones.error }, { status: 400 });
+    }
+    const checklistSecciones = secciones.secciones;
+    const collectionMode = checklistSecciones.length > 0 ? "checklist" : "texto_libre";
+    const checklistOpciones: string[] = [];
     const goalContributions = Number(body.goalContributions ?? body.goal_contributions ?? 0);
     const quotaPerUser = Number(body.quotaPerUser ?? body.quota_per_user ?? 1);
     const startDate = normalizeCampaignDate(body.startDate ?? body.start_date);
@@ -431,9 +464,6 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       }
       if (!quotaPerUser || quotaPerUser <= 0) {
         return NextResponse.json({ error: "La cuota por persona debe ser mayor a 0" }, { status: 400 });
-      }
-      if (collectionMode === "checklist" && checklistOpciones.length === 0) {
-        return NextResponse.json({ error: "Agrega al menos una opción al checklist" }, { status: 400 });
       }
       if (!startDate) {
         return NextResponse.json({ error: "La fecha de inicio es obligatoria" }, { status: 400 });
@@ -474,6 +504,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         checklist_opciones = $18::jsonb,
         start_time = $19,
         end_time = $20,
+        checklist_secciones = $21::jsonb,
         updated_at = NOW()
       WHERE id = $1
       RETURNING *`,
@@ -498,6 +529,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         JSON.stringify(checklistOpciones),
         startTime,
         endTime,
+        JSON.stringify(checklistSecciones),
       ]
     );
 

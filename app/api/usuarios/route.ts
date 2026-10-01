@@ -1,15 +1,17 @@
+// /api/usuarios — registro de cuentas y buscador de revisores.
+// Ojo: el POST lee roles del body (hueco conocido, docs/README.md § 8).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureUsuariosTable } from "@/lib/db-schema";
 import { hashPassword } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
 import { normalizeRoles } from "@/lib/roles";
+import { getSessionUser } from "@/lib/session";
 
+// POST: registro. Crea la cuenta sin verificar y envía el código por correo.
 export async function POST(request: Request) {
   try {
-    await ensureUsuariosTable();
-
     const body = await request.json();
 
     const nombre = String(body.nombre ?? body.alias ?? "").trim();
@@ -20,16 +22,7 @@ export async function POST(request: Request) {
     const city = String(body.city ?? "").trim();
     const specialty = String(body.specialty ?? "").trim();
     const intereses = Array.isArray(body.intereses) ? body.intereses : [];
-    let roles: string[];
-
-    try {
-      roles = normalizeRoles(body.role ?? body.roles ?? ["usuario"]);
-    } catch (error) {
-      return NextResponse.json(
-        { error: "Un usuario no puede tener a la vez los roles supervisor y revisor" },
-        { status: 400 }
-      );
-    }
+    const roles = normalizeRoles(body.role ?? body.roles ?? ["usuario"]);
 
     if (!nombre || !apellidos || !email || password.length < 6) {
       return NextResponse.json(
@@ -99,16 +92,72 @@ export async function POST(request: Request) {
   }
 }
 
-export async function GET() {
-  try {
-    await ensureUsuariosTable();
+const MINIMO_BUSQUEDA = 3;
+const MAXIMO_RESULTADOS = 10;
 
-    const result = await pool.query(
-      `SELECT id, nombre, apellidos, email, state, city, specialty, intereses, role, xp_total, level, streak_days, email_verificado
-       FROM usuarios ORDER BY id DESC LIMIT 50`
+/** "ana.lopez@gmail.com" -> "an***@gmail.com": identifica sin exponer el correo. */
+function ocultarCorreo(email: string): string {
+  const [local, dominio] = email.split("@");
+  const visible = local.length > 2 ? local.slice(0, 2) : local.slice(0, 1);
+  return `${visible}***@${dominio ?? ""}`;
+}
+
+/**
+ * GET /api/usuarios?campanaId=…&q=… — buscador de "agregar revisor".
+ * Solo lo usa el creador de esa campaña, con al menos 3 letras del nombre o
+ * un correo completo, y devuelve pocas coincidencias con el correo oculto:
+ * así no sirve para descargar la lista de usuarios.
+ */
+export async function GET(request: Request) {
+  try {
+    const user = await getSessionUser();
+    if (!user) {
+      return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+    }
+
+    const url = new URL(request.url);
+    const campanaId = Number(url.searchParams.get("campanaId"));
+    const q = (url.searchParams.get("q") ?? "").trim();
+
+    if (!Number.isInteger(campanaId) || campanaId <= 0) {
+      return NextResponse.json({ error: "campanaId es obligatorio" }, { status: 400 });
+    }
+    const campana = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1`, [campanaId]);
+    if (campana.rowCount === 0) {
+      return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
+    }
+    if (Number(campana.rows[0].creator_id) !== Number(user.id)) {
+      return NextResponse.json({ error: "Solo el creador de la campaña puede buscar revisores" }, { status: 403 });
+    }
+
+    const porCorreo = q.includes("@");
+    if (porCorreo ? !isValidEmail(q) : q.length < MINIMO_BUSQUEDA) {
+      return NextResponse.json({ data: [] });
+    }
+
+    // Por correo: coincidencia exacta. Por nombre: contiene el texto (con %
+    // y _ escapados para que se busquen literalmente).
+    const patron = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const result = await pool.query<{ id: number; nombre: string; apellidos: string; email: string; role: string[] }>(
+      `SELECT id, nombre, apellidos, email, role
+       FROM usuarios
+       WHERE email_verificado
+         AND id <> $1
+         AND ${porCorreo ? "LOWER(email) = LOWER($2)" : "(nombre || ' ' || apellidos) ILIKE $2"}
+       ORDER BY nombre, apellidos
+       LIMIT ${MAXIMO_RESULTADOS}`,
+      [user.id, porCorreo ? q : patron]
     );
 
-    return NextResponse.json({ data: result.rows });
+    return NextResponse.json({
+      data: result.rows.map((fila) => ({
+        id: fila.id,
+        nombre: fila.nombre,
+        apellidos: fila.apellidos,
+        emailOculto: ocultarCorreo(fila.email),
+        role: fila.role,
+      })),
+    });
   } catch (error) {
     console.error(error);
     return NextResponse.json(

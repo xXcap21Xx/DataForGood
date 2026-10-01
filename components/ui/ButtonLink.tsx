@@ -1,3 +1,5 @@
+// Enlace con forma de botón. Úsalo en vez de anidar <Button> dentro de <Link>.
+
 import Link from "next/link";
 import type { ComponentProps } from "react";
 import { buttonClasses } from "./Button";

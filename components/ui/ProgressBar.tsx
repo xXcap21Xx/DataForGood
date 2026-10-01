@@ -1,3 +1,5 @@
+// Barra de progreso de la zona de usuario (p. ej. avance de la meta de una campaña).
+
 interface ProgressBarProps {
   pct: number;
   tone?: "accent" | "ok";

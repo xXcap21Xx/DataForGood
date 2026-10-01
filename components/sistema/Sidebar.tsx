@@ -1,5 +1,7 @@
 "use client";
 
+// Menú lateral del panel del SuperUsuario (/sistema, /usuarios, /supervisar).
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";
@@ -20,10 +22,12 @@ type Entrada = {
   seccion: string[];
   /** Separado del resto: no es una sección más, es un cambio de modo. */
   apartado?: boolean;
+  /** Activa solo en la ruta exacta (Inicio, para no marcarse en /sistema/campanas). */
+  exacto?: boolean;
 };
 
 const MENU: Entrada[] = [
-  { href: "/sistema", etiqueta: "Inicio", Icono: IconoInicio, seccion: ["/sistema"] },
+  { href: "/sistema", etiqueta: "Inicio", Icono: IconoInicio, seccion: ["/sistema"], exacto: true },
   {
     href: "/usuarios",
     etiqueta: "Usuarios",
@@ -31,10 +35,11 @@ const MENU: Entrada[] = [
     seccion: ["/usuarios", "/supervisores"],
   },
   {
-    href: "/campanas",
+    // Bajo /sistema: /campanas es la pantalla del usuario común.
+    href: "/sistema/campanas",
     etiqueta: "Campañas",
     Icono: IconoCampanas,
-    seccion: ["/campanas"],
+    seccion: ["/sistema/campanas"],
   },
   { href: "/aportes", etiqueta: "Aportes", Icono: IconoAportes, seccion: ["/aportes"] },
   {
@@ -56,9 +61,9 @@ export default function Sidebar() {
       </p>
 
       <nav aria-label="Secciones del panel" className="dashboard-nav flex flex-col gap-1">
-        {MENU.map(({ href, etiqueta, Icono, seccion, apartado }) => {
+        {MENU.map(({ href, etiqueta, Icono, seccion, apartado, exacto }) => {
           const activo = seccion.some(
-            (base) => pathname === base || pathname.startsWith(`${base}/`),
+            (base) => pathname === base || (!exacto && pathname.startsWith(`${base}/`)),
           );
 
           return (

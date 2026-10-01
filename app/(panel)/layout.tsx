@@ -1,3 +1,7 @@
+// Layout del panel del SuperUsuario: Topbar + Sidebar de components/sistema.
+// Guardia: hasRootSession() (cookie root_session_token); sin sesión raíz → /root.
+// Ojo: /sistema y /usuarios/** dependen solo de este layout (docs/README.md § 8).
+
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";

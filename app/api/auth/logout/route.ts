@@ -1,3 +1,5 @@
+// POST /api/auth/logout — cierra la sesión de usuario. Lo llama components/auth/LogoutButton.
+
 import { NextResponse } from "next/server";
 import { destroySession } from "@/lib/session";
 

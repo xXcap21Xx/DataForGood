@@ -1,11 +1,17 @@
 "use client";
 
+// Pantalla /supervision/[campaignId]: revisar una campaña en_revision y dictaminar.
+// Componente cliente. Datos: GET /api/campanas?id=.
+// Acciones: tomar con PATCH /api/campanas/[id] { action: "tomar" }; dictaminar con
+// PATCH { action: "aceptada" | "rechazada" | "reportada", motivo }. Reglas en lib/supervision/decision.ts.
+
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import Tag from "@/components/ui/Tag";
 import { Textarea } from "@/components/ui/Input";
 import { BackLink } from "../_ui";
+import { BASE_PATH } from "@/lib/base-path";
 
 type Campaign = {
   id: string;
@@ -15,6 +21,7 @@ type Campaign = {
   tematica?: string;
   creatorName?: string;
   supervisorId?: string | null;
+  supervisedByRoot?: boolean;
   organizer?: string;
   goalContributions?: number;
   currentContributions?: number;
@@ -39,17 +46,21 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [showRejectForm, setShowRejectForm] = useState(false);
   const [rejectionReason, setRejectionReason] = useState("");
+  const [isCreator, setIsCreator] = useState(false);
+  const [isMySupervision, setIsMySupervision] = useState(false);
 
   useEffect(() => {
     async function loadCampaign() {
       try {
-        const response = await fetch(`/api/campanas?id=${campaignId}`, { cache: "no-store" });
+        const response = await fetch(`${BASE_PATH}/api/campanas?id=${campaignId}`, { cache: "no-store" });
         if (!response.ok) {
           throw new Error("No se pudo cargar la campaña");
         }
 
         const payload = await response.json();
         setCampaign(payload?.data ?? null);
+        setIsCreator(Boolean(payload?.viewer?.isCreator));
+        setIsMySupervision(Boolean(payload?.viewer?.isMySupervision));
       } catch (cause) {
         setError(cause instanceof Error ? cause.message : "No se pudo cargar la campaña");
       } finally {
@@ -67,7 +78,7 @@ export default function CampaignDetailPage() {
 
     try {
       setActionLoading(action);
-      const response = await fetch(`/api/campanas/${campaignId}`, {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${campaignId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action, motivo }),
@@ -86,6 +97,33 @@ export default function CampaignDetailPage() {
       router.push("/supervision");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo registrar la decisión");
+    } finally {
+      setActionLoading(null);
+    }
+  }
+
+  // Una campaña la supervisa un solo supervisor: quien la toma primero.
+  async function handleTake() {
+    if (!campaignId) return;
+
+    try {
+      setActionLoading("tomar");
+      setError(null);
+      const response = await fetch(`${BASE_PATH}/api/campanas/${campaignId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "tomar" }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload?.error ?? "No se pudo tomar la campaña");
+      }
+
+      setCampaign(payload?.data ?? campaign);
+      setIsMySupervision(true);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo tomar la campaña");
     } finally {
       setActionLoading(null);
     }
@@ -131,6 +169,7 @@ export default function CampaignDetailPage() {
     return new Date(year, month - 1, day);
   };
 
+  const isAvailable = campaign.status === "en_revision" && !campaign.supervisorId && !campaign.supervisedByRoot;
   const currentStatus = statusMap[String(campaign.status ?? "en_revision") as keyof typeof statusMap] ?? { label: "En revisión", tone: "warn" };
   const formatDate = (date: string | null | undefined) => {
     const parsed = parseDateOnly(date);
@@ -152,6 +191,21 @@ export default function CampaignDetailPage() {
           </p>
         </div>
 
+        {isCreator ? (
+          // Un supervisor no supervisa sus propias campañas (el PATCH también lo rechaza).
+          <Tag>Tu campaña · no puedes supervisarla</Tag>
+        ) : isAvailable ? (
+          <button
+            type="button"
+            onClick={() => void handleTake()}
+            disabled={actionLoading !== null}
+            className="rounded-pill bg-accent px-4 py-2 text-[12.5px] font-bold text-white shadow-sm hover:bg-accent-deep disabled:opacity-60"
+          >
+            {actionLoading === "tomar" ? "Tomando…" : "Supervisar esta campaña"}
+          </button>
+        ) : !isMySupervision ? (
+          <Tag>La supervisa otro supervisor</Tag>
+        ) : (
         <div className="flex flex-wrap gap-2">
           {campaign.status === "en_revision" && (
             <button
@@ -187,9 +241,10 @@ export default function CampaignDetailPage() {
             </button>
           )}
         </div>
+        )}
       </div>
 
-      {showRejectForm && campaign.status === "en_revision" && (
+      {showRejectForm && isMySupervision && campaign.status === "en_revision" && (
         <form onSubmit={confirmRejection} className="mb-5 rounded-lg border border-danger/40 bg-danger-tint p-4">
           <label htmlFor="campaign-rejection-reason" className="mb-2 block text-[13px] font-semibold text-ink">
             Motivo del rechazo <span className="text-danger">*</span>
@@ -283,9 +338,11 @@ export default function CampaignDetailPage() {
               Ver participantes
             </Link>
           )}
-          <Link href={`/supervision/${campaign.id}/panel`} className="rounded-pill border border-line-2 bg-surface px-5 py-3 text-[12.5px] font-bold text-ink-2 hover:border-accent hover:text-accent">
-            Abrir panel
-          </Link>
+          {isMySupervision && (
+            <Link href={`/supervision/${campaign.id}/panel`} className="rounded-pill border border-line-2 bg-surface px-5 py-3 text-[12.5px] font-bold text-ink-2 hover:border-accent hover:text-accent">
+              Abrir panel
+            </Link>
+          )}
         </div>
       </section>
     </div>

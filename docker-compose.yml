@@ -1,32 +1,126 @@
-version: '3.8'
+# Stack de DataForGood: postgres + minio (+ minio-init) + app.
+#
+# Todos los secretos salen del .env de la raíz (gitignored; plantilla en
+# .env.example). Los `:?` hacen que Compose se niegue a arrancar si falta
+# alguno, en vez de levantar la app con credenciales de ejemplo.
+#
+# Postgres y MinIO NO publican puertos: la app los alcanza por la red
+# interna de Compose. Para `next dev` en tu máquina, publícalos solo en
+# 127.0.0.1 con el override local:
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: postgres_local
     restart: always
     environment:
-      POSTGRES_USER: tu_usuario
-      POSTGRES_PASSWORD: tu_password_segura
-      POSTGRES_DB: mi_base_de_datos
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:?Falta POSTGRES_USER en .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Falta POSTGRES_DB en .env}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
   minio:
     image: quay.io/minio/minio
-    container_name: minio
     restart: always
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: admin
-      MINIO_ROOT_PASSWORD: admin12345
-    ports:
-      - "9000:9000"
-      - "9001:9001"
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Falta MINIO_ROOT_USER en .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Falta MINIO_ROOT_PASSWORD en .env}
     volumes:
-      - C:/minio/data:/data
+      # Volumen con nombre por defecto. Para seguir usando una carpeta del
+      # host (p. ej. los datos que ya tenías en Windows), define en .env
+      # MINIO_DATA=C:/minio/data
+      - ${MINIO_DATA:-minio_data}:/data
+
+  # Configura MinIO con el root y termina: crea el bucket privado y un
+  # usuario limitado a ese bucket, que es el único que conoce la app.
+  # Es idempotente: se puede correr en cada `up`.
+  minio-init:
+    # La misma imagen del servidor, que ya trae `mc`. MinIO dejó de publicar
+    # imágenes (quay.io/minio/* y minio/* responden 401 o "no existe"), así
+    # que solo funcionan las que ya están descargadas en la máquina.
+    image: quay.io/minio/minio
+    restart: "no"
+    depends_on:
+      - minio
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?Falta MINIO_ROOT_USER en .env}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?Falta MINIO_ROOT_PASSWORD en .env}
+      MINIO_BUCKET: ${MINIO_BUCKET:-aportes}
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?Falta MINIO_ACCESS_KEY en .env}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?Falta MINIO_SECRET_KEY en .env}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        if [ "$$MINIO_ACCESS_KEY" = "$$MINIO_ROOT_USER" ]; then
+          echo "MINIO_ACCESS_KEY no puede ser el usuario root de MinIO" >&2
+          exit 1
+        fi
+        until mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" >/dev/null 2>&1; do
+          echo "Esperando a MinIO..."
+          sleep 2
+        done
+        mc mb --ignore-existing "local/$$MINIO_BUCKET"
+        mc anonymous set none "local/$$MINIO_BUCKET"
+        printf '%s' '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:GetBucketLocation","s3:ListBucket"],"Resource":["arn:aws:s3:::'"$$MINIO_BUCKET"'"]},{"Effect":"Allow","Action":["s3:GetObject","s3:PutObject","s3:DeleteObject"],"Resource":["arn:aws:s3:::'"$$MINIO_BUCKET"'/*"]},{"Effect":"Deny","Action":["admin:CreateServiceAccount","admin:UpdateServiceAccount"]}]}' > /tmp/politica.json
+        mc admin policy create local dataforgood-app /tmp/politica.json
+        mc admin user add local "$$MINIO_ACCESS_KEY" "$$MINIO_SECRET_KEY"
+        mc admin policy attach local dataforgood-app --user "$$MINIO_ACCESS_KEY" >/dev/null 2>&1 || true
+        echo "MinIO listo: bucket $$MINIO_BUCKET y usuario limitado $$MINIO_ACCESS_KEY"
+
+  app:
+    # Nombre fijo: en el servidor la imagen llega con `docker load` (no se
+    # construye ahí), y `docker compose up` la usa si ya existe con este
+    # nombre. Sin esto, Compose espera "<carpeta>-app" y no la encuentra.
+    image: dataforgood-app:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BASE_PATH: ${BASE_PATH-/dataforgood}
+    restart: always
+    # Secretos (Gmail, Google OAuth, ROOT_PASSWORD_HASH...) salen del .env de
+    # la raíz. Se referencian uno por uno con ${VAR} en vez de con env_file:
+    # Compose SÍ interpola "${...}" dentro de los valores de un env_file de
+    # servicio, lo que corrompe el hash bcrypt de ROOT_PASSWORD_HASH (sus
+    # "\$" no son la convención de escape de Compose, que es "$$"); el .env
+    # de proyecto que carga solo para sustituir variables en este archivo no
+    # tiene ese problema.
+    environment:
+      GMAIL_USER: ${GMAIL_USER}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD}
+      EMAIL_FROM: ${EMAIL_FROM}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_REDIRECT_URI: ${GOOGLE_REDIRECT_URI}
+      APP_ORIGIN: ${APP_ORIGIN:?Falta APP_ORIGIN en .env}
+      ROOT_USER_ID: ${ROOT_USER_ID}
+      ROOT_PASSWORD_HASH: ${ROOT_PASSWORD_HASH}
+      # La contraseña va dentro de una URL: usa solo letras, números y guiones.
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      MINIO_ENDPOINT: minio
+      MINIO_PORT: "9000"
+      MINIO_USE_SSL: "false"
+      MINIO_BUCKET: ${MINIO_BUCKET:-aportes}
+      # Usuario limitado que crea minio-init, nunca el root.
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?Falta MINIO_ACCESS_KEY en .env}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?Falta MINIO_SECRET_KEY en .env}
+    ports:
+      # Puerto del host al que apunta el proxy (en producción, 3002).
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
 
 volumes:
   postgres_data:
+  minio_data:

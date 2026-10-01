@@ -1,3 +1,5 @@
+// Pie de página de las pantallas públicas.
+
 import Link from "next/link";
 
 export default function PublicFooter() {
