@@ -47,7 +47,7 @@ export default function CampaignList({ completed = false }: { completed?: boolea
   const visibleCampaigns = campaigns.filter((campaign) => completed ? campaign.status === "finalizada" : campaign.status !== "finalizada");
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl lg:mx-0 lg:max-w-none">
       <div className="mb-6">
         <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Revisor de aportes</p>
         <h1 className="mt-2 text-2xl font-extrabold text-ink">Mis campañas</h1>
@@ -55,8 +55,8 @@ export default function CampaignList({ completed = false }: { completed?: boolea
       </div>
 
       <nav className="mb-6 flex flex-wrap gap-2" aria-label="Estado de campañas">
-        <Link href="/revisiones" className={`rounded-pill border px-4 py-2 text-[13px] font-bold transition-colors ${activeTab === "curso" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}>En curso {currentCount}</Link>
-        <Link href="/revisiones/finalizadas" className={`rounded-pill border px-4 py-2 text-[13px] font-bold transition-colors ${activeTab === "finalizadas" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}>Finalizadas {completedCount}</Link>
+        <Link href="/revisiones" className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${activeTab === "curso" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}>En curso {currentCount}</Link>
+        <Link href="/revisiones/finalizadas" className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${activeTab === "finalizadas" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}>Finalizadas {completedCount}</Link>
       </nav>
 
       <div className="mb-4 flex items-center justify-between gap-3">

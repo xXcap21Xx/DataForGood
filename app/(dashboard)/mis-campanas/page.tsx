@@ -119,7 +119,7 @@ export default function MisCampanasPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl lg:mx-0 lg:max-w-none">
       <div className="mb-2 flex items-start justify-between gap-4 max-md:gap-3">
         <div>
           <h1 className="text-2xl font-extrabold text-ink max-md:text-xl max-md:leading-tight">Mis campañas</h1>
@@ -129,7 +129,7 @@ export default function MisCampanasPage() {
           href="/mis-campanas/nueva"
           variant="primary"
           size="sm"
-          className="max-md:max-w-[108px] max-md:px-2.5 max-md:py-1.5 max-md:text-[11.5px] max-md:leading-4"
+          className="whitespace-nowrap max-md:max-w-[126px] max-md:px-2.5 max-md:py-1.5 max-md:text-[11.5px] max-md:leading-4"
         >
           Nueva campaña
         </ButtonLink>

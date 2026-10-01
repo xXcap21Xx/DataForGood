@@ -23,13 +23,16 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
       <nav className="dashboard-nav flex flex-col gap-1">
         {NAV_ITEMS.map((item) => {
           const active = pathname.startsWith(item.href);
+          const isCtaItem = item.href === "/mis-aportes" || item.href === "/mis-campanas";
           return (
             <Link
               key={item.href}
               href={item.href}
               className={`rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors ${
                 active
-                  ? "bg-accent text-white"
+                  ? isCtaItem
+                    ? "bg-ok text-white"
+                    : "bg-accent text-white"
                   : "text-ink-2 hover:bg-sunken hover:text-ink"
               }`}
             >
