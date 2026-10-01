@@ -55,6 +55,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 - **Respuesta:** `{ data }` si sale bien, `{ error }` si no. Los clientes leen `payload.error`.
 - **Mapeo:** las filas vienen en snake_case y se convierten a los tipos de `types/index.ts` con una función `mapX(row)` en el mismo archivo.
 - **Endpoints actuales:** `auth/{login, logout, root, sesion, verificar, verificar/reenviar, google, google/callback}`, `usuarios`, `usuarios/[id]`, `campanas`, `campanas/[id]{, /guardar, /revisores, /baneos, /recoleccion-diaria}`, `aportes`, `aportes/[id]{, /archivo}`, `revisiones`, `notificaciones`, `notificaciones/[id]/aceptar` y `datos/[id]/descarga` (ZIP con `archiver`), y `docs` + `docs/spec` (Swagger UI).
+- **Documentación para personas:** `docs/` (guía en `docs/README.md`, rutas en `docs/rutas.md`, tablas y estados en `docs/datos.md`, permisos en `docs/permisos.md`, módulos en `docs/lib.md`) y un comentario de cabecera en cada archivo de `app/`, `lib/` y `components/`. Mantenlos al día en el mismo commit que el cambio.
 - **Documentación OpenAPI:** `openapi.yaml` (raíz) describe todos los route handlers y se escribe a mano. **Si agregas o cambias un endpoint, actualiza `openapi.yaml` en el mismo commit.** `/api/docs` sirve Swagger UI (desde jsdelivr) y `/api/docs/spec` entrega el YAML con el servidor actual (`BASE_PATH`) como primero. Acceso (`lib/api-docs.ts`): abierto en `next dev`; en producción, incluido Docker local, exige sesión root. `next.config.ts` incluye el YAML en el build con `outputFileTracingIncludes`. La colección de Insomnia equivalente es `dataforgood-insomnia.json`.
 
 ## 4. Server actions (panel del SuperUsuario)
@@ -80,7 +81,7 @@ Una server action es un endpoint público: cualquiera puede invocarla con su ID.
 | Zona | Patrón actual |
 | --- | --- |
 | `(dashboard)` | Página `"use client"` que carga con `fetch("/api/...")` en `useEffect` y maneja `cargando` / `error`. Algunas, como `mis-campanas/nueva`, separan un formulario cliente (`NuevaCampanaForm.tsx`) |
-| `(panel)` | Server Component `async` que llama a `exigirSesionRoot()` o a la función de `lib/` que ya la exige, lee con funciones de `lib/<modulo>/` y pasa props a componentes cliente hermanos (`filtros.tsx`, `botones-de-rol.tsx`, `formulario.tsx`) que llaman a server actions |
+| `(panel)` | Server Component `async` que debe llamar a `exigirSesionRoot()` o a una función de `lib/` que ya la exija (hoy `/sistema` y `/usuarios/**` no lo hacen, ver `roles-y-sesiones.md` § 8), lee con funciones de `lib/<modulo>/` y pasa props a componentes cliente hermanos (`filtros.tsx`, `botones-de-rol.tsx`, `formulario.tsx`) que llaman a server actions |
 | Públicas (`/`, `/datos`) | Server Components. `/` usa `revalidate = 300`: sus consultas van en `try/catch` con valores por defecto porque el build no tiene base de datos |
 
 Actualización en vivo: `components/supervision/RefrescoEnVivo.tsx` hace `router.refresh()` periódico (polling) en los paneles de campañas activas.

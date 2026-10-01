@@ -90,6 +90,7 @@ Fuentes: `campanas/[id]/aportar`, `mis-aportes` y `mis-aportes/[campanaId]`.
 - **Cuota por persona:** al alcanzarla ya no se puede enviar más a esa campaña, aunque siga abierta para otras personas.
   - **Un aporte rechazado no libera cupo:** cuenta como enviado.
   - **Eliminar un aporte pendiente mientras la campaña sigue activa sí devuelve el cupo.** Una campaña finalizada no permite añadir ni eliminar.
+  - **Estado real del código (2026-10-01):** `DELETE /api/aportes/[id]` deja borrar a quien aportó cualquier aporte que no esté `aceptado` (también uno `rechazado`, que según la regla de arriba no libera cupo) y no revisa el estado de la campaña. Falta alinear el endpoint con la regla.
 - **Completar la cuota otorga un bono de 300 XP.**
 - **Filtros de "Mis aportes":** Todas, Puedo aportar (campaña activa y cuota disponible), Cuota completa, Finalizadas y Favoritos.
 
@@ -100,6 +101,7 @@ Fuentes: `mis-campanas/[id]/aportes` y `[aporteId]`.
 - **Estados del aporte:** `pendiente` (sin revisar), `espera_final`, `aceptado` y `rechazado`.
 - **Sin revisor asignado:** todo llega sin filtro y quien administra la campaña decide en **una sola instancia** (`pendiente` → `aceptado` o `rechazado`).
 - **Con revisor asignado:** el revisor valida en primera instancia (`pendiente` → `espera_final`, guardando quién lo validó), y quien administra da la aprobación final (`espera_final` → `aceptado` o `rechazado`).
+  - **Estado real del código (2026-10-01):** no se cumple. En `PATCH /api/aportes/[id]` el revisor solo puede mandar `status: "aceptado"` sobre un aporte `pendiente`, y el servidor lo guarda tal cual como `aceptado` (con `first_pass_by`); nunca asigna `espera_final`. La interfaz (`/revisiones/[aporteId]`, bandeja del creador) sí muestra ese estado. Arreglo pendiente: si quien acepta es revisor y no creador, guardar `espera_final` y no sumar a `approved_contributions` hasta la decisión del creador.
 - **Rechazar exige un motivo:** uno de la lista ("Contenido borroso o ilegible", "No corresponde a la campaña", "Datos incompletos", "Contenido duplicado") o uno redactado. **El participante recibe el motivo por notificación.**
 - **Desde el detalle de un aporte se puede "Banear de la campaña"** al participante. El baneo es por campaña, no global.
 
@@ -125,11 +127,11 @@ Fuentes: `especial`, `campanas/[id]` y `mis-aportes`.
 
 ## 8. Catálogos
 
-- **Temáticas en el formulario de campaña:** Medio ambiente, Salud urbana, Educación, Infraestructura, Protección animal y Movilidad.
-- **Intereses del perfil:** los mismos más "Cultura".
-- **Motivos de rechazo:** ver sección 5.
+- **Temáticas de campaña e intereses del perfil:** una sola lista de 23 en `lib/intereses.ts` (`TEMAS_DE_INTERES`), desde el 2026-09-30.
+- **Estados y municipios:** `lib/mexico-geo.ts`. **Especialidades:** `lib/perfil-opciones.ts`.
+- **Motivos de rechazo:** ver sección 5 (todavía repetidos en las pantallas que los usan).
 
-Guárdalos en un solo lugar (tabla o constante compartida). Hoy están repetidos en varias pantallas.
+Si agregas un catálogo, ponlo en un archivo sin imports de servidor para que lo use el cliente.
 
 ## 9. Datos abiertos
 

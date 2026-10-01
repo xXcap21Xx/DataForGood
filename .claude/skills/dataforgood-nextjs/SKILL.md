@@ -55,7 +55,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 
 ## Reglas del proyecto
 
-1. **Toda ruta o acción verifica la sesión y el permiso en el servidor.** `proxy.ts` solo redirige si falta la cookie y rechaza mutaciones de `/api` con `Origin` ajeno; no valida sesiones ni roles. Cada route handler llama a `getSessionUser()` (o `hasRootSession()`), cada server action empieza con su guardia y cada página de `(panel)` llama a `exigirSesionRoot()` además del layout. `getSessionUser()` ya devuelve `null` si la cuenta está suspendida o baneada (`lib/sanciones.ts`). **Páginas y layouts de servidor de la zona de usuario usan `exigirUsuario()`** (`lib/session.ts`), no `getSessionUser()` + `redirect("/entrar")`: manda a `/cuenta-bloqueada` si la cuenta está sancionada y a `/entrar` si no hay sesión, y layout y página deben coincidir porque corren en paralelo.
+1. **Toda ruta o acción verifica la sesión y el permiso en el servidor.** `proxy.ts` solo redirige si falta la cookie y rechaza mutaciones de `/api` con `Origin` ajeno; no valida sesiones ni roles. Cada route handler llama a `getSessionUser()` (o `hasRootSession()`), cada server action empieza con su guardia y cada página de `(panel)` debe llamar a `exigirSesionRoot()` además del layout (hoy `/sistema` y `/usuarios/**` no lo hacen: ver `references/roles-y-sesiones.md` § 8). `getSessionUser()` ya devuelve `null` si la cuenta está suspendida o baneada (`lib/sanciones.ts`). **Páginas y layouts de servidor de la zona de usuario usan `exigirUsuario()`** (`lib/session.ts`), no `getSessionUser()` + `redirect("/entrar")`: manda a `/cuenta-bloqueada` si la cuenta está sancionada y a `/entrar` si no hay sesión, y layout y página deben coincidir porque corren en paralelo.
 2. **Las acciones sensibles se registran en `audit_log`** con `registrarAuditoria()` (`lib/auditoria.ts`), después de completarse: cambios de rol, sanciones, dictámenes, tomar campaña, baneos por campaña, invitar o aceptar revisor, accesos a `/root`. Si agregas una acción de ese tipo, regístrala y amplía `AccionAuditada`.
 3. **Las reglas de negocio se aplican en el servidor**, aunque la interfaz ya las muestre: cuota por persona, transiciones de estado, motivo obligatorio al rechazar, tamaño y formato de archivos, que el creador no aporte ni supervise sus campañas. La interfaz solo informa.
 4. **Una regla, un lugar.** Si dos caminos (p. ej. `PATCH /api/campanas/[id]` y la server action del SuperUsuario) aplican la misma regla, se extrae a `lib/` (ejemplo: `lib/supervision/decision.ts`). No dupliques la lógica.
@@ -110,6 +110,7 @@ DataForGood/
 │   │   └── campanas/{baneos, checklist, publicas}.ts  # baneos por campaña, checklists con título (sin pg), /explorar
 ├── types/index.ts                # contrato de datos
 ├── sql/                          # scripts CREATE históricos: NO son la fuente del esquema
+├── docs/                         # guía para desarrolladores (README, rutas, datos, permisos, lib)
 ├── openapi.yaml                  # documentación de la API (a mano); se ve en /api/docs
 ├── dataforgood-insomnia.json     # colección de Insomnia con las mismas rutas
 ├── docker-compose.yml, Dockerfile, next.config.ts
@@ -127,6 +128,7 @@ DataForGood/
 5. **Página:** sigue el patrón de su zona (regla 8).
 6. **Documenta en `references/dominio.md`** las reglas nuevas o los puntos abiertos que se resuelvan, con fecha.
 7. **Si tocaste un route handler, actualiza `openapi.yaml`** (y la colección de Insomnia si cambió la forma de la petición).
+8. **Documenta en el código y en `docs/`.** Todo archivo nuevo de `app/`, `lib/` o `components/` lleva un comentario de cabecera (`//`) que dice qué es; en páginas: URL, acceso, de dónde salen los datos y qué acciones hace; en route handlers: un comentario por método. Si agregas o cambias una pantalla, endpoint, tabla o módulo, actualiza `docs/rutas.md`, `docs/datos.md` o `docs/lib.md`, y `docs/README.md` § 8 si cierras o encuentras un hueco.
 
 ## Cambios de versión que rompen código viejo
 

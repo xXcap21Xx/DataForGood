@@ -30,7 +30,7 @@ Las reglas de negocio y los puntos abiertos están en `dominio.md`, secciones 1,
 
 1. **`proxy.ts`:** en páginas solo comprueba que exista la cookie y redirige; no es autorización. En `/api`, rechaza con 403 las mutaciones (POST, PATCH, PUT, DELETE) cuyo `Origin` no sea el host de la petición (`Host` o `X-Forwarded-Host`) ni el de `APP_ORIGIN`; también las que traen `Sec-Fetch-Site: cross-site` sin `Origin`. Sin `Origin` (clientes que no son navegador) deja pasar, porque no pueden usar la cookie de otra persona. Las server actions no pasan por ahí: Next verifica su `Origin`.
 2. **Layouts:** `(panel)/layout.tsx` (sesión raíz) y `(dashboard)/supervision/layout.tsx` (rol `supervisor`).
-3. **Cada página, route handler y server action vuelve a verificar.** En el panel se usa `exigirSesionRoot()` (`lib/supervision/root.ts`) o `exigirSuperUsuario()` (`lib/usuarios/acciones-usuarios.ts`, `acciones-supervisor.ts`). En la API, `getSessionUser()` más la comprobación de permiso sobre el recurso.
+3. **Cada página, route handler y server action vuelve a verificar.** En el panel se usa `exigirSesionRoot()` (`lib/supervision/root.ts`) o `exigirSuperUsuario()` (`lib/usuarios/acciones-usuarios.ts`, `acciones-supervisor.ts`). En la API, `getSessionUser()` más la comprobación de permiso sobre el recurso. **Excepción actual:** las páginas de `/sistema` y `/usuarios/**` y sus funciones de lectura (`lib/sistema/metricas.ts`, `lib/usuarios/{directorio,dashboard,supervisores}.ts`) no vuelven a comprobar la sesión raíz: dependen solo de `(panel)/layout.tsx` (ver § 8). Sí lo hacen `/supervisar/**` (`lib/supervision/root.ts`) y `/sistema/campanas/**` (`lib/campanas/sistema.ts`).
 
 ## 3. Roles
 
@@ -94,6 +94,9 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 ## 8. Huecos conocidos
 
+- **Campaña activa sin supervisión (grave):** `POST /api/campanas` toma `status` del body (admite `activa`, `pausada`, `finalizada`...) y usa `activa` si no viene; tampoco aplica el límite de 5 activas. El `PATCH`/`PUT` de un borrador también acepta cualquier estado válido. La interfaz solo manda `borrador` o `en_revision`, pero una llamada directa se salta al supervisor. Debe aceptar solo `borrador` o `en_revision`. Detectado el 2026-10-01, sin corregir.
+- **Panel protegido solo por el layout:** `/sistema` y `/usuarios/**` no llaman a `exigirSesionRoot()` y sus funciones de `lib/` no verifican. Las server actions que escriben sí. Detectado el 2026-10-01, sin corregir.
+- **`GET /api/campanas/[id]/recoleccion-diaria`** pide sesión pero no que sea el creador: cualquier usuario ve las estadísticas de cualquier campaña. Las pantallas `/mis-campanas/[id]/{panel,compartir,especial}` tampoco comprueban `viewer.isCreator`. Detectado el 2026-10-01, sin corregir.
 - **El registro acepta roles del body (grave):** `POST /api/usuarios` pasa `body.role`/`body.roles` por `normalizeRoles` (`lib/roles.ts`), que admite `supervisor`, `revisor` y `admin`. Cualquiera puede registrarse como supervisor, lo que rompe la regla de que solo el SuperUsuario lo asigna. Debe guardar siempre `["usuario"]`. Detectado el 2026-09-28, sin corregir.
 - **`GET /api/usuarios/[id]` no pide sesión** y devuelve correo, ubicación y XP de cualquier id: permite enumerar correos. Detectado el 2026-09-28, sin corregir.
 - **`revertirAccion` no hace nada todavía:** ya exige sesión raíz, pero su lógica sigue en `TODO`. Cuando se implemente, debe registrar `supervision.revertir` en la bitácora.
