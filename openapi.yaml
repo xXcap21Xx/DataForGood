@@ -693,6 +693,62 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /api/c/{token}/aportes:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+        description: Token del enlace público de la campaña (/c/{token})
+    post:
+      tags: [Aportes]
+      summary: Aporte anónimo (sin cuenta) desde un enlace público
+      description: |
+        Público, sin sesión: es lo único que una persona sin cuenta puede hacer. Solo con un
+        enlace vigente de una campaña activa. Con sesión iniciada responde 409 (se aporta con
+        la cuenta). El aporte se guarda sin datos personales (`user_id` NULL, "Anónimo", sin correo
+        ni nombre de archivo). Cuota: la cuota por persona de la campaña, contada por dispositivo
+        con la cookie `anonimo_id` (se crea en la primera respuesta exitosa); además, un tope de
+        20 aportes anónimos por IP por hora. Solo responde cuántos aportes le quedan.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [description, file]
+              properties:
+                description: { type: string, maxLength: 1000 }
+                caracteristicas:
+                  type: array
+                  items: { type: string }
+                  description: 'Respuestas de checklists ("Título: opción"); se descartan las que no existen'
+                file:
+                  type: string
+                  format: binary
+                  description: .jpg, .jpeg o .png, máximo 10 MB
+      responses:
+        "201":
+          description: Aporte enviado; queda pendiente de revisión
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      restantes: { type: integer, description: Aportes que aún puede enviar este dispositivo }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Hay sesión iniciada, o la campaña ya no recibe aportes
+        "410":
+          description: El enlace caducó o fue reemplazado
+        "429":
+          description: Tope de aportes anónimos por IP alcanzado
+
   /api/aportes/{id}:
     parameters:
       - $ref: "#/components/parameters/Id"

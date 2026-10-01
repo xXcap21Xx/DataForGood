@@ -256,7 +256,9 @@ export default function RevisionAportePage() {
                 />
               </Field>
               <p className="mb-3 text-[11.5px] text-ink-3">
-                Obligatorio al rechazar. El participante lo recibirá por notificación.
+                {item.userId === null
+                  ? "Obligatorio al rechazar. Es un aporte anónimo: queda registrado, pero nadie lo recibe."
+                  : "Obligatorio al rechazar. El participante lo recibirá por notificación."}
               </p>
               <Button variant="danger" type="submit" disabled={!canReject || submitting}>
                 Confirmar rechazo
@@ -285,7 +287,10 @@ export default function RevisionAportePage() {
 
       {(item.userId !== null || !alreadyReviewed) && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-          {autorBaneado ? (
+          {item.userId === null ? (
+            // Aporte sin cuenta (enlace público): no hay a quién banear.
+            <p className="text-[12px] text-ink-3">Aporte anónimo, enviado desde el enlace público.</p>
+          ) : autorBaneado ? (
             <div className="flex flex-wrap items-center gap-2">
               <Tag tone="danger">Baneado de esta campaña</Tag>
               <Button size="sm" onClick={() => void unbanUser()} disabled={submitting}>
@@ -293,7 +298,7 @@ export default function RevisionAportePage() {
               </Button>
             </div>
           ) : (
-            <Button variant="danger" size="sm" onClick={() => setShowBanForm(true)} disabled={submitting || item.userId === null}>
+            <Button variant="danger" size="sm" onClick={() => setShowBanForm(true)} disabled={submitting}>
               Banear usuario de la campaña
             </Button>
           )}

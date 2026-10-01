@@ -27,7 +27,8 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 | Revisión de aportes | `/revisiones`, `/revisiones/finalizadas`, `/revisiones/[aporteId]`, `/revisiones/campanas/[campaignId]/usuarios/...` | Revisor aceptado de la campaña |
 | Supervisión (usuario promovido) | `/supervision`, `/supervision/campanas`, `/supervision/[campaignId]/{panel, usuarios/...}` | Rol `supervisor` |
 | Panel del SuperUsuario, `(panel)` | `/sistema`, `/sistema/campanas{, /dashboard, /[id]}`, `/usuarios{, /dashboard, /[id]{, /roles, /sancion}, /sanciones, /supervisores{, /[id]{, /revertir/[accionId]}}}`, `/supervisar/...` | Sesión raíz (`root_sessions`) |
-| Aún sin pantalla | aporte anónimo desde `/c/[token]`, recuperar contraseña | — |
+| Persona anónima | Solo `/c/[token]` (ficha de la campaña compartida y formulario de aporte sin cuenta, `POST /api/c/[token]/aportes`) | Sin sesión, con enlace vigente |
+| Aún sin pantalla | recuperar contraseña | — |
 
 ## Stack real
 

@@ -294,6 +294,7 @@ export async function ensureAportesTable(): Promise<void> {
       first_pass_by VARCHAR(160),
       first_pass_by_user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
       enlace_id INTEGER REFERENCES campana_enlaces(id) ON DELETE SET NULL,
+      anonimo_id CHAR(64),
       submitted_at TIMESTAMP NOT NULL DEFAULT NOW(),
       reviewed_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -307,6 +308,10 @@ export async function ensureAportesTable(): Promise<void> {
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS first_pass_by VARCHAR(160);
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS first_pass_by_user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS enlace_id INTEGER REFERENCES campana_enlaces(id) ON DELETE SET NULL;
+    -- Aporte sin cuenta (desde /c/[token]): sha256 del identificador de dispositivo
+    -- (cookie anonimo_id). Sirve para la cuota por dispositivo; nunca se guarda el valor.
+    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS anonimo_id CHAR(64);
+    CREATE INDEX IF NOT EXISTS aportes_anonimo_idx ON aportes (campaign_id, anonimo_id) WHERE anonimo_id IS NOT NULL;
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
   `);
 }

@@ -41,7 +41,7 @@
 | `campana_enlaces` | Enlace público `/c/[token]`: `token` único, `expira_en` (24 h), `revocado_en` (al regenerar; no se borra), `visitas`, `creado_por`. Se crea antes que `aportes` porque `aportes.enlace_id` la referencia (`lib/campanas/enlaces.ts`) |
 | `campanas_guardadas` | Favoritos del usuario |
 | `notificaciones` | Avisos por usuario (`tipo`, `titulo`, `mensaje`, `metadata` JSONB, `leida_en`) |
-| `aportes` | Aporte: `campaign_id`, `user_id` (NULL si fue anónimo), datos del participante, `file_*` (clave en MinIO, nombre, mime, tamaño), `caracteristicas` JSONB, `status`, `rejection_reason`, primera revisión (`first_pass_by`, `first_pass_by_user_id`), `enlace_id` (enlace público por el que llegó) |
+| `aportes` | Aporte: `campaign_id`, `user_id` (NULL si fue anónimo), datos del participante, `file_*` (clave en MinIO, nombre, mime, tamaño), `caracteristicas` JSONB, `status`, `rejection_reason`, primera revisión (`first_pass_by`, `first_pass_by_user_id`), `enlace_id` (enlace público por el que llegó), `anonimo_id` (aporte sin cuenta: sha256 de la cookie del dispositivo, para la cuota; nunca el valor). Un aporte anónimo va como "Anónimo", sin correo ni `file_original_name` |
 | `sanciones` | Strikes, baneos y suspensiones aplicados desde el panel (`tipo`, `detalle`, `dias`, `activa`, `restaurada_en`). La suspensión y el baneo bloquean la cuenta (`lib/sanciones.ts`) |
 | `audit_log` | Bitácora de acciones sensibles, solo de inserción: `actor_tipo` (`usuario`, `superusuario`, `anonimo`), `actor_id`, `accion`, `objetivo_tipo` + `objetivo_id`, `detalle` JSONB, `ip`. Se escribe con `registrarAuditoria()` (`lib/auditoria.ts`) |
 

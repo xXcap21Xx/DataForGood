@@ -77,7 +77,7 @@ export async function obtenerPanelDeCampana(campanaId: string | number): Promise
               COUNT(*) FILTER (WHERE status = 'aceptado') AS aprobados,
               COUNT(*) FILTER (WHERE status IN ('pendiente', 'espera_final')) AS pendientes,
               COUNT(*) FILTER (WHERE status = 'rechazado') AS rechazados,
-              COUNT(DISTINCT COALESCE(user_id::text, participant_email)) AS participantes
+              COUNT(DISTINCT COALESCE(user_id::text, participant_email, anonimo_id)) AS participantes
        FROM aportes WHERE campaign_id = $1`,
       [campanaId],
     ),

@@ -215,7 +215,10 @@ Están anotados para que no te sorprendan. No los "arregles de paso": cada uno e
 | **La revisión en dos instancias no está completa.** Cuando un revisor acepta un aporte, el servidor lo deja en `aceptado` directamente; nunca lo pone en `espera_final`, aunque la interfaz sí muestra ese estado | `app/api/aportes/[id]/route.ts` (PATCH) |
 | **Páginas del panel protegidas solo por el layout.** `/sistema` y `/usuarios/**` no vuelven a comprobar la sesión raíz (ni la página ni sus funciones de `lib/`). Las server actions que escriben sí verifican | `app/(panel)/sistema/page.tsx`, `app/(panel)/usuarios/**`, `lib/usuarios/{directorio,dashboard,supervisores}.ts`, `lib/sistema/metricas.ts` |
 | **`revertirAccion` no hace nada** todavía (tiene la guardia, pero la lógica es un `TODO`) | `lib/usuarios/acciones-supervisor.ts` |
-| Aportes anónimos (sin cuenta) y recuperar contraseña: **no existen**. El enlace público `/c/[token]` sí, pero para aportar pide iniciar sesión | `app/c/[token]/page.tsx` |
+| Recuperar contraseña: **no existe** | — |
+| **Tope de aportes anónimos por IP en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. En local, sin proxy delante, todas las peticiones caen en la misma "IP" (`desconocida`) y comparten el tope de 20 por hora | `lib/campanas/aportes-anonimos.ts` |
+| **No hay sanciones para aportes anónimos:** solo se puede rechazar el aporte; no hay bloqueo del dispositivo ni forma de cortar los aportes sin cuenta de una campaña (salvo regenerar el enlace). Hay una propuesta en la skill (`dominio.md`, punto 18) | `lib/campanas/aportes-anonimos.ts` |
+| **Un usuario sancionado puede aportar como anónimo** desde un enlace (al no tener sesión válida ve el formulario anónimo), igual que cualquiera que cierre sesión. No hay forma de ligar el dispositivo a la cuenta | `app/c/[token]/page.tsx` |
 | Solo se aceptan fotos JPG/PNG de hasta 10 MB | `app/api/aportes/route.ts` |
 | El build falla a veces descargando Google Fonts; reintentar. La solución es `next/font/local` | `app/layout.tsx` |
 | La imagen de MinIO ya no se puede descargar de internet; solo sirve la que está en caché | `docker-compose.yml` |

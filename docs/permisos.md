@@ -112,6 +112,17 @@ No hay una función central: cada handler lo comprueba con SQL. Si agregas una r
 - **SuperUsuario** (`POST /api/auth/root`): compara en tiempo constante y limita a 5 intentos por minuto por IP y 30 en total (en memoria: se reinicia con cada despliegue).
 - **Recuperar contraseña:** no existe.
 
+### Persona anónima (sin cuenta)
+
+Puede participar **solo si le comparten una campaña** (enlace o QR `/c/[token]`). No tiene sesión ni rol.
+
+- **Ve:** únicamente `/c/[token]`, con la ficha de la campaña y el formulario. Todo lo demás de la app le pide iniciar sesión, y la API le responde 401.
+- **Puede:** enviar aportes con `POST /api/c/[token]/aportes`, solo con un enlace vigente de una campaña activa.
+- **No puede:** ver sus aportes después, consultar archivos, ver el enlace o el QR desde la app, ni modificar nada.
+- **Límites:** la cuota por persona de la campaña, contada por dispositivo (cookie `anonimo_id`), y 20 aportes por IP por hora (`lib/campanas/aportes-anonimos.ts`).
+- **Privacidad:** el aporte se guarda como "Anónimo", sin correo ni nombre de archivo. De la cookie solo se guarda su hash, y la IP no se guarda.
+- **Revisión:** el creador lo acepta o rechaza como cualquier aporte, pero no puede banearlo (no hay cuenta) y nadie recibe el motivo del rechazo.
+
 ## 7. Sanciones y baneos
 
 Hay dos cosas distintas con nombres parecidos:

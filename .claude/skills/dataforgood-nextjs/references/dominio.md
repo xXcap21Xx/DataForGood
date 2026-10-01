@@ -120,7 +120,14 @@ Fuente: pantalla de compartir del prototipo; hoy es el cuadro "Compartir" de `/c
     - **Se genera solo al aceptarse la campaña:** en cuanto queda `activa` (aceptada y ya empezó, al llegar su fecha de inicio si se aceptó antes, o al reactivarse) con `asegurarEnlaceVigente`, en `lib/supervision/decision.ts`, `activateScheduledCampaigns` y `PATCH`/`PUT /api/campanas/[id]`. No se genera en el estado `aceptada` con inicio futuro: vencería antes de que la campaña empiece.
     - **Cualquiera con sesión** abre "Compartir" en `/campanas/[id]` y obtiene el enlace y el QR. **Solo el creador** lo regenera y ve sus visitas y aportes.
   - **Ruta pública `/c/[token]`:** valida el token en el servidor en cada apertura (inexistente, revocado, caducado, campaña no activa) y cuenta una visita por apertura de un enlace vigente. Para aportar **pide iniciar sesión o registrarse** (con `?next=` a `/campanas/[id]/aportar?enlace=<token>`); `POST /api/aportes` guarda el enlace en `aportes.enlace_id` si es el vigente de la campaña. Así "aportes recibidos" del enlace es real.
-  - **Pendiente:** el aporte **anónimo** (sin cuenta) sigue sin implementarse: depende del punto abierto 7 (cuota de anónimos). Las columnas viejas `campanas.share_token`/`share_token_expires_at` ya no se usan.
+  - **Aporte anónimo (implementado el 2026-10-01):**
+    - Sin sesión, `/c/[token]` muestra un formulario que envía a `POST /api/c/[token]/aportes`. La lógica está en `lib/campanas/aportes-anonimos.ts`.
+    - **La persona anónima solo participa si le comparten la campaña.** No ve ni toca nada más del sistema: ni sus aportes después, ni archivos, ni la app. Solo ve lo que muestra `/c/[token]`.
+    - El aporte se guarda sin datos personales: `user_id` NULL, "Anónimo", sin correo y sin nombre de archivo. Lleva `enlace_id` y `anonimo_id`, que es el sha256 de la cookie del dispositivo.
+    - Con sesión iniciada, el endpoint responde 409: se aporta con la cuenta.
+    - El creador lo revisa como cualquier aporte, pero no puede banearlo y nadie recibe el motivo del rechazo.
+    - En las métricas, un dispositivo cuenta como participante.
+  - Las columnas viejas `campanas.share_token`/`share_token_expires_at` ya no se usan.
 
 ## 7. Experiencia (XP) y campañas especiales
 
@@ -166,7 +173,7 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
 4. **Cálculo de XP.** `xpPerContribution` por campaña (50, 40, 35, 30) frente a XP base por tipo en la pantalla de especial (texto 10, foto o documento 25, audio o video 50). ¿Cuál manda, o se combinan?
 5. ~~**Catálogo de temáticas.** El filtro de `/campanas` usa "Salud y bienestar" y omite varias categorías; el formulario usa "Salud urbana".~~ *Resuelto (2026-09-30): una sola lista de 23 temáticas en `lib/intereses.ts` para intereses del perfil y temáticas de campaña; los filtros de `/campanas` se arman con las temáticas de las campañas activas.*
 6. **Límites de archivos** para video, audio y documento, y formatos de documento. Hoy `POST /api/aportes` solo acepta JPG y PNG de hasta 10 MB.
-7. **Cuota de aportes anónimos.** Sin cuenta no hay persona a quien contar: ¿límite por dispositivo o IP, o solo la meta total?
+7. ~~**Cuota de aportes anónimos.** Sin cuenta no hay persona a quien contar: ¿límite por dispositivo o IP, o solo la meta total?~~ *Resuelto (2026-10-01): la misma cuota por persona de la campaña, contada **por dispositivo** (cookie `anonimo_id`), más un **tope por IP** contra abuso. El valor del tope (20 aportes anónimos por IP por hora, `TOPE_POR_IP_POR_HORA`) se eligió sin consulta: confirmarlo con el equipo. Vive en memoria, así que se reinicia con cada despliegue.*
 8. **Rechazo en primera instancia.** ¿El revisor puede rechazar de forma definitiva o solo validar? No hay pantalla del revisor.
 9. **Valor del tope diario de XP.**
 10. **Recuperación de contraseña:** el enlace "¿Olvidaste tu contraseña?" existe, el flujo no. (El inicio con Google ya funciona.)
@@ -181,3 +188,16 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
 15. **Topes de checklists** (2026-09-30): 50 checklists de 50 opciones y 120 caracteres por texto (`lib/campanas/checklist.ts`). Son técnicos, elegidos sin consulta: ¿el equipo quiere otros?
 16. **Motivo visible al sancionado** (2026-09-30): `/cuenta-bloqueada` muestra tal cual el `detalle` que escribe el SuperUsuario. ¿Se redacta pensando en la persona o conviene un campo aparte para el mensaje?
 17. **Motivo del baneo por campaña:** hoy el participante solo ve que no puede aportar, no el motivo que escribió el creador. ¿Se le muestra?
+18. **Sanciones para aportes anónimos** (2026-10-01, pendiente para otra sesión).
+    - **Situación actual:** si una persona sin cuenta sube algo indebido, solo se puede **rechazar** el aporte. Nadie recibe el motivo, no hay "Banear" y la persona sigue aportando hasta su cuota.
+    - **Identificador disponible:** solo `aportes.anonimo_id`, el hash de la cookie del dispositivo; la IP no se guarda. Borrar las cookies o usar modo incógnito da un dispositivo nuevo, así que la meta es volver tedioso el abuso, no imposible.
+    - **Propuesta aceptada:**
+      1. **Aporte:** casilla "Contenido inapropiado" al rechazar; solo esos cuentan para lo demás. El creador puede borrar el archivo de MinIO si es ilegal o dañino.
+      2. **Campaña:** el creador bloquea ese dispositivo en la campaña. Es como el baneo por campaña, pero por `anonimo_id`, y se quita desde "Participantes baneados".
+      3. **Enlace:** regenerar el token (ya existe) y un interruptor por campaña "Permitir aportes sin cuenta".
+      4. **Plataforma:** 3 aportes inapropiados del mismo dispositivo lo bloquean en toda la plataforma por un tiempo. El SuperUsuario lo ve y lo restaura en `/usuarios/sanciones`, y queda en `audit_log`.
+    - **Orden sugerido:** implementar 1–3 primero; el 4, cuando se fijen sus números.
+    - **Por decidir:**
+      - Quién marca "inapropiado". Propuesta: creador y revisor. Bloquear, borrar el archivo y cortar los aportes anónimos, solo el creador.
+      - Los números del nivel 4: cuántos aportes y cuánto dura el bloqueo.
+      - Si guardar un HMAC de la IP. Recomendación: no, salvo que haya abuso real.

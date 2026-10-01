@@ -60,6 +60,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 | Decisión final del aporte | Creador |
 | Ver el archivo de un aporte | Quien aportó, el creador, o un revisor aceptado si el aporte está `pendiente` o si él hizo la primera revisión (`app/api/aportes/[id]/archivo/route.ts`) |
 | Aportar | Campaña `activa`, sin baneo en `campana_baneados`, cuota disponible y sin ser el creador |
+| Aportar sin cuenta (persona anónima) | Solo desde `/c/[token]` con enlace vigente y campaña `activa`; cuota por dispositivo + tope por IP (`lib/campanas/aportes-anonimos.ts`). No ve ni modifica nada más |
 | Tomar y dictaminar | Supervisor que no sea el creador y la campaña esté `en_revision` y libre; o el SuperUsuario. Solo quien la tomó dictamina (`lib/supervision/decision.ts`) |
 
 ## 5. Registro, verificación e inicio de sesión
@@ -97,6 +98,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 - **Campaña activa sin supervisión (grave):** `POST /api/campanas` toma `status` del body (admite `activa`, `pausada`, `finalizada`...) y usa `activa` si no viene; tampoco aplica el límite de 5 activas. El `PATCH`/`PUT` de un borrador también acepta cualquier estado válido. La interfaz solo manda `borrador` o `en_revision`, pero una llamada directa se salta al supervisor. Debe aceptar solo `borrador` o `en_revision`. Detectado el 2026-10-01, sin corregir.
 - **Panel protegido solo por el layout:** `/sistema` y `/usuarios/**` no llaman a `exigirSesionRoot()` y sus funciones de `lib/` no verifican. Las server actions que escriben sí. Detectado el 2026-10-01, sin corregir.
+- **Sin sanciones para aportes anónimos:** a una persona sin cuenta solo se le puede rechazar el aporte; no hay bloqueo por dispositivo ni por campaña. La propuesta está en `dominio.md`, punto abierto 18. Detectado el 2026-10-01, sin corregir.
 - **`GET /api/campanas/[id]/recoleccion-diaria`** pide sesión pero no que sea el creador: cualquier usuario ve las estadísticas de cualquier campaña. Las pantallas `/mis-campanas/[id]/{panel,especial}` tampoco comprueban `viewer.isCreator`. Detectado el 2026-10-01, sin corregir.
 - **El registro acepta roles del body (grave):** `POST /api/usuarios` pasa `body.role`/`body.roles` por `normalizeRoles` (`lib/roles.ts`), que admite `supervisor`, `revisor` y `admin`. Cualquiera puede registrarse como supervisor, lo que rompe la regla de que solo el SuperUsuario lo asigna. Debe guardar siempre `["usuario"]`. Detectado el 2026-09-28, sin corregir.
 - **`GET /api/usuarios/[id]` no pide sesión** y devuelve correo, ubicación y XP de cualquier id: permite enumerar correos. Detectado el 2026-09-28, sin corregir.

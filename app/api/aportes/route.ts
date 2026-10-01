@@ -7,9 +7,7 @@ import { saveUploadedFile } from "@/lib/minio";
 import { estaBaneadoDeCampana } from "@/lib/campanas/baneos";
 import { respuestasValidas, seccionesDesdeFila } from "@/lib/campanas/checklist";
 import { idDeEnlaceVigente } from "@/lib/campanas/enlaces";
-
-const ALLOWED_FILE_TYPES = new Set(["image/jpeg", "image/png"]);
-const MAX_FILE_SIZE = 10_000_000;
+import { LARGO_MAXIMO_DESCRIPCION, errorDeArchivo, sumarAporteALaCampana } from "@/lib/aportes/comun";
 
 function mapAporte(row: Record<string, unknown>) {
   return {
@@ -114,20 +112,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "campaignId y description son obligatorios" }, { status: 400 });
     }
 
-    if (description.length > 1000) {
+    if (description.length > LARGO_MAXIMO_DESCRIPCION) {
       return NextResponse.json({ error: "La descripción no puede superar 1000 caracteres" }, { status: 400 });
     }
 
-    if (!(file instanceof File) || file.size === 0) {
-      return NextResponse.json({ error: "El archivo es obligatorio" }, { status: 400 });
-    }
-
-    if (!ALLOWED_FILE_TYPES.has(file.type)) {
-      return NextResponse.json({ error: "Formato no válido. Usa .jpg, .jpeg o .png." }, { status: 400 });
-    }
-
-    if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json({ error: "El archivo pesa más de 10 MB." }, { status: 400 });
+    const errorArchivo = errorDeArchivo(file);
+    if (errorArchivo || !(file instanceof File)) {
+      return NextResponse.json({ error: errorArchivo ?? "El archivo es obligatorio" }, { status: 400 });
     }
 
     const campaignResult = await pool.query(`SELECT * FROM campanas WHERE id = $1 LIMIT 1`, [campaignId]);
@@ -188,16 +179,7 @@ export async function POST(request: Request) {
       ]
     );
 
-    const isFirstContribution = existingCount === 0;
-    await pool.query(
-      `UPDATE campanas SET
-        current_contributions = current_contributions + 1,
-        pending_contributions = pending_contributions + 1,
-        participants = participants + $2,
-        updated_at = NOW()
-      WHERE id = $1`,
-      [campaignId, isFirstContribution ? 1 : 0]
-    );
+    await sumarAporteALaCampana(campaignId, existingCount === 0);
 
     return NextResponse.json({ message: "Aporte enviado", data: mapAporte(result.rows[0]) }, { status: 201 });
   } catch (error) {

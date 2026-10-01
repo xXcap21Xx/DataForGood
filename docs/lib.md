@@ -47,6 +47,13 @@
 
 ## Por módulo
 
+### `aportes/`
+
+| Archivo | Qué hace | Lo usa |
+| --- | --- | --- |
+| `archivo.ts` 🟢 | Tipos y tamaño de archivo permitidos, largo de la descripción y `errorDeArchivo()` | Los dos endpoints de aportes y el formulario anónimo |
+| `comun.ts` | `sumarAporteALaCampana()` (contadores desnormalizados) y reexporta `archivo.ts` | `POST /api/aportes`, `aportes-anonimos.ts` |
+
 ### `campanas/`
 
 | Archivo | Qué hace | Lo usa |
@@ -54,6 +61,7 @@
 | `publicas.ts` | Búsqueda de campañas activas con filtros | `/explorar` |
 | `panel.ts` | Métricas de una campaña (aportes por estado, participantes, avance) | Paneles de `/supervision`, `/supervisar`, `/sistema/campanas/[id]` |
 | `baneos.ts` | Baneos por campaña: consultar, listar, quitar | API de baneos, `/api/aportes`, `/usuarios/[id]` |
+| `aportes-anonimos.ts` | Aporte **sin cuenta** desde `/c/[token]`: valida enlace y campaña, cuota por dispositivo (cookie `anonimo_id`, se guarda su hash), tope por IP en memoria (`TOPE_POR_IP_POR_HORA`) y guarda el aporte sin datos personales | `POST /api/c/[token]/aportes`, `/c/[token]` |
 | `enlaces.ts` | Enlace público `/c/[token]`: `asegurarEnlaceVigente` (se genera solo al quedar activa la campaña), `regenerarEnlace` (creador), buscar por token, contar visitas, atribuir aportes y generar el QR (SVG/PNG con `qrcode`). Todo en transacción con la campaña bloqueada. No autoriza: el llamador comprueba antes | `/api/campanas/[id]/{enlace,qr}`, `/c/[token]`, `POST /api/aportes`, `lib/supervision/decision.ts`, `lib/campaign-date.ts`, `PATCH`/`PUT /api/campanas/[id]` |
 | `checklist.ts` 🟢 | Checklists con título: normalizar, validar respuestas, límites (`MAX_SECCIONES`...) | Formulario de campaña, aportar, API |
 | `sistema.ts` | Consultas del panel del SuperUsuario (listado, conteos, dashboard). Exigen sesión raíz | `/sistema/campanas/**` |

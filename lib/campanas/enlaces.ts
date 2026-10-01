@@ -11,6 +11,7 @@ import { randomInt } from "node:crypto";
 import QRCode from "qrcode";
 import { absoluteUrl } from "@/lib/app-url";
 import { normalizeCampaignDate } from "@/lib/campaign-date";
+import { seccionesDesdeFila, type SeccionDeChecklist } from "@/lib/campanas/checklist";
 import { pool } from "@/lib/db";
 
 /** Ventana durante la cual el enlace sirve; al vencer hay que regenerarlo. */
@@ -183,6 +184,8 @@ export type CampanaDelEnlace = {
   aportesActuales: number;
   cuotaPorPersona: number;
   fechaFin: string | null;
+  /** Checklists que el participante puede marcar (el formulario anónimo los muestra). */
+  secciones: SeccionDeChecklist[];
 };
 
 export type ResultadoDeToken =
@@ -195,7 +198,8 @@ export async function buscarEnlacePorToken(token: string): Promise<ResultadoDeTo
   const { rows } = await pool.query(
     `SELECT e.*, (SELECT COUNT(*) FROM aportes a WHERE a.enlace_id = e.id)::int AS aportes_recibidos,
             c.name, c.description, c.tematica, c.tag, c.organizer, c.creator_name, c.location_city, c.location_state,
-            c.status, c.goal_contributions, c.current_contributions, c.quota_per_user, c.end_date
+            c.status, c.goal_contributions, c.current_contributions, c.quota_per_user, c.end_date,
+            c.checklist_secciones, c.checklist_opciones, c.collection_mode
      FROM campana_enlaces e
      JOIN campanas c ON c.id = e.campana_id
      WHERE e.token = $1
@@ -219,6 +223,7 @@ export async function buscarEnlacePorToken(token: string): Promise<ResultadoDeTo
     aportesActuales: Number(row.current_contributions ?? 0),
     cuotaPorPersona: Number(row.quota_per_user ?? 0),
     fechaFin: normalizeCampaignDate(row.end_date),
+    secciones: seccionesDesdeFila(row),
   };
 
   if (enlace.revocadoEn) return { tipo: "revocado", enlace, campana };
