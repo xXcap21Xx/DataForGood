@@ -155,12 +155,12 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
 2. **Administrador de campaña.** Se menciona como rol que asigna el SuperUsuario, pero en la rama cualquier usuario crea y administra sus campañas. ¿Qué agrega este rol?
 3. **Colaborador de Supervisor.** Aparecía en requisitos anteriores; no existe en la rama. ¿Sigue vigente?
 4. **Cálculo de XP.** `xpPerContribution` por campaña (50, 40, 35, 30) frente a XP base por tipo en la pantalla de especial (texto 10, foto o documento 25, audio o video 50). ¿Cuál manda, o se combinan?
-5. **Catálogo de temáticas.** El filtro de `/campanas` usa "Salud y bienestar" y omite varias categorías; el formulario usa "Salud urbana".
+5. ~~**Catálogo de temáticas.** El filtro de `/campanas` usa "Salud y bienestar" y omite varias categorías; el formulario usa "Salud urbana".~~ *Resuelto (2026-09-30): una sola lista de 23 temáticas en `lib/intereses.ts` para intereses del perfil y temáticas de campaña; los filtros de `/campanas` se arman con las temáticas de las campañas activas.*
 6. **Límites de archivos** para video, audio y documento, y formatos de documento. Hoy `POST /api/aportes` solo acepta JPG y PNG de hasta 10 MB.
 7. **Cuota de aportes anónimos.** Sin cuenta no hay persona a quien contar: ¿límite por dispositivo o IP, o solo la meta total?
 8. **Rechazo en primera instancia.** ¿El revisor puede rechazar de forma definitiva o solo validar? No hay pantalla del revisor.
 9. **Valor del tope diario de XP.**
-10. **Inicio con Google y recuperación de contraseña:** los botones existen, los flujos no.
+10. **Recuperación de contraseña:** el enlace "¿Olvidaste tu contraseña?" existe, el flujo no. (El inicio con Google ya funciona.)
 11. **La meta de la campaña** ¿cuenta aportes recibidos o solo aprobados? El panel usa ambos.
 12. ~~**Reparto de campañas a supervisores** por especialidad: ¿automático o manual?~~ *Resuelto (2026-09-24): no hay reparto. Cada supervisor (usuario promovido o SuperUsuario) ve todas las campañas `en_revision` (menos las suyas, en el caso del usuario) y **escoge** cuáles supervisa. La especialidad es solo un título informativo.*
     - **Un solo supervisor por campaña.** Se toma con el botón **"Supervisar esta campaña"** (`PATCH /api/campanas/[id]` con `{ action: "tomar" }` para usuarios; server action `tomarComoSuperUsuario` para root). El `UPDATE` es atómico: solo pasa si la campaña sigue `en_revision` y sin supervisor (`supervisor_id IS NULL AND NOT supervisado_por_root`). Si dos la toman a la vez, gana uno y el otro recibe 409.
@@ -169,3 +169,6 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
     - Al revocar el rol de Supervisor, las campañas que tomó y siguen `en_revision` vuelven a quedar libres (`revocarRol`). No existe un botón para "soltar" una campaña.
 13. **"Actualiza cada 3 s" en el panel:** polling o websockets.
 14. **Publicación de datos abiertos.** ¿Quién dispara la publicación al finalizar una campaña (automática o manual) y qué anonimización explícita aplica sobre los aportes más allá de excluir nombre/correo del ZIP? *Resuelto parcialmente (2026-09): calidad, licencia y descarga real ya están definidas, ver § 9. Sigue abierto si "finalizar" debe congelar/copiar los datos en vez de leerlos en vivo de `campanas`/`aportes`.*
+15. **Topes de checklists** (2026-09-30): 50 checklists de 50 opciones y 120 caracteres por texto (`lib/campanas/checklist.ts`). Son técnicos, elegidos sin consulta: ¿el equipo quiere otros?
+16. **Motivo visible al sancionado** (2026-09-30): `/cuenta-bloqueada` muestra tal cual el `detalle` que escribe el SuperUsuario. ¿Se redacta pensando en la persona o conviene un campo aparte para el mensaje?
+17. **Motivo del baneo por campaña:** hoy el participante solo ve que no puede aportar, no el motivo que escribió el creador. ¿Se le muestra?

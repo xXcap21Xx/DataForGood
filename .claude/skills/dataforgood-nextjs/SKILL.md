@@ -15,6 +15,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 - **Funciona de punta a punta con datos reales:** registro con verificación por correo, inicio de sesión (correo/contraseña y Google), campañas, aportes con archivo en MinIO, revisión en dos instancias, supervisión, notificaciones, catálogo de datos abiertos y panel del SuperUsuario.
 - **Ya no existe `data/screensData.ts`:** ninguna pantalla usa datos simulados.
 - **No hay pruebas automatizadas** (no hay Vitest ni otro runner).
+- **Último avance (2026-09-30):** `/explorar` público, regreso a la pantalla pedida tras iniciar sesión (`?next=`), pantalla `/cuenta-bloqueada` para cuentas sancionadas, baneos por campaña reversibles y visibles, checklists con título en campañas, 23 temáticas compartidas con selector en ventana. Ver el mensaje del commit `c9fb7b7` para el detalle.
 
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
@@ -54,7 +55,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 
 ## Reglas del proyecto
 
-1. **Toda ruta o acción verifica la sesión y el permiso en el servidor.** `proxy.ts` solo redirige si falta la cookie y rechaza mutaciones de `/api` con `Origin` ajeno; no valida sesiones ni roles. Cada route handler llama a `getSessionUser()` (o `hasRootSession()`), cada server action empieza con su guardia y cada página de `(panel)` llama a `exigirSesionRoot()` además del layout. `getSessionUser()` ya devuelve `null` si la cuenta está suspendida o baneada (`lib/sanciones.ts`).
+1. **Toda ruta o acción verifica la sesión y el permiso en el servidor.** `proxy.ts` solo redirige si falta la cookie y rechaza mutaciones de `/api` con `Origin` ajeno; no valida sesiones ni roles. Cada route handler llama a `getSessionUser()` (o `hasRootSession()`), cada server action empieza con su guardia y cada página de `(panel)` llama a `exigirSesionRoot()` además del layout. `getSessionUser()` ya devuelve `null` si la cuenta está suspendida o baneada (`lib/sanciones.ts`). **Páginas y layouts de servidor de la zona de usuario usan `exigirUsuario()`** (`lib/session.ts`), no `getSessionUser()` + `redirect("/entrar")`: manda a `/cuenta-bloqueada` si la cuenta está sancionada y a `/entrar` si no hay sesión, y layout y página deben coincidir porque corren en paralelo.
 2. **Las acciones sensibles se registran en `audit_log`** con `registrarAuditoria()` (`lib/auditoria.ts`), después de completarse: cambios de rol, sanciones, dictámenes, tomar campaña, baneos por campaña, invitar o aceptar revisor, accesos a `/root`. Si agregas una acción de ese tipo, regístrala y amplía `AccionAuditada`.
 3. **Las reglas de negocio se aplican en el servidor**, aunque la interfaz ya las muestre: cuota por persona, transiciones de estado, motivo obligatorio al rechazar, tamaño y formato de archivos, que el creador no aporte ni supervise sus campañas. La interfaz solo informa.
 4. **Una regla, un lugar.** Si dos caminos (p. ej. `PATCH /api/campanas/[id]` y la server action del SuperUsuario) aplican la misma regla, se extrae a `lib/` (ejemplo: `lib/supervision/decision.ts`). No dupliques la lógica.
@@ -86,16 +87,17 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 ```
 DataForGood/
 ├── AGENTS.md, CLAUDE.md          # instrucciones de Next 16 para agentes
-├── proxy.ts                      # redirige a /entrar o /root si falta la cookie (no autoriza)
+├── proxy.ts                      # redirige a /entrar?next=... o /root si falta la cookie (no autoriza)
 ├── app/
 │   ├── layout.tsx, globals.css   # fuentes y tokens de diseño
-│   ├── page.tsx, datos/, contacto/, privacidad/, sobre-nosotros/   # públicas
+│   ├── page.tsx, explorar/, datos/, contacto/, privacidad/, sobre-nosotros/   # públicas
+│   ├── cuenta-bloqueada/         # lo único que ve una cuenta suspendida o baneada
 │   ├── (auth)/                   # entrar, registro, verificar, bienvenida, root
 │   ├── (dashboard)/              # zona de usuario: TopBar + SidebarNav
 │   ├── (panel)/                  # SuperUsuario: sistema, usuarios, supervisar (Topbar + Sidebar de components/sistema)
 │   └── api/**/route.ts           # route handlers
 ├── components/
-│   ├── ui/, cards/, layout/      # zona de usuario
+│   ├── ui/, cards/, layout/      # zona de usuario (ui/SelectorDeTemas, layout/CuentaBloqueada, layout/VigilanteDeSesion)
 │   ├── sistema/                  # kit del panel del SuperUsuario
 │   ├── supervision/              # piezas compartidas entre /supervision y /supervisar
 │   └── auth/
@@ -103,7 +105,9 @@ DataForGood/
 │   ├── db.ts, db-schema.ts       # pool de pg y DDL
 │   ├── session.ts, rootSession.ts, verification.ts, password.ts, google.ts, roles.ts
 │   ├── minio.ts, open-data.ts, campaign-date.ts, app-url.ts, validation.ts
+│   ├── sanciones.ts, redireccion.ts (?next= seguro), intereses.ts (temáticas = intereses)
 │   ├── campanas/, supervision/, usuarios/, sistema/   # consultas y server actions por módulo
+│   │   └── campanas/{baneos, checklist, publicas}.ts  # baneos por campaña, checklists con título (sin pg), /explorar
 ├── types/index.ts                # contrato de datos
 ├── sql/                          # scripts CREATE históricos: NO son la fuente del esquema
 ├── openapi.yaml                  # documentación de la API (a mano); se ve en /api/docs
@@ -140,6 +144,8 @@ npm run lint
 docker compose up -d --build     # compila la imagen: detecta prerender que falla sin BD
 docker compose logs -f app
 ```
+
+Si `docker compose up --build` falla con `Can't resolve '@vercel/turbopack-next/internal/font/google/font'`, es la descarga de Google Fonts (`next/font/google` en `app/layout.tsx`) durante el build: reintenta. Pasó dos veces el 2026-09-30; la solución de fondo es `next/font/local` (pendiente).
 
 No hay suite de pruebas. Prueba a mano en el navegador los flujos que tocaste, con los roles involucrados: usuario común, creador, revisor, supervisor y SuperUsuario. Revisa también 360, 768 y 1280 px.
 

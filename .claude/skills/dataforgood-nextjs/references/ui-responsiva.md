@@ -49,14 +49,19 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 | `cards/ContributionCard` | `contribution` | Estado con `Tag` |
 | `layout/PublicHeader`, `PublicFooter` | — | Landing |
 | `layout/TopBar` | `usuario: SessionUser` | Búsqueda, `NotificationsBell`, avatar |
+| `ui/SelectorDeTemas` | `opciones`, `seleccionados`, `onAceptar`, `quitables` | Muestra las temáticas elegidas y abre un `<dialog>` nativo con buscador; aplica solo al dar Aceptar. En `/bienvenida` y `/cuenta` (con `quitables`: × en cada una) |
+| `layout/CuentaBloqueada` | `nombre`, `bloqueo`, `historial` | Pantalla de `/cuenta-bloqueada`: motivo y contador de sanciones |
+| `layout/VigilanteDeSesion` | — | En el layout de `(dashboard)`: revisa la sesión en cada navegación y recarga si ya no vale |
 | `layout/SidebarNav` | `usuario` (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas; agrega Supervisión si `role` incluye `supervisor` |
 
-Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta uno nuevo (Select, Dialog, EmptyState, ButtonLink), sigue las mismas convenciones.
+Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta uno nuevo (Select, EmptyState), sigue las mismas convenciones. Para ventanas usa `<dialog>` nativo con `showModal()`, como `ui/SelectorDeTemas`.
+
+**Ajustes para móvil:** las pantallas de `(dashboard)` ya tienen overrides `max-md:` (tamaños de texto, padding y gaps más chicos) agregados por el equipo el 2026-09-30. Al editar esas pantallas, conserva esas clases; en un conflicto de merge, toma la lógica nueva y vuelve a aplicarle los `max-md:`.
 
 ## 3. Patrones visuales de la rama
 
 - **Chips de filtro:** `rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold`. Activo: `border-accent bg-accent text-white`. Inactivo: `border-line-2 bg-surface text-ink-2 hover:border-accent`. Si hay contador, va dentro en `font-mono`.
-- **Cajas informativas:** `rounded-lg p-3.5` o `p-4` con `text-[12.5px]`: neutra `bg-sunken text-ink-2`, aviso `bg-warn-tint text-warn`, información `bg-accent-tint text-accent-deep`, error `bg-danger-tint text-danger`, éxito `border border-ok bg-ok-tint text-ok`.
+- **Cajas informativas:** `rounded-lg p-3.5` o `p-4` con `text-[12.5px]`: neutra `bg-sunken text-ink-2`, aviso `bg-warn-tint text-warn`, información `border-l-4 border-accent bg-sunken text-ink-2` (no uses `bg-accent-tint` para avisos: se confundía con un botón), error `bg-danger-tint text-danger`, éxito `border border-ok bg-ok-tint text-ok`.
 - **Etiqueta de sección o de paso:** `font-mono text-[10.5px]` a `[12px] uppercase tracking-wide text-accent` o `text-ink-3` (por ejemplo "Paso 1 de 3 · Tus datos", "1 · Datos básicos").
 - **Enlace de regreso:** `← Volver a …` con `text-[13px] text-ink-2 hover:text-ink`, arriba del título.
 - **Cabecera de página:** título `text-xl` o `text-2xl font-extrabold` + subtítulo `text-[13px] text-ink-2`, con acciones a la derecha.
