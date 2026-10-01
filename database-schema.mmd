@@ -27,7 +27,6 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
-
     SESSIONS {
         int id PK
         varchar token_hash UK
@@ -73,8 +72,7 @@ erDiagram
         int days_remaining
         boolean has_reviewer_assigned
         varchar share_token
-        timestamp share_token_expires_at
-        jsonb aportes
+        timestamptz share_token_expires_at
         timestamp created_at
         timestamp updated_at
     }
@@ -179,7 +177,7 @@ erDiagram
 
     %% ROOT_SESSIONS no tiene FK: representa sesiones del SuperUsuario.
     %% APORTES.first_pass_by guarda el nombre del revisor, no una FK.
-    %% CAMPANAS.aportes es un JSONB legado; la relacion normalizada es APORTES.
+    %% Los aportes se almacenan en la tabla APORTES.
 
     %% Estados documentados:
     %% CAMPANAS.status: borrador | en_revision | activa | pausada | finalizada | rechazada
