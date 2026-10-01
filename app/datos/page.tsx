@@ -1,3 +1,6 @@
+// Pantalla /datos (pública): catálogo de datos abiertos (campañas finalizadas).
+// Datos: lib/open-data.ts (búsqueda, temática, estado y orden en searchParams, resueltos en SQL).
+
 import Link from "next/link";
 import type { Metadata } from "next";
 import PublicHeader from "@/components/layout/PublicHeader";

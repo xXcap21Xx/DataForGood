@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /entrar: inicio de sesión con correo/contraseña o Google.
+// Acciones: POST /api/auth/login; Google vía GET /api/auth/google?next=...
+// Respeta ?next= (lib/redireccion.ts) para volver a la pantalla que se pidió.
+
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";

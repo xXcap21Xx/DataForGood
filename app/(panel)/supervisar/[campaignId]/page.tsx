@@ -1,3 +1,6 @@
+// Pantalla /supervisar/[campaignId]: revisar una campaña y dictaminar como SuperUsuario.
+// Server Component. Datos: obtenerCampanaParaRoot(). Botones en acciones.tsx.
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Tag from "@/components/ui/Tag";

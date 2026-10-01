@@ -1,3 +1,5 @@
+// /api/aportes — listado y envío de aportes. El archivo se sube a MinIO (lib/minio.ts).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
@@ -27,6 +29,8 @@ function mapAporte(row: Record<string, unknown>) {
   };
 }
 
+// GET: aportes de una campaña. ?campaignId=&mine=true → los tuyos; ?campaignId= → todos (solo el creador);
+// ?campaignId=&reviewer=true → para revisar (revisor aceptado).
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -88,6 +92,8 @@ export async function GET(request: Request) {
   }
 }
 
+// POST: envía un aporte (multipart/form-data). Valida campaña activa, que no seas el creador,
+// que no estés baneado, la cuota, el tipo y tamaño del archivo; lo sube a MinIO e inserta la fila.
 export async function POST(request: Request) {
   try {
     const user = await getSessionUser();

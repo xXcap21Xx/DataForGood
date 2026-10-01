@@ -1,3 +1,7 @@
+// /api/campanas/[id] — detalle, edición y supervisión de una campaña.
+// El PATCH tiene tres usos según el body: { action: "tomar" }, dictamen del supervisor
+// ({ action: "aceptada" | "rechazada" | "reportada", motivo }) o edición del creador.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
@@ -89,6 +93,7 @@ function mapCampaign(row: Record<string, unknown>) {
   };
 }
 
+// GET: detalle de una campaña (público) + viewer.isCreator.
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;

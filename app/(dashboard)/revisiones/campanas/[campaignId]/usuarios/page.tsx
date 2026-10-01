@@ -1,3 +1,6 @@
+// Pantalla /revisiones/campanas/[campaignId]/usuarios: participantes de una campaña que revisas.
+// Server Component con SQL directo; la consulta exige que seas revisor aceptado de la campaña.
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { pool } from "@/lib/db";

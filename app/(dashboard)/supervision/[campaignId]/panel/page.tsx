@@ -1,3 +1,6 @@
+// Pantalla /supervision/[campaignId]/panel: métricas de una campaña que supervisas.
+// Server Component. Datos: obtenerPanelDeCampana() de lib/campanas/panel.ts, solo si supervisor_id eres tú.
+
 import { notFound, redirect } from "next/navigation";
 import PanelDeCampanaSupervisor from "@/components/supervision/PanelDeCampanaSupervisor";
 import { obtenerPanelDeCampana } from "@/lib/campanas/panel";

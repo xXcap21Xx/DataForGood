@@ -1,5 +1,10 @@
 "use client";
 
+// Formulario de campaña (crear o editar, según ?edit=<id>).
+// Crear: POST /api/campanas con status "borrador" o "en_revision".
+// Editar: carga con GET /api/campanas?mine=true y guarda con PATCH /api/campanas/[id].
+// Qué campos se pueden editar depende del estado; la regla real está en el PATCH (ver docs/datos.md § 3).
+
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";

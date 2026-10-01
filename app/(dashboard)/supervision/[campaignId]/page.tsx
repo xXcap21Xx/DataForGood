@@ -1,5 +1,10 @@
 "use client";
 
+// Pantalla /supervision/[campaignId]: revisar una campaña en_revision y dictaminar.
+// Componente cliente. Datos: GET /api/campanas?id=.
+// Acciones: tomar con PATCH /api/campanas/[id] { action: "tomar" }; dictaminar con
+// PATCH { action: "aceptada" | "rechazada" | "reportada", motivo }. Reglas en lib/supervision/decision.ts.
+
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";

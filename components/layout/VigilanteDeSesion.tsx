@@ -1,5 +1,8 @@
 "use client";
 
+// Revisa la sesión (GET /api/auth/sesion) en cada navegación del cliente y recarga si ya no vale,
+// para que una sanción aplicada a media sesión lleve a /cuenta-bloqueada sin esperar.
+
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { BASE_PATH } from "@/lib/base-path";

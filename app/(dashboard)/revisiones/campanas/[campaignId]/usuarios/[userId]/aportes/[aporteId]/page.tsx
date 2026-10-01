@@ -1,3 +1,6 @@
+// Pantalla .../usuarios/[userId]/aportes/[aporteId] de /revisiones: detalle de un aporte (solo lectura).
+// Server Component con SQL directo tras exigirUsuario(); solo para revisores aceptados de la campaña.
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Tag from "@/components/ui/Tag";

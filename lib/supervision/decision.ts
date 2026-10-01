@@ -1,3 +1,7 @@
+// Reglas de supervisión de campañas, en un solo lugar: tomar una campaña y dictaminarla
+// (aceptada, rechazada, reportada). Las usan PATCH /api/campanas/[id] (supervisor) y
+// lib/supervision/acciones-root.ts (SuperUsuario). Notifican al creador y escriben en audit_log.
+
 import { pool } from "@/lib/db";
 import { hasCampaignStarted } from "@/lib/campaign-date";
 import { registrarAuditoria, type ActorDeAuditoria } from "@/lib/auditoria";

@@ -1,3 +1,5 @@
+// Tarjeta de métrica del panel del SuperUsuario.
+
 import Link from "next/link";
 
 interface MetricCardProps {

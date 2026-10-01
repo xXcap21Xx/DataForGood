@@ -1,5 +1,8 @@
 "use client";
 
+// Formulario de sanción. Llama a la server action aplicarSancion (lib/usuarios/acciones-usuarios.ts):
+// STRIKE, SUSPENSION_TEMPORAL o BANEO_DE_CAMPANA. El tercer strike banea solo.
+
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 

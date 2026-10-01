@@ -1,3 +1,5 @@
+// /api/campanas/[id]/guardar — favoritos (tabla campanas_guardadas). Lo usa /campanas/[id].
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";

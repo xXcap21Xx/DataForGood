@@ -1,3 +1,6 @@
+// POST /api/auth/login — inicio de sesión con correo y contraseña.
+// Lo llama /entrar. Crea la cookie session_token (lib/session.ts).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { createSession } from "@/lib/session";

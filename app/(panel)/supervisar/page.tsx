@@ -1,3 +1,6 @@
+// Pantalla /supervisar: el SuperUsuario como supervisor (equivalente de /supervision con sesión raíz).
+// Server Component. Datos: listarCampanasParaRoot() de lib/supervision/root.ts (exige sesión raíz).
+
 import type { Metadata } from "next";
 import { listarCampanasParaRoot } from "@/lib/supervision/root";
 import PestanasDeSupervision from "./pestanas";

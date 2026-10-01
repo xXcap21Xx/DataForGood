@@ -1,5 +1,8 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/especial: convertir la campaña en especial (multiplicador de XP).
+// Componente cliente. Datos: GET /api/campanas?id=. La regla de XP especial aún no está implementada en el servidor.
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Field, Input } from "@/components/ui/Input";

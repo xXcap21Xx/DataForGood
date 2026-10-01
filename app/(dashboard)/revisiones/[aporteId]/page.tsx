@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /revisiones/[aporteId]: revisar un aporte como revisor.
+// Componente cliente. Datos: GET /api/aportes/[id]. Acción: PATCH /api/aportes/[id] { status: "aceptado" }.
+// Ojo: hoy el servidor lo deja en "aceptado", no en "espera_final" (docs/README.md § 8).
+
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";

@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /mis-aportes/[campanaId]: tus aportes en una campaña.
+// Componente cliente. Datos: GET /api/campanas?id= y GET /api/aportes?campaignId=&mine=true.
+// Acción: borrar un aporte no aceptado con DELETE /api/aportes/[id].
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";

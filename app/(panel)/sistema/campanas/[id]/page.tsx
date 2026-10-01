@@ -1,3 +1,6 @@
+// Pantalla /sistema/campanas/[id]: panel de una campaña (solo consulta).
+// Server Component. Datos: obtenerCabeceraDeCampana() y lib/campanas/panel.ts.
+
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 

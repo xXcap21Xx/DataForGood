@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /bienvenida: perfil inicial tras verificar (estado, ciudad, especialidad, intereses). Se puede omitir.
+// Datos: GET /api/auth/sesion. Guarda con PATCH /api/usuarios/[id].
+// Catálogos: lib/mexico-geo.ts, lib/intereses.ts, lib/perfil-opciones.ts.
+
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";

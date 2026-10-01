@@ -1,3 +1,6 @@
+// /api/usuarios — registro de cuentas y buscador de revisores.
+// Ojo: el POST lee roles del body (hueco conocido, docs/README.md § 8).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
@@ -6,6 +9,7 @@ import { startVerification } from "@/lib/verification";
 import { normalizeRoles } from "@/lib/roles";
 import { getSessionUser } from "@/lib/session";
 
+// POST: registro. Crea la cuenta sin verificar y envía el código por correo.
 export async function POST(request: Request) {
   try {
     const body = await request.json();

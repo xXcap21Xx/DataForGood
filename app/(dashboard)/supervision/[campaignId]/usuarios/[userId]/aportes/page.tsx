@@ -1,3 +1,6 @@
+// Pantalla /supervision/[campaignId]/usuarios/[userId]/aportes: aportes de un participante.
+// Server Component con SQL directo; solo si supervisas la campaña.
+
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import Tag from "@/components/ui/Tag";

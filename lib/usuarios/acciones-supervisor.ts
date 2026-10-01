@@ -1,5 +1,8 @@
 "use server";
 
+// Server action revertirAccion (revertir un dictamen de supervisor). Verifica la sesión raíz,
+// pero su lógica sigue pendiente (TODO). Cuando se implemente, debe registrar supervision.revertir en audit_log.
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 

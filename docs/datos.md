@@ -1,0 +1,114 @@
+# Datos: PostgreSQL y MinIO
+
+## Contenido
+1. Conexión y esquema
+2. Tablas
+3. Ciclo de vida de una campaña
+4. Ciclo de vida de un aporte
+5. Archivos en MinIO
+6. Convenciones y trampas
+
+---
+
+## 1. Conexión y esquema
+
+- **Conexión:** `lib/db.ts` exporta `pool` (un `pg.Pool`). Lee `DATABASE_URL` (o `POSTGRES_URL`). Se crea en el primer uso, no al importar, porque `next build` importa el archivo sin variables de entorno.
+- **Consultas:** SQL a mano y siempre parametrizado:
+  ```ts
+  const { rows } = await pool.query("SELECT * FROM campanas WHERE id = $1", [id]);
+  ```
+- **No hay ORM ni migraciones.** El esquema completo vive en **`lib/db-schema.ts`**: una función `ensureXTable()` por tabla, con `CREATE TABLE IF NOT EXISTS` y `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`. `ensureCoreSchema()` las llama todas en orden.
+- **Cuándo corre:** una vez al arrancar el servidor (`instrumentation.ts` → `instrumentation-node.ts`). Si Postgres no responde, reintenta 30 veces cada 2 s y luego termina el proceso para que Docker lo reinicie. **No llames a `ensure*()` desde rutas ni acciones.**
+- **`sql/*.sql` son scripts viejos** que ya no coinciden con el esquema. No los uses.
+- **Diagrama:** `database-schema.mmd` (Mermaid) en la raíz.
+
+### Cambiar el esquema
+
+1. **Columna nueva:** agrégala dentro del `CREATE TABLE` (para bases nuevas) **y** como `ALTER TABLE ... ADD COLUMN IF NOT EXISTS` (para bases existentes).
+2. **Tabla nueva:** crea su `ensureXTable()` y llámala desde `ensureCoreSchema()` después de las tablas a las que referencia.
+3. **Restricciones o cambios que no son idempotentes:** envuélvelos en un bloque `DO $$ ... IF NOT EXISTS (...) $$` (hay un ejemplo en `campana_supervisores`).
+4. **Renombrar o borrar columnas** no tiene camino seguro: coméntalo con el equipo.
+
+## 2. Tablas
+
+| Tabla | Para qué | Columnas clave |
+| --- | --- | --- |
+| `usuarios` | Cuenta y perfil | `nombre`, `apellidos`, `email`, `password_hash`, `role` (JSONB, p. ej. `["usuario","supervisor"]`), `state`, `city`, `specialty`, `intereses` (JSONB), `xp_total`, `level`, `streak_days`, `email_verificado`, `failed_login_attempts`, `locked_until`, `google_id`, código de verificación (hash, vencimiento, intentos) |
+| `sessions` | Sesiones de usuario | `token_hash` (sha256 del token de la cookie), `usuario_id`, `expires_at` |
+| `root_sessions` | Sesiones del SuperUsuario | `token_hash`, `expires_at` (sin usuario) |
+| `campanas` | Campañas | `creator_id`, `name`, `description`, `tag` (temática), `data_types` (JSONB), `goal_contributions`, `quota_per_user`, `status`, `start_date`/`start_time`, `end_date`/`end_time`, ubicación (`location_state`, `location_city`, `location_colonia`), `checklist_secciones` (JSONB), `supervisor_id`, `supervisado_por_root`, `share_token`, `downloads_count`. **Contadores desnormalizados:** `current_contributions`, `approved_contributions`, `pending_contributions`, `rejected_contributions`, `participants` |
+| `campana_supervisores` | Historial de dictámenes | `campana_id`, `supervisor_id` (NULL si fue el SuperUsuario), `por_superusuario`, `accion` (`aceptada`, `rechazada`, `reportada`, `reasignada`), `motivo` |
+| `campana_revisores` | Revisores por campaña | `campana_id`, `usuario_id`, `estado` (`invitado`, `aceptado`, `rechazado`) |
+| `campana_baneados` | Participantes baneados de una campaña | `campana_id`, `usuario_id`, `motivo`, `baneado_por` |
+| `campanas_guardadas` | Favoritos | `usuario_id`, `campana_id` |
+| `notificaciones` | Avisos para el usuario | `usuario_id`, `tipo` (p. ej. `invitacion_revisor`), `titulo`, `mensaje`, `campana_id`, `metadata` (JSONB), `leida_en` |
+| `aportes` | Aportes | `campaign_id`, `user_id` (NULL = anónimo), `participant_name`/`participant_email`, `description`, `file_path` (clave en MinIO), `file_original_name`, `file_mime_type`, `file_size_bytes`, `file_type`, `caracteristicas` (JSONB: respuestas de checklists), `status`, `rejection_reason`, `first_pass_by`/`first_pass_by_user_id` (revisor), `submitted_at`, `reviewed_at` |
+| `sanciones` | Sanciones del panel | `usuario_id`, `tipo` (`STRIKE`, `SUSPENSION_TEMPORAL`, `BANEO_DE_CAMPANA`), `detalle`, `dias`, `activa`, `aplicada_en`, `aplicada_por`, `restaurada_en` |
+| `audit_log` | Bitácora de acciones sensibles (solo inserción) | `actor_tipo`, `actor_id`, `accion`, `objetivo_tipo`, `objetivo_id`, `detalle` (JSONB), `ip`, `created_at` |
+
+Nombres mezclados: hay tablas y columnas en español (`campanas`, `motivo`) y en inglés (`status`, `campaign_id`). Al tocar una tabla, sigue lo que ya usa.
+
+`campanas.aportes` (JSONB) y `campanas.checklist_opciones` son **columnas heredadas**: los aportes reales están en la tabla `aportes`, y los checklists en `checklist_secciones`.
+
+## 3. Ciclo de vida de una campaña
+
+```
+                  ┌──────────────► rechazada ──(el creador edita y reenvía)──┐
+                  │                                                          │
+borrador ──► en_revision ──(supervisor acepta)──► aceptada ──(llega start_date)──► activa ⇄ pausada
+   ▲              ▲                                   │                             │
+   └──────────────┴───────────────────────────────────┘                             ▼
+                                                     (si start_date ya pasó, directo a activa)  finalizada
+                                                                                    │
+                                                                (el creador la reactiva) ──► activa
+```
+
+| Estado | Qué significa | Quién lo pone |
+| --- | --- | --- |
+| `borrador` | Guardada sin enviar; puede estar incompleta | El creador (`POST`/`PATCH /api/campanas`) |
+| `en_revision` | Enviada, esperando supervisor | El creador al enviar o reenviar |
+| `aceptada` | Aprobada, pero su fecha de inicio es futura | El supervisor (`lib/supervision/decision.ts`) |
+| `activa` | Recibe aportes | El supervisor (si ya empezó) o la activación automática |
+| `pausada` | Detenida temporalmente | El creador |
+| `finalizada` | Cerrada; aparece en `/datos` como dato abierto | El creador (botón "Finalizar") o automático al vencer `end_date` |
+| `rechazada` | El supervisor la rechazó con un motivo | El supervisor |
+
+- **Transiciones automáticas sin cron.** `activateScheduledCampaigns()` (`aceptada` → `activa`) y `finalizeExpiredCampaigns()` (`activa` → `finalizada`) de `lib/campaign-date.ts` se ejecutan **cada vez que se lee `GET /api/campanas`**. Una `pausada` no se finaliza sola.
+- **"Reportada"** no cambia el estado: queda registrada en `campana_supervisores`.
+- **Tomar una campaña:** un supervisor la reserva con un `UPDATE ... WHERE supervisor_id IS NULL AND NOT supervisado_por_root`. Si dos la toman a la vez, solo uno gana; el otro recibe 409.
+- **Qué se puede editar según el estado** (`PATCH /api/campanas/[id]`):
+  - `borrador`, `en_revision`, `rechazada`: todo.
+  - `aceptada`, `activa`, `pausada`: solo la meta y la fecha de fin. Desde `activa` o `pausada` también se puede finalizar.
+  - `finalizada`: solo reactivar (`status: "activa"`) con una fecha de fin nueva, y si la persona tiene menos de 5 campañas activas.
+
+## 4. Ciclo de vida de un aporte
+
+| Estado | Significado |
+| --- | --- |
+| `pendiente` | Recién enviado, sin revisar |
+| `espera_final` | Validado por un revisor, esperando al creador. **Hoy el servidor no lo asigna:** el revisor que acepta deja el aporte directamente en `aceptado` (ver problemas conocidos en [README.md](README.md)) |
+| `aceptado` | Aprobado; cuenta para la meta y para los datos abiertos |
+| `rechazado` | Rechazado con `rejection_reason`; **sigue contando para la cuota** de la persona |
+
+Reglas al enviar (`POST /api/aportes`): campaña `activa`, no ser el creador, no estar baneado (`campana_baneados`), tener cuota disponible, archivo JPG/PNG de hasta 10 MB y descripción obligatoria (máx. 1000 caracteres).
+
+**Contadores:** cuando un aporte se crea, cambia de estado o se borra, el handler actualiza los contadores de `campanas` (`pending_contributions`, `approved_contributions`...). Si escribes código que cambia aportes, actualiza también los contadores.
+
+## 5. Archivos en MinIO
+
+- **Módulo:** `lib/minio.ts`.
+  - `saveUploadedFile(file, subdir)` guarda el objeto como `<subdir>/<uuid>.<ext>` y devuelve la clave, el nombre original, el mime y el tamaño. Los aportes usan `subdir = campanas/<campaignId>`.
+  - `readUploadedFile(key)` descarga el objeto completo a un `Buffer`.
+- **El archivo pasa por el servidor.** El navegador sube `multipart/form-data` a `POST /api/aportes`, y el handler lo sube a MinIO. No hay URLs firmadas.
+- **Para mostrarlo**, usa `GET /api/aportes/[id]/archivo` como `src`: verifica permisos y lo sirve con `Cache-Control: private`. **Nunca armes URLs directas a MinIO:** el bucket es privado y no se publica.
+- **Datos abiertos:** `GET /api/datos/[id]/descarga` arma un ZIP (`archiver`) con los aportes aceptados de una campaña finalizada, renombrados `aporte-001.jpg`... sin datos personales.
+- **Credenciales:** la app usa un usuario de MinIO limitado al bucket (`MINIO_ACCESS_KEY`). El usuario root solo lo usa el servicio `minio-init` de `docker-compose.yml`, que crea el bucket, la política y ese usuario. Si necesitas una operación nueva de S3, amplía la política ahí.
+
+## 6. Convenciones y trampas
+
+- **IDs:** `SERIAL` en la BD, `string` en el frontend.
+- **JSONB** para listas cortas que se leen completas (`role`, `intereses`, `data_types`, `checklist_secciones`, `caracteristicas`, `metadata`). Para filtrar: `role @> '["supervisor"]'::jsonb` o `data_types ? $1`.
+- **Carreras:** resuélvelas con `UPDATE ... WHERE <condición> RETURNING` y revisa `rowCount`, no leyendo y luego escribiendo.
+- **Fechas:** todo instante nuevo debe ser `TIMESTAMPTZ`. Algunas columnas viejas son `TIMESTAMP` sin zona (`created_at` de varias tablas, `aportes.submitted_at`, `aportes.reviewed_at`): cuidado al compararlas con `NOW()`. Las fechas de campaña son `DATE` + `TIME` separados y se interpretan con `lib/campaign-date.ts`.
+- **Páginas prerenderizadas** (`revalidate` o estáticas) que leen la BD deben envolver sus consultas en `try/catch`: el build de Docker corre sin base de datos.
+- **Solo PostgreSQL**, también para pruebas.

@@ -1,3 +1,8 @@
+// Sesión de usuario (cookie session_token, tabla sessions).
+// - getSessionUser(): para route handlers; devuelve null si no hay sesión o si la cuenta está sancionada.
+// - exigirUsuario(): para páginas y layouts de servidor; redirige a /entrar o /cuenta-bloqueada.
+// La sesión del SuperUsuario es otra (lib/rootSession.ts). Ver docs/permisos.md.
+
 import { randomBytes, createHash } from "crypto";
 import { cache } from "react";
 import { cookies } from "next/headers";

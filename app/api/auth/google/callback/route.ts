@@ -1,3 +1,6 @@
+// GET /api/auth/google/callback — Google regresa aquí con code y state.
+// Vincula google_id a la cuenta con ese correo o crea una ya verificada, abre sesión y redirige.
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";

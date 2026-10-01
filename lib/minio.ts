@@ -1,3 +1,8 @@
+// Almacenamiento de archivos en MinIO (compatible con S3).
+// - saveUploadedFile(file, subdir): guarda <subdir>/<uuid>.<ext> y devuelve la clave.
+// - readUploadedFile(key): descarga el objeto a un Buffer.
+// El archivo siempre pasa por el servidor; el bucket es privado y no se expone al navegador.
+
 import { randomUUID } from "crypto";
 import path from "path";
 import { Client } from "minio";

@@ -1,5 +1,8 @@
 "use server";
 
+// Server actions del SuperUsuario en /supervisar: tomar y dictaminar campañas.
+// Cada una verifica la sesión raíz; la lógica está en ./decision.ts.
+
 import { revalidatePath } from "next/cache";
 
 import { hasRootSession } from "@/lib/rootSession";

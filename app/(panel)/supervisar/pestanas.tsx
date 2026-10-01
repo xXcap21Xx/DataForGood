@@ -1,5 +1,7 @@
 "use client";
 
+// Pestañas de /supervisar (por revisar / supervisadas).
+
 import Link from "next/link";
 import { useState } from "react";
 import Tag from "@/components/ui/Tag";

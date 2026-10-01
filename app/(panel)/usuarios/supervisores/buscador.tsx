@@ -1,5 +1,7 @@
 "use client";
 
+// Buscador de /usuarios/supervisores; escribe la búsqueda en la URL (?q=).
+
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useState, useTransition } from "react";
 

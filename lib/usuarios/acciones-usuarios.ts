@@ -1,5 +1,8 @@
 "use server";
 
+// Server actions del panel sobre usuarios: asignarRol, revocarRol, aplicarSancion, restaurarAcceso.
+// Cada una verifica la sesión raíz (exigirSuperUsuario), aplica la regla y registra en audit_log.
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 

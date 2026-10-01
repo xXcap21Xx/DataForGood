@@ -1,3 +1,5 @@
+// Piezas visuales compartidas por las pantallas de /supervisar (p. ej. BackLink).
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 

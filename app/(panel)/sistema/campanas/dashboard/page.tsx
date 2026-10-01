@@ -1,3 +1,6 @@
+// Pantalla /sistema/campanas/dashboard: gráficas de campañas.
+// Server Component. Datos: obtenerDashboardDeCampanas() de lib/campanas/sistema.ts.
+
 import type { Metadata } from "next";
 
 import MetricCard from "@/components/sistema/MetricCard";

@@ -1,3 +1,6 @@
+// Pantalla /usuarios/[id]: ficha de un usuario (roles, sanciones, baneos por campaña).
+// Server Component. Datos: obtenerUsuario() (lib/usuarios/directorio.ts) y baneosDeUsuario() (lib/campanas/baneos.ts).
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";

@@ -1,3 +1,6 @@
+// /api/campanas/[id]/revisores — revisores de una campaña (tabla campana_revisores). Solo el creador.
+// Lo usa /mis-campanas/[id]/aportes/agregar-revisor.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
@@ -34,6 +37,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 }
 
+// POST: invita a un usuario como revisor (le llega una notificación). Solo el creador.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;

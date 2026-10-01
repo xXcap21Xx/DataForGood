@@ -1,7 +1,11 @@
+// /api/usuarios/[id] — perfil de un usuario.
+// Ojo: el GET no pide sesión (hueco conocido, docs/README.md § 8).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 
+// GET: perfil de un usuario. Ojo: no pide sesión (hueco conocido).
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
@@ -56,6 +60,7 @@ export async function GET(
   }
 }
 
+// PATCH: actualiza el perfil. Solo la propia cuenta.
 export async function PATCH(
   request: Request,
   context: { params: Promise<{ id: string }> }

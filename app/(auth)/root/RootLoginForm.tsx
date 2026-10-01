@@ -1,5 +1,7 @@
 "use client";
 
+// Formulario de /root. Acción: POST /api/auth/root, que crea la cookie root_session_token.
+
 import { useId, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Button from "@/components/sistema/Button";

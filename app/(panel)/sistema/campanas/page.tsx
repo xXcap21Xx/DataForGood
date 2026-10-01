@@ -1,3 +1,6 @@
+// Pantalla /sistema/campanas: listado de todas las campañas con filtros, orden y paginación (en SQL).
+// Server Component. Datos: lib/campanas/sistema.ts (exige sesión raíz). Filtros en filtros.tsx.
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";

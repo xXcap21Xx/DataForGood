@@ -1,5 +1,8 @@
 "use client";
 
+// Botones de /supervisar/[campaignId]. Llaman a las server actions tomarComoSuperUsuario y
+// decidirComoSuperUsuario (lib/supervision/acciones-root.ts), que usan las reglas de lib/supervision/decision.ts.
+
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type FormEvent, type ReactNode } from "react";
 import { Textarea } from "@/components/ui/Input";

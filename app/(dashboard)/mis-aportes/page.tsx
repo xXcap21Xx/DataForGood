@@ -1,5 +1,8 @@
 "use client";
 
+// Pantalla /mis-aportes: campañas en las que aportaste o que guardaste.
+// Componente cliente. Datos: GET /api/campanas?misAportes=true. Filtros en el cliente.
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";

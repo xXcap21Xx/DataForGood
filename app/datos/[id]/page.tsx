@@ -1,3 +1,6 @@
+// Pantalla /datos/[id] (pública): ficha de un conjunto de datos abierto.
+// Datos: obtenerConjuntoAbierto() de lib/open-data.ts. Descarga: GET /api/datos/[id]/descarga (ZIP).
+
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";

@@ -1,5 +1,7 @@
 "use client";
 
+// Menú lateral del panel del SuperUsuario (/sistema, /usuarios, /supervisar).
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ComponentType, SVGProps } from "react";

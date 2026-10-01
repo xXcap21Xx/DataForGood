@@ -1,3 +1,6 @@
+// Pantalla /usuarios/sanciones: sanciones activas.
+// Server Component. Datos: listarSancionesActivas(). Restaurar en boton-restaurar.tsx.
+
 import type { Metadata } from "next";
 
 import Subtabs from "@/components/sistema/subtabs";

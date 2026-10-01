@@ -1,3 +1,7 @@
+// Pantalla / (landing pública). Server Component.
+// Datos: cifras con SQL directo (lib/db.ts) y conjuntos destacados de lib/open-data.ts.
+// Se prerrenderiza (revalidate = 300): el build corre sin BD, por eso las consultas van en try/catch.
+
 import Link from "next/link";
 import PublicHeader from "@/components/layout/PublicHeader";
 import PublicFooter from "@/components/layout/PublicFooter";

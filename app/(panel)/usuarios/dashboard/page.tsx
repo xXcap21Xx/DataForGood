@@ -1,3 +1,6 @@
+// Pantalla /usuarios/dashboard: métricas de usuarios por rango de fechas.
+// Server Component. Datos: lib/usuarios/dashboard.ts. Rango en selector-de-rango.tsx.
+
 import type { Metadata } from "next";
 import { Suspense } from "react";
 

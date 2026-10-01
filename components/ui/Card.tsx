@@ -1,3 +1,5 @@
+// Contenedor tipo tarjeta de la zona de usuario.
+
 import { HTMLAttributes, ReactNode } from "react";
 
 interface CardProps extends HTMLAttributes<HTMLDivElement> {

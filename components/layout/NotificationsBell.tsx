@@ -1,5 +1,8 @@
 "use client";
 
+// Campana de notificaciones del TopBar. Datos: GET /api/notificaciones.
+// Aceptar una invitación de revisor: POST /api/notificaciones/[id]/aceptar.
+
 import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { BASE_PATH } from "@/lib/base-path";

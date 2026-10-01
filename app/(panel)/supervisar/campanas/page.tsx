@@ -1,3 +1,6 @@
+// Pantalla /supervisar/campanas: campañas supervisadas por el SuperUsuario.
+// Server Component. Datos: listarCampanasParaRoot().
+
 import Link from "next/link";
 import Tag from "@/components/ui/Tag";
 import { listarCampanasParaRoot } from "@/lib/supervision/root";

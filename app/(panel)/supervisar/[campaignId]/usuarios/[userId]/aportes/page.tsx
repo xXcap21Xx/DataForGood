@@ -1,3 +1,6 @@
+// Pantalla /supervisar/[campaignId]/usuarios/[userId]/aportes: aportes de un participante.
+// Server Component con SQL directo; exige sesión raíz vía lib/supervision/root.ts.
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import Tag from "@/components/ui/Tag";

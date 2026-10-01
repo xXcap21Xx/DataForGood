@@ -1,3 +1,5 @@
+// Pantalla /privacidad (pública): aviso de privacidad. Texto fijo.
+
 import type { Metadata } from "next";
 import PublicHeader from "@/components/layout/PublicHeader";
 import PublicFooter from "@/components/layout/PublicFooter";

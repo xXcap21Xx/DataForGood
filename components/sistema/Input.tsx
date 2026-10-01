@@ -1,3 +1,5 @@
+// Campos de formulario del panel del SuperUsuario.
+
 import { InputHTMLAttributes, TextareaHTMLAttributes } from "react";
 
 interface FieldWrapperProps {

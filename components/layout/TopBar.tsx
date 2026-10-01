@@ -1,3 +1,5 @@
+// Barra superior de la zona de usuario: notificaciones y avatar.
+
 import Link from "next/link";
 import type { SessionUser } from "@/lib/session";
 import NotificationsBell from "./NotificationsBell";

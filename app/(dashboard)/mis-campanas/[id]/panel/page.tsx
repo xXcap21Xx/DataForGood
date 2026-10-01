@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/panel: métricas de una campaña propia.
+// Componente cliente. Datos: GET /api/campanas?id= y GET /api/campanas/[id]/recoleccion-diaria.
+// Ojo: ni la página ni esos endpoints comprueban que seas el creador (docs/README.md § 8).
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";

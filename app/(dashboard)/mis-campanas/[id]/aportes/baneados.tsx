@@ -1,5 +1,8 @@
 "use client";
 
+// Sección "Participantes baneados" de la bandeja.
+// Datos y acción: GET y DELETE /api/campanas/[id]/baneos (solo el creador).
+
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import { BASE_PATH } from "@/lib/base-path";

@@ -3,6 +3,8 @@
 Plataforma de crowdsourcing de datos: Next.js 16 (App Router) + PostgreSQL + MinIO, todo en Docker Compose.
 Producción: https://multimodal-ai-lab.cicese.mx/dataforgood/
 
+> **¿Vas a trabajar en el código?** Empieza por la [guía para desarrolladores](docs/README.md): rutas, API, base de datos, permisos y módulos de `lib/`. Este archivo cubre el despliegue.
+
 ## Levantar el stack
 
 ```bash

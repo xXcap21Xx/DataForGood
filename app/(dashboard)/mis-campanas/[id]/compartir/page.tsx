@@ -1,5 +1,8 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/compartir: enlace público y QR de la campaña.
+// Componente cliente. Datos: GET /api/campanas?id=. La ruta pública /c/[token] todavía no existe.
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";

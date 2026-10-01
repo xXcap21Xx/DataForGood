@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /campanas/[id]/aportar: formulario para enviar un aporte (archivo, descripción, checklists).
+// Componente cliente. Datos: GET /api/campanas?id= y GET /api/aportes?campaignId=&mine=true (cuota usada).
+// Acción: POST /api/aportes (multipart/form-data). El servidor valida cuota, baneo, tipo y tamaño.
+
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { Field, Textarea } from "@/components/ui/Input";

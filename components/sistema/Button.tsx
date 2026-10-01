@@ -1,3 +1,5 @@
+// Botón del panel del SuperUsuario (kit components/sistema). La zona de usuario usa components/ui/Button.
+
 import { ButtonHTMLAttributes, ReactNode } from "react";
 
 type Variant = "primary" | "secondary" | "danger" | "ghost";

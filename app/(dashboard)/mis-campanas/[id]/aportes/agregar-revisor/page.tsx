@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/aportes/agregar-revisor: invitar revisores a la campaña.
+// Componente cliente. Busca con GET /api/usuarios?campanaId=&q=; lista e invita con GET/POST /api/campanas/[id]/revisores.
+// La persona invitada acepta desde sus notificaciones.
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";

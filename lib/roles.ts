@@ -1,3 +1,6 @@
+// Códigos de rol válidos en usuarios.role (JSONB): usuario, supervisor, revisor, admin.
+// Los nombres para mostrar están en lib/usuarios/rol-asignable.ts.
+
 export const VALID_ROLES = new Set(["usuario", "supervisor", "revisor", "admin"]);
 
 export function normalizeRoles(input: unknown): string[] {

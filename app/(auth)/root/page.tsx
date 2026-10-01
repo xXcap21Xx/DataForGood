@@ -1,3 +1,6 @@
+// Pantalla /root: entrada del SuperUsuario (credencial ROOT_USER_ID + ROOT_PASSWORD_HASH).
+// El formulario está en RootLoginForm.tsx. Tras entrar va a /sistema.
+
 import type { Metadata } from "next";
 import RootLoginForm from "./RootLoginForm";
 

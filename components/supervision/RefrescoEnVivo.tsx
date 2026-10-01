@@ -1,5 +1,7 @@
 "use client";
 
+// Refresca la página (router.refresh()) cada `ms` milisegundos en los paneles de campañas activas.
+
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 

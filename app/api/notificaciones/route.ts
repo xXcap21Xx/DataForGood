@@ -1,3 +1,5 @@
+// GET /api/notificaciones — notificaciones del usuario. Lo usa components/layout/NotificationsBell.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";

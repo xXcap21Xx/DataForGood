@@ -1,5 +1,8 @@
 "use client";
 
+// Selector de temáticas: muestra las elegidas y abre un <dialog> nativo con buscador.
+// Aplica los cambios solo al dar Aceptar. Lo usan /bienvenida y /cuenta.
+
 import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";

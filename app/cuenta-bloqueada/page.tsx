@@ -1,3 +1,7 @@
+// Pantalla /cuenta-bloqueada: lo único que ve una cuenta suspendida o baneada.
+// Llega aquí por exigirUsuario() (lib/session.ts). Datos: obtenerBloqueoDeLaSesion().
+// Si la cuenta no está bloqueada, redirige a /campanas (o a /entrar sin sesión).
+
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import CuentaBloqueada from "@/components/layout/CuentaBloqueada";

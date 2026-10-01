@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /mis-campanas: campañas que creaste, con filtros por estado.
+// Componente cliente. Datos: GET /api/campanas?mine=true.
+// Acción: "Finalizar" con PATCH /api/campanas/[id] { status: "finalizada" } (activa o pausada).
+
 import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import ButtonLink from "@/components/ui/ButtonLink";

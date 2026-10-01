@@ -1,3 +1,6 @@
+// /api/campanas/[id]/baneos — baneos de participantes en esta campaña (lib/campanas/baneos.ts).
+// Solo el creador. Lo usan el detalle del aporte y la sección de baneados de la bandeja.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser, type SessionUser } from "@/lib/session";
@@ -15,6 +18,7 @@ async function exigirCreador(campaignId: string, user: SessionUser | null): Prom
   return null;
 }
 
+// GET: participantes baneados de la campaña.
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await context.params;
@@ -28,6 +32,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 }
 
+// POST: banea a un participante de esta campaña (no de toda la app).
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await context.params;
@@ -79,6 +84,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "No se pudo banear al usuario de la campaña" }, { status: 500 });
   }
 }
+// DELETE: quita el baneo.
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await context.params;

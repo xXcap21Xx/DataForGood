@@ -1,3 +1,6 @@
+// Panel de métricas de una campaña, compartido por /supervision/[id]/panel y /supervisar/[id]/panel.
+// Recibe los datos ya calculados por lib/campanas/panel.ts.
+
 import Link from "next/link";
 import Tag from "@/components/ui/Tag";
 import type { PanelDeCampana } from "@/lib/campanas/panel";

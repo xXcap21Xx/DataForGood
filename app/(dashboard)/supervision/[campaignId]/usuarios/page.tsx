@@ -1,3 +1,6 @@
+// Pantalla /supervision/[campaignId]/usuarios: participantes de una campaña que supervisas.
+// Server Component con SQL directo; solo campañas activas o finalizadas con supervisor_id = tú.
+
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BackLink } from "../../_ui";

@@ -1,3 +1,7 @@
+// Conexión a PostgreSQL: un pg.Pool compartido por toda la app.
+// Uso: pool.query("... WHERE id = $1", [id]). Siempre SQL parametrizado.
+// El esquema (tablas) no vive aquí sino en lib/db-schema.ts.
+
 import { Pool, QueryResultRow } from "pg";
 
 // Sin valor por defecto a propósito: si falta la variable, la app debe

@@ -1,3 +1,5 @@
+// Utilidades de presentación del panel (formato de números, piezas pequeñas).
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 

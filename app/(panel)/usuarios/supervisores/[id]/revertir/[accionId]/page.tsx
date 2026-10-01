@@ -1,3 +1,6 @@
+// Pantalla /usuarios/supervisores/[id]/revertir/[accionId]: revertir un dictamen.
+// Server Component. Datos: obtenerAccion(). La acción revertirAccion aún NO hace nada (TODO).
+
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 

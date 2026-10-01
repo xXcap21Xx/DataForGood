@@ -1,5 +1,8 @@
 "use client";
 
+// Pantalla /revisiones/campanas/[campaignId]: aportes por revisar de una campaña.
+// Componente cliente. Datos: GET /api/campanas/[id] y GET /api/aportes?campaignId=&reviewer=true (solo revisor aceptado).
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";

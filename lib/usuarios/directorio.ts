@@ -1,3 +1,6 @@
+// Directorio de usuarios del panel (/usuarios/**): búsqueda, ficha, estado de la cuenta y sanciones.
+// Ojo: estas consultas no verifican la sesión raíz; dependen del layout del panel (docs/README.md § 8).
+
 import { pool } from "@/lib/db";
 import {
   nombreDeRolPrincipal,

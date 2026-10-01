@@ -1,3 +1,6 @@
+// Pantalla /usuarios/[id]/roles: asignar o revocar roles.
+// Server Component. Datos: obtenerUsuario(). Botones en botones-de-rol.tsx.
+
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 

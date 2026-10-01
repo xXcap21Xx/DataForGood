@@ -1,3 +1,6 @@
+// Pantalla /usuarios: directorio de usuarios con búsqueda y filtros.
+// Server Component. Datos: buscarUsuarios() de lib/usuarios/directorio.ts. Protegida solo por el layout del panel.
+
 import type { Metadata } from "next";
 import { Suspense } from "react";
 

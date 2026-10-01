@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /campanas/[id]: detalle de una campaña.
+// Componente cliente. Datos: GET /api/campanas?id= (incluye viewer: creador, baneado, aportes propios).
+// Acción: guardar/quitar de favoritos con POST/DELETE /api/campanas/[id]/guardar.
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";

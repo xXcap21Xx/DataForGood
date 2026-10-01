@@ -1,5 +1,8 @@
 "use client";
 
+// Lista de campañas del revisor (pestañas "en curso" y "finalizadas").
+// Datos: GET /api/revisiones (campañas con campana_revisores.estado = 'aceptado').
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import Tag from "@/components/ui/Tag";

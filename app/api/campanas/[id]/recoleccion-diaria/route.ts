@@ -1,3 +1,6 @@
+// GET /api/campanas/[id]/recoleccion-diaria — aportes por día y por tipo para las gráficas del panel.
+// Ojo: pide sesión pero no comprueba que seas el creador (docs/README.md § 8).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";

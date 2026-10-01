@@ -1,3 +1,6 @@
+// /api/aportes/[id] — detalle, revisión, edición y borrado de un aporte.
+// Cada cambio de estado actualiza también los contadores de la campaña.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
@@ -36,6 +39,7 @@ async function loadAporteWithCampaign(id: string) {
   return result.rowCount ? result.rows[0] : null;
 }
 
+// GET: detalle de un aporte. Lo ven quien aportó, el creador y los revisores aceptados.
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await context.params;
@@ -190,6 +194,7 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
   }
 }
 
+// DELETE: quien aportó borra su aporte si todavía no está aceptado; descuenta los contadores de la campaña.
 export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
   const client = await pool.connect();
 

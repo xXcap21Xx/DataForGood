@@ -1,5 +1,8 @@
 "use client";
 
+// Pantalla /campanas: campañas activas para participar, con filtros por temática y "Tu localidad".
+// Componente cliente. Datos: GET /api/campanas y GET /api/auth/sesion.
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import CampaignCard from "@/components/cards/CampaignCard";

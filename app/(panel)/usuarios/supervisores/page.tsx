@@ -1,3 +1,6 @@
+// Pantalla /usuarios/supervisores: lista de supervisores y resumen de su actividad.
+// Server Component. Datos: lib/usuarios/supervisores.ts. Búsqueda en buscador.tsx.
+
 import type { Metadata } from "next";
 import { Suspense } from "react";
 

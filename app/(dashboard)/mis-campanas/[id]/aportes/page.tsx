@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/aportes: bandeja de aportes del creador.
+// Componente cliente. Datos: GET /api/campanas/[id] y GET /api/aportes?campaignId= (solo el creador).
+// Incluye la sección de participantes baneados (baneados.tsx).
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";

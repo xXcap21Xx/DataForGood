@@ -1,5 +1,10 @@
 "use client";
 
+// Pantalla /mis-campanas/[id]/aportes/[aporteId]: detalle de un aporte para el creador.
+// Componente cliente. Datos: GET /api/aportes/[id]; imagen desde GET /api/aportes/[id]/archivo.
+// Acciones: aceptar/rechazar con PATCH /api/aportes/[id] { status, rejectionReason };
+// banear o desbanear al participante con POST/DELETE /api/campanas/[id]/baneos.
+
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";

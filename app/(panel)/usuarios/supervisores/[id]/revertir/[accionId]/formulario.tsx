@@ -1,5 +1,7 @@
 "use client";
 
+// Formulario de reversión. Llama a revertirAccion (lib/usuarios/acciones-supervisor.ts), que todavía es un TODO.
+
 import { useRouter } from "next/navigation";
 import { useId, useState, useTransition } from "react";
 

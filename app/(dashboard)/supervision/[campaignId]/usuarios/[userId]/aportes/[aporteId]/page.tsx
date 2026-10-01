@@ -1,3 +1,6 @@
+// Pantalla .../usuarios/[userId]/aportes/[aporteId] de /supervision: detalle de un aporte (solo lectura).
+// Server Component con SQL directo; solo si supervisas la campaña.
+
 import { notFound, redirect } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import { BackLink } from "../../../../../_ui";

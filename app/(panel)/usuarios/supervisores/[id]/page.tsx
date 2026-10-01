@@ -1,3 +1,6 @@
+// Pantalla /usuarios/supervisores/[id]: historial de dictámenes de un supervisor.
+// Server Component. Datos: obtenerActividad() de lib/usuarios/supervisores.ts.
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";

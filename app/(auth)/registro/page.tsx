@@ -1,5 +1,8 @@
 "use client";
 
+// Pantalla /registro: alta de cuenta.
+// Acción: POST /api/usuarios (crea la cuenta sin verificar y envía el código) → /verificar.
+
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";

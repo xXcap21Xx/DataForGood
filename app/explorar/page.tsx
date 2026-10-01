@@ -1,3 +1,6 @@
+// Pantalla /explorar (pública): vitrina de campañas activas con filtros en searchParams.
+// Datos: lib/campanas/publicas.ts. Al abrir una campaña va a /campanas/[id], que sí pide sesión.
+
 import Link from "next/link";
 import type { Metadata } from "next";
 import PublicHeader from "@/components/layout/PublicHeader";

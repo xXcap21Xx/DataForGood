@@ -1,3 +1,5 @@
+// Contenido de /cuenta-bloqueada: tipo de bloqueo, motivo, fecha de fin y contador de sanciones.
+
 import Link from "next/link";
 import LogoutButton from "@/components/auth/LogoutButton";
 import { formatearFinDeSuspension, type Bloqueo, type HistorialDeSanciones } from "@/lib/sanciones";

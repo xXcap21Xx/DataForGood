@@ -1,5 +1,8 @@
 "use client";
 
+// Formulario de /cuenta. Guarda con PATCH /api/usuarios/[id] (solo la propia cuenta).
+// Catálogos: lib/mexico-geo.ts, lib/intereses.ts, lib/perfil-opciones.ts.
+
 import { useRouter } from "next/navigation";
 import { type ReactNode, useState } from "react";
 import Button from "@/components/ui/Button";

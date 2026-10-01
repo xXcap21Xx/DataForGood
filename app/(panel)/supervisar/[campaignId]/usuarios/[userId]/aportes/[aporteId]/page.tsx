@@ -1,3 +1,6 @@
+// Pantalla .../aportes/[aporteId] de /supervisar: detalle de un aporte (solo lectura).
+// Server Component con SQL directo; exige sesión raíz vía lib/supervision/root.ts.
+
 import { notFound } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import { BackLink } from "../../../../../_ui";

@@ -1,5 +1,8 @@
 "use client";
 
+// Botones de /usuarios/[id]/roles. Llaman a las server actions asignarRol y revocarRol
+// (lib/usuarios/acciones-usuarios.ts), que verifican la sesión raíz y registran en audit_log.
+
 import { useState, useTransition } from "react";
 
 import Button from "@/components/sistema/Button";

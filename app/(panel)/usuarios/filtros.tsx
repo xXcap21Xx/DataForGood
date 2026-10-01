@@ -1,5 +1,7 @@
 "use client";
 
+// Filtros del directorio /usuarios: los escribe en la URL (searchParams).
+
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useState, useTransition } from "react";
 

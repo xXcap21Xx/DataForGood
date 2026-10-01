@@ -1,3 +1,7 @@
+// Fechas de campaña (DATE + TIME separados) y transiciones automáticas de estado, sin cron:
+// activateScheduledCampaigns (aceptada → activa) y finalizeExpiredCampaigns (activa → finalizada)
+// se ejecutan en cada lectura de /api/campanas. Las fechas se comparan en JS para evitar desfases de zona.
+
 import { pool } from "@/lib/db";
 
 /**

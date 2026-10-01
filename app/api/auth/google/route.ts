@@ -1,3 +1,6 @@
+// GET /api/auth/google — inicia el login con Google (lib/google.ts).
+// Guarda un state aleatorio (cookie google_oauth_state) y el ?next= para volver después.
+
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
 import { cookies } from "next/headers";

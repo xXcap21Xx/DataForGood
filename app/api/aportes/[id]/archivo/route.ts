@@ -1,3 +1,6 @@
+// GET /api/aportes/[id]/archivo — sirve el archivo del aporte desde MinIO, tras comprobar permisos.
+// Se usa como src de <img>. Nunca se exponen URLs directas al bucket.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";

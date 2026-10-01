@@ -1,3 +1,6 @@
+// Pantalla /supervisar/[campaignId]/usuarios: participantes de la campaña.
+// Server Component con SQL directo; la campaña se valida con obtenerCampanaSupervisadaPorRoot() (sesión raíz).
+
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { BackLink } from "../../_ui";

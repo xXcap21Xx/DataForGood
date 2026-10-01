@@ -1,5 +1,8 @@
 "use client";
 
+// Pantalla /supervision: campañas en revisión que puedes tomar y las que ya supervisas.
+// Componente cliente. Datos: GET /api/campanas, GET /api/campanas?supervised=true y GET /api/auth/sesion.
+
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Tag from "@/components/ui/Tag";

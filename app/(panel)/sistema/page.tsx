@@ -1,3 +1,6 @@
+// Pantalla /sistema: métricas generales del sistema (solo consulta).
+// Server Component. Datos: lib/sistema/metricas.ts. Protegida solo por el layout del panel.
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import MetricCard from "@/components/sistema/MetricCard";

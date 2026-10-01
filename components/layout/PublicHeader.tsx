@@ -1,3 +1,5 @@
+// Encabezado de las pantallas públicas (landing, /explorar, /datos...).
+
 import Link from "next/link";
 import ButtonLink from "@/components/ui/ButtonLink";
 

@@ -1,3 +1,6 @@
+// Piezas visuales compartidas por las pantallas de /supervision (p. ej. BackLink).
+// El guion bajo evita que Next lo trate como ruta.
+
 import Link from "next/link";
 import type { ReactNode } from "react";
 

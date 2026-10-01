@@ -1,3 +1,6 @@
+// POST /api/notificaciones/[id]/aceptar — acepta una invitación de revisor (tipo invitacion_revisor).
+// Marca campana_revisores como 'aceptado' y lo registra en audit_log.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";

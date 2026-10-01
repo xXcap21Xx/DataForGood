@@ -1,5 +1,7 @@
 "use client";
 
+// Menú lateral de la zona de usuario. Agrega "Supervisión" si el usuario tiene rol supervisor.
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { SessionUser } from "@/lib/session";

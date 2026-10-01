@@ -1,3 +1,6 @@
+// Pantalla /cuenta: perfil del usuario. Server Component.
+// Datos: exigirUsuario(). El formulario (PerfilForm.tsx) guarda con PATCH /api/usuarios/[id].
+
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import LogoutButton from "@/components/auth/LogoutButton";

@@ -1,3 +1,6 @@
+// Layout de /supervision: exige sesión (exigirUsuario) y rol "supervisor"; si no, a /campanas.
+// Cada página vuelve a comprobarlo.
+
 import { redirect } from "next/navigation";
 import { exigirUsuario } from "@/lib/session";
 

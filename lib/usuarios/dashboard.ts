@@ -1,3 +1,6 @@
+// Métricas de /usuarios/dashboard por rango de fechas y pestañas de la sección Usuarios.
+// Ojo: no verifica la sesión raíz; depende del layout del panel.
+
 import type { Pestana } from "@/components/sistema/subtabs";
 import { pool } from "@/lib/db";
 import { ETIQUETA_DE_ESTADO, RESUMEN_DE_SANCIONES, estadoDesdeSanciones } from "@/lib/usuarios/directorio";

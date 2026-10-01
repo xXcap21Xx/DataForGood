@@ -1,5 +1,8 @@
 "use client";
 
+// Filtros del listado /sistema/campanas: los escribe en la URL (searchParams).
+// Constantes de lib/campanas/sistema-opciones.ts (sin imports de servidor).
+
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useId, useState, useTransition } from "react";
 

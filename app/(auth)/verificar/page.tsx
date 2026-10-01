@@ -1,5 +1,9 @@
 "use client";
 
+// Pantalla /verificar: código de 6 dígitos enviado por correo.
+// Datos y acciones: GET/POST /api/auth/verificar y POST /api/auth/verificar/reenviar.
+// La cuenta pendiente se identifica por la cookie pending_verification_id. Siguiente: /bienvenida.
+
 import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";

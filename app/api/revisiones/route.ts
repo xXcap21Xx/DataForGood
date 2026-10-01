@@ -1,3 +1,5 @@
+// GET /api/revisiones — campañas donde la persona es revisora aceptada, con conteos. Lo usa /revisiones.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";

@@ -1,3 +1,7 @@
+// /api/campanas — listado y creación de campañas. Lo usa casi toda la zona de usuario.
+// Antes de leer, activa las campañas aceptadas cuya fecha llegó y finaliza las vencidas (lib/campaign-date.ts).
+// Ojo: el POST acepta status "activa" del body (hueco conocido, docs/README.md § 8).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
@@ -106,6 +110,9 @@ function mapCampaign(row: Record<string, unknown>) {
   };
 }
 
+// GET: campañas. Modos por query: ?id= (una, con bloque viewer), ?mine=true (creadas por ti),
+// ?misAportes=true (aportaste o guardaste), ?available=true (puedes aportar), ?supervised=true (supervisas).
+// Sin parámetros: activas, sin sesión.
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
@@ -202,6 +209,7 @@ export async function GET(request: Request) {
   }
 }
 
+// POST: crea una campaña. Valida campos obligatorios salvo en borrador.
 export async function POST(request: Request) {
   try {
     const body = await request.json();
