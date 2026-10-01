@@ -2,12 +2,12 @@ import { notFound, redirect } from "next/navigation";
 import PanelDeCampanaSupervisor from "@/components/supervision/PanelDeCampanaSupervisor";
 import { obtenerPanelDeCampana } from "@/lib/campanas/panel";
 import { pool } from "@/lib/db";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 
 export default async function SupervisedCampaignPanel({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
-  const user = await getSessionUser();
-  if (!user || !user.role.includes("supervisor")) redirect("/campanas");
+  const user = await exigirUsuario();
+  if (!user.role.includes("supervisor")) redirect("/campanas");
   if (!/^\d+$/.test(campaignId)) notFound();
 
   // Solo el supervisor que tomó la campaña ve su panel.

@@ -3,12 +3,12 @@ import { notFound, redirect } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import { BackLink } from "../../../../_ui";
 import { pool } from "@/lib/db";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 
 export default async function UserContributionsPage({ params }: { params: Promise<{ campaignId: string; userId: string }> }) {
   const { campaignId, userId } = await params;
-  const user = await getSessionUser();
-  if (!user || !user.role.includes("supervisor")) redirect("/campanas");
+  const user = await exigirUsuario();
+  if (!user.role.includes("supervisor")) redirect("/campanas");
 
   const campaignResult = await pool.query(
     `SELECT id, name FROM campanas WHERE id = $1 AND supervisor_id = $2 AND status IN ('activa', 'finalizada') LIMIT 1`,

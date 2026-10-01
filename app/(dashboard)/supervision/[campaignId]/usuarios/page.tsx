@@ -2,13 +2,13 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BackLink } from "../../_ui";
 import { pool } from "@/lib/db";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 
 type CampaignAccess = { id: number; name: string; status: string };
 
 async function getSupervisedCampaign(campaignId: string): Promise<CampaignAccess> {
-  const user = await getSessionUser();
-  if (!user || !user.role.includes("supervisor")) redirect("/campanas");
+  const user = await exigirUsuario();
+  if (!user.role.includes("supervisor")) redirect("/campanas");
 
   const result = await pool.query<CampaignAccess>(
     `SELECT id, name, status FROM campanas
