@@ -34,13 +34,14 @@
 | `usuarios` | Cuenta y perfil (`nombre`, `apellidos`, `email`, `state`, `city`, `specialty`, `intereses` JSONB), `role` JSONB (`["usuario", "supervisor", ...]`), XP/nivel/racha, `email_verificado`, bloqueo por intentos (`failed_login_attempts`, `locked_until`), `google_id`, código de verificación (hash, vencimiento, intentos) |
 | `sessions` | Sesión de usuario: `token_hash` (sha256), `usuario_id`, `expires_at` |
 | `root_sessions` | Sesión del SuperUsuario (sin `usuario_id`) |
-| `campanas` | Campaña completa. Contadores desnormalizados (`current_/approved_/pending_/rejected_contributions`, `participants`), fechas y horas separadas (`start_date`, `start_time`...), ubicación textual, `supervisor_id` + `supervisado_por_root`, `share_token` + `share_token_expires_at`, `downloads_count`. Tiene una columna `aportes` JSONB **heredada**: los aportes reales están en la tabla `aportes` |
+| `campanas` | Campaña completa. Contadores desnormalizados (`current_/approved_/pending_/rejected_contributions`, `participants`), fechas y horas separadas (`start_date`, `start_time`...), ubicación textual, `supervisor_id` + `supervisado_por_root`, `share_token` + `share_token_expires_at` (**obsoletas**: el enlace público vive en `campana_enlaces`), `downloads_count`. Tiene una columna `aportes` JSONB **heredada**: los aportes reales están en la tabla `aportes` |
 | `campana_supervisores` | Historial de dictámenes (`aceptada`, `rechazada`, `reportada`, `reasignada`) con `motivo`. `supervisor_id` NULL + `por_superusuario` si lo hizo el SuperUsuario |
 | `campana_revisores` | Revisor por campaña: `invitado`, `aceptado` o `rechazado` |
 | `campana_baneados` | Baneo de un usuario en una campaña, con motivo y quién baneó |
+| `campana_enlaces` | Enlace público `/c/[token]`: `token` único, `expira_en` (24 h), `revocado_en` (al regenerar; no se borra), `visitas`, `creado_por`. Se crea antes que `aportes` porque `aportes.enlace_id` la referencia (`lib/campanas/enlaces.ts`) |
 | `campanas_guardadas` | Favoritos del usuario |
 | `notificaciones` | Avisos por usuario (`tipo`, `titulo`, `mensaje`, `metadata` JSONB, `leida_en`) |
-| `aportes` | Aporte: `campaign_id`, `user_id` (NULL si fue anónimo), datos del participante, `file_*` (clave en MinIO, nombre, mime, tamaño), `caracteristicas` JSONB, `status`, `rejection_reason`, primera revisión (`first_pass_by`, `first_pass_by_user_id`) |
+| `aportes` | Aporte: `campaign_id`, `user_id` (NULL si fue anónimo), datos del participante, `file_*` (clave en MinIO, nombre, mime, tamaño), `caracteristicas` JSONB, `status`, `rejection_reason`, primera revisión (`first_pass_by`, `first_pass_by_user_id`), `enlace_id` (enlace público por el que llegó) |
 | `sanciones` | Strikes, baneos y suspensiones aplicados desde el panel (`tipo`, `detalle`, `dias`, `activa`, `restaurada_en`). La suspensión y el baneo bloquean la cuenta (`lib/sanciones.ts`) |
 | `audit_log` | Bitácora de acciones sensibles, solo de inserción: `actor_tipo` (`usuario`, `superusuario`, `anonimo`), `actor_id`, `accion`, `objetivo_tipo` + `objetivo_id`, `detalle` JSONB, `ip`. Se escribe con `registrarAuditoria()` (`lib/auditoria.ts`) |
 

@@ -5,6 +5,7 @@
 import { pool } from "@/lib/db";
 import { hasCampaignStarted } from "@/lib/campaign-date";
 import { registrarAuditoria, type ActorDeAuditoria } from "@/lib/auditoria";
+import { asegurarEnlaceVigente } from "@/lib/campanas/enlaces";
 
 export type AccionDeSupervision = "aceptada" | "rechazada" | "reportada";
 
@@ -136,6 +137,9 @@ export async function registrarDecisionDeCampana(
   const porRoot = autor.tipo === "root";
 
   await pool.query(`UPDATE campanas SET status = $2, updated_at = NOW() WHERE id = $1`, [campanaId, nextStatus]);
+  // Aceptada y ya empezó: queda activa con su enlace público listo para compartir.
+  // Si queda "aceptada" (inicio futuro), el enlace se crea al activarse (lib/campaign-date.ts).
+  if (nextStatus === "activa") await asegurarEnlaceVigente(Number(campanaId));
 
   await pool.query(
     `INSERT INTO campana_supervisores (campana_id, supervisor_id, por_superusuario, accion, motivo, created_at)

@@ -548,6 +548,95 @@ paths:
                         porcentaje: { type: integer }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
+  /api/campanas/{id}/enlace:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Campañas]
+      summary: Enlace público actual de la campaña
+      description: |
+        Cualquier usuario con sesión (el enlace es para difundir la campaña). Devuelve el último
+        enlace no revocado, vigente o caducado, o `data: null` si nunca se generó. `visitas` y
+        `aportesRecibidos` solo vienen si quien pide es el creador. El enlace se genera solo cuando
+        la campaña queda `activa`.
+      responses:
+        "200":
+          description: Enlace, estado de la campaña y si quien pide es el creador
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    nullable: true
+                    type: object
+                    properties:
+                      url: { type: string }
+                      token: { type: string }
+                      creadoEn: { type: string, format: date-time }
+                      expiraEn: { type: string, format: date-time }
+                      vigente: { type: boolean }
+                      visitas: { type: integer, description: Solo para el creador }
+                      aportesRecibidos: { type: integer, description: Solo para el creador }
+                  campana:
+                    type: object
+                    properties:
+                      nombre: { type: string }
+                      status: { type: string }
+                  viewer:
+                    type: object
+                    properties:
+                      esCreador: { type: boolean }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Campañas]
+      summary: Generar o regenerar el enlace público
+      description: |
+        Solo el creador y solo con la campaña `activa`. Crea un token que vale 24 horas
+        para la ruta pública /c/{token}. Si ya había uno, queda revocado para siempre
+        (conserva sus visitas y aportes). Se registra en audit_log como `campana.enlace_regenerar`.
+      responses:
+        "201":
+          description: Enlace nuevo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string }
+                      creadoEn: { type: string, format: date-time }
+                      expiraEn: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: La campaña no está activa
+
+  /api/campanas/{id}/qr:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Campañas]
+      summary: Descargar el código QR del enlace público
+      description: Cualquier usuario con sesión. QR de 512 × 512 px del enlace vigente, que apunta a /c/{token}.
+      parameters:
+        - name: formato
+          in: query
+          schema: { type: string, enum: [png, svg], default: png }
+      responses:
+        "200":
+          description: Archivo del QR (como descarga)
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/svg+xml: { schema: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410":
+          description: El enlace caducó; hay que regenerarlo
+
   # ---------------------------------------------------------------- Aportes
   /api/aportes:
     get:
@@ -591,6 +680,12 @@ paths:
                   type: string
                   format: binary
                   description: .jpg, .jpeg o .png, máximo 10 MB
+                enlace:
+                  type: string
+                  description: |
+                    Opcional. Token del enlace público (/c/{token}) por el que llegó la persona.
+                    Si es el enlace vigente de la campaña, el aporte se le atribuye (aportes.enlace_id);
+                    si no, se ignora sin rechazar el aporte.
       responses:
         "201": { $ref: "#/components/responses/ContributionResult" }
         "400": { $ref: "#/components/responses/BadRequest" }

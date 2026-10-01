@@ -24,6 +24,7 @@ export type AccionAuditada =
   | "supervision.dictaminar"
   | "campana.banear"
   | "campana.desbanear"
+  | "campana.enlace_regenerar"
   | "revisor.invitar"
   | "revisor.aceptar"
   | "root.acceso"

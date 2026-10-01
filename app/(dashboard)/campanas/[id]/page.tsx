@@ -3,6 +3,7 @@
 // Pantalla /campanas/[id]: detalle de una campaña.
 // Componente cliente. Datos: GET /api/campanas?id= (incluye viewer: creador, baneado, aportes propios).
 // Acción: guardar/quitar de favoritos con POST/DELETE /api/campanas/[id]/guardar.
+// "Compartir" abre el cuadro de compartir.tsx (enlace público /c/[token] y QR).
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
@@ -12,6 +13,7 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
 import type { Campaign } from "@/types";
 import { BASE_PATH } from "@/lib/base-path";
+import CompartirCampana from "./compartir";
 
 export default function CampaignDetailPage() {
   const params = useParams<{ id: string }>();
@@ -21,7 +23,6 @@ export default function CampaignDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [guardando, setGuardando] = useState(false);
-  const [shareMessage, setShareMessage] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadCampaign() {
@@ -87,14 +88,7 @@ export default function CampaignDetailPage() {
 
         <div className="mb-2 flex items-center justify-between">
           <Tag tone="ok">{campaign.tag}</Tag>
-            <Button variant="secondary" size="sm" onClick={() => {
-              if (typeof navigator !== "undefined" && navigator.clipboard) {
-                navigator.clipboard.writeText(window.location.href);
-                setShareMessage("Enlace copiado");
-              }
-            }}>
-            Compartir
-          </Button>
+          <CompartirCampana campanaId={campaign.id} nombre={campaign.name} />
         </div>
 
         <h1 className="mb-2 text-[26px] font-extrabold text-ink">{campaign.name}</h1>
@@ -179,7 +173,6 @@ export default function CampaignDetailPage() {
           <Button variant="secondary" className="mt-2.5 w-full" disabled={guardando} onClick={alternarGuardado}>
             {saved ? "Campaña guardada" : "Guardar campaña"}
           </Button>
-          {shareMessage && <p className="mt-2 text-center text-[11.5px] text-ok">{shareMessage}</p>}
         </div>
 
         <div className="rounded-lg border border-line bg-surface p-5">

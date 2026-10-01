@@ -215,7 +215,7 @@ Están anotados para que no te sorprendan. No los "arregles de paso": cada uno e
 | **La revisión en dos instancias no está completa.** Cuando un revisor acepta un aporte, el servidor lo deja en `aceptado` directamente; nunca lo pone en `espera_final`, aunque la interfaz sí muestra ese estado | `app/api/aportes/[id]/route.ts` (PATCH) |
 | **Páginas del panel protegidas solo por el layout.** `/sistema` y `/usuarios/**` no vuelven a comprobar la sesión raíz (ni la página ni sus funciones de `lib/`). Las server actions que escriben sí verifican | `app/(panel)/sistema/page.tsx`, `app/(panel)/usuarios/**`, `lib/usuarios/{directorio,dashboard,supervisores}.ts`, `lib/sistema/metricas.ts` |
 | **`revertirAccion` no hace nada** todavía (tiene la guardia, pero la lógica es un `TODO`) | `lib/usuarios/acciones-supervisor.ts` |
-| Enlace público `/c/[token]`, aportes anónimos y recuperar contraseña: **no existen** | — |
+| Aportes anónimos (sin cuenta) y recuperar contraseña: **no existen**. El enlace público `/c/[token]` sí, pero para aportar pide iniciar sesión | `app/c/[token]/page.tsx` |
 | Solo se aceptan fotos JPG/PNG de hasta 10 MB | `app/api/aportes/route.ts` |
 | El build falla a veces descargando Google Fonts; reintentar. La solución es `next/font/local` | `app/layout.tsx` |
 | La imagen de MinIO ya no se puede descargar de internet; solo sirve la que está en caché | `docker-compose.yml` |

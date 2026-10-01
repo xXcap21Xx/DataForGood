@@ -3,9 +3,10 @@
 // Pantalla /campanas/[id]/aportar: formulario para enviar un aporte (archivo, descripción, checklists).
 // Componente cliente. Datos: GET /api/campanas?id= y GET /api/aportes?campaignId=&mine=true (cuota usada).
 // Acción: POST /api/aportes (multipart/form-data). El servidor valida cuota, baneo, tipo y tamaño.
+// Con ?enlace=<token> (viene de /c/[token]) lo reenvía para atribuir el aporte a ese enlace.
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Field, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import type { Campaign } from "@/types";
@@ -15,6 +16,8 @@ import { etiquetaDeRespuesta } from "@/lib/campanas/checklist";
 export default function AportarPage() {
   const params = useParams<{ id: string }>();
   const router = useRouter();
+  // Si se llegó desde un enlace público (/c/[token]), el aporte se atribuye a ese enlace.
+  const enlace = useSearchParams().get("enlace");
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [isCreator, setIsCreator] = useState(false);
   const [baneado, setBaneado] = useState(false);
@@ -104,6 +107,7 @@ export default function AportarPage() {
       formData.set("description", description);
       formData.set("file", file);
       caracteristicas.forEach((item) => formData.append("caracteristicas", item));
+      if (enlace) formData.set("enlace", enlace);
 
       const response = await fetch(`${BASE_PATH}/api/aportes`, { method: "POST", body: formData });
       const payload = await response.json().catch(() => ({}));

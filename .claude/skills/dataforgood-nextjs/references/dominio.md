@@ -38,7 +38,7 @@ Fuentes: texto informativo de `/entrar` y la pantalla `agregar-revisor`.
 | SuperUsuario | Global | — |
 
 - **Los roles nuevos aparecen dentro de la misma sesión**, sin volver a entrar. Por eso los permisos se recalculan en cada petición.
-- **Quien crea una campaña la administra** desde `/mis-campanas/[id]/*`: bandeja, panel, compartir, especial, agregar revisor, editar y pausar.
+- **Quien crea una campaña la administra** desde `/mis-campanas/[id]/*`: bandeja, panel, especial, agregar revisor, editar y pausar. Compartir está en la descripción (`/campanas/[id]`), abierto a todos; el creador además regenera el enlace.
 - **El Supervisor dictamina las campañas "En revisión".**
 - **Sección Campañas del panel del SuperUsuario (solo consulta):** `/sistema/campanas` (listado con filtros, orden y paginación en SQL), `/sistema/campanas/dashboard` y `/sistema/campanas/[id]` (panel individual). Viven bajo `/sistema` porque `/campanas` y `/campanas/[id]` ya son pantallas del usuario común: dos route groups no pueden resolver a la misma URL. Los datos están en `lib/campanas/sistema.ts` (consultas, exigen sesión raíz) y `lib/campanas/sistema-opciones.ts` (constantes sin imports de servidor, las usa el cliente). Aportes y participantes se cuentan desde `aportes`; un participante es un `user_id` distinto, o un correo distinto si aportó sin cuenta.
 - **Hay dos tipos de supervisor.**
@@ -107,13 +107,20 @@ Fuentes: `mis-campanas/[id]/aportes` y `[aporteId]`.
 
 ## 6. Enlace público y aportes anónimos
 
-Fuente: `mis-campanas/[id]/compartir`.
+Fuente: pantalla de compartir del prototipo; hoy es el cuadro "Compartir" de `/campanas/[id]`.
 
 - **Enlace:** `dataforgood.mx/c/{token}`, con código QR descargable en PNG y SVG (512 × 512 px).
 - **Aportes anónimos:** quien abre el enlace puede aportar **sin registrarse** mientras el token siga vigente. Esos aportes aparecen como "Anónimo" (`userId = null`).
 - **Vencimiento y regeneración:** el token vence (la pantalla muestra unas 21 horas restantes). Al regenerarlo se crea una dirección nueva y la anterior queda inutilizable **para siempre**; los aportes ya recibidos se conservan.
 - **Estadísticas del enlace vencido:** aportes recibidos y visitas.
-- **Estado técnico:** `campanas.share_token` y `share_token_expires_at` ya existen, pero la ruta pública `/c/[token]` y el aporte anónimo todavía no están implementados.
+- **Estado técnico (2026-10-01):**
+  - **Implementado:** tabla `campana_enlaces` (una fila por token; regenerar revoca la anterior con `revocado_en` sin borrarla), lógica en `lib/campanas/enlaces.ts`, cuadro **Compartir** (`<dialog>`) en la descripción de la campaña `/campanas/[id]` (`compartir.tsx`; ya **no** existe `/mis-campanas/[id]/compartir`), `GET`/`POST /api/campanas/[id]/enlace` (consultar / regenerar, este último auditado como `campana.enlace_regenerar`) y `GET /api/campanas/[id]/qr?formato=png|svg` (QR con `qrcode`). La URL es `absoluteUrl("/c/<token>")`, no un dominio fijo.
+  - **Decidido el 2026-10-01:**
+    - El token vale **24 horas** (`HORAS_DE_VIGENCIA`) y **solo existe con la campaña `activa`**.
+    - **Se genera solo al aceptarse la campaña:** en cuanto queda `activa` (aceptada y ya empezó, al llegar su fecha de inicio si se aceptó antes, o al reactivarse) con `asegurarEnlaceVigente`, en `lib/supervision/decision.ts`, `activateScheduledCampaigns` y `PATCH`/`PUT /api/campanas/[id]`. No se genera en el estado `aceptada` con inicio futuro: vencería antes de que la campaña empiece.
+    - **Cualquiera con sesión** abre "Compartir" en `/campanas/[id]` y obtiene el enlace y el QR. **Solo el creador** lo regenera y ve sus visitas y aportes.
+  - **Ruta pública `/c/[token]`:** valida el token en el servidor en cada apertura (inexistente, revocado, caducado, campaña no activa) y cuenta una visita por apertura de un enlace vigente. Para aportar **pide iniciar sesión o registrarse** (con `?next=` a `/campanas/[id]/aportar?enlace=<token>`); `POST /api/aportes` guarda el enlace en `aportes.enlace_id` si es el vigente de la campaña. Así "aportes recibidos" del enlace es real.
+  - **Pendiente:** el aporte **anónimo** (sin cuenta) sigue sin implementarse: depende del punto abierto 7 (cuota de anónimos). Las columnas viejas `campanas.share_token`/`share_token_expires_at` ya no se usan.
 
 ## 7. Experiencia (XP) y campañas especiales
 

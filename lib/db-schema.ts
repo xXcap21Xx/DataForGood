@@ -251,6 +251,29 @@ export async function ensureCampanasGuardadasTable(): Promise<void> {
   `);
 }
 
+/**
+ * Enlaces públicos de participación (/c/[token]). Cada regeneración inserta
+ * una fila nueva y marca la anterior como revocada, sin borrarla: así se
+ * conserva cuántas visitas y aportes entraron por cada token. Vigente =
+ * revocado_en IS NULL y expira_en > NOW(). Reemplaza a las columnas viejas
+ * campanas.share_token / share_token_expires_at, que ya no se escriben.
+ */
+export async function ensureCampanaEnlacesTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS campana_enlaces (
+      id SERIAL PRIMARY KEY,
+      campana_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+      token VARCHAR(32) NOT NULL UNIQUE,
+      creado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expira_en TIMESTAMPTZ NOT NULL,
+      revocado_en TIMESTAMPTZ,
+      visitas INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS campana_enlaces_campana_idx ON campana_enlaces (campana_id, creado_en DESC);
+  `);
+}
+
 export async function ensureAportesTable(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS aportes (
@@ -270,6 +293,7 @@ export async function ensureAportesTable(): Promise<void> {
       rejection_reason TEXT,
       first_pass_by VARCHAR(160),
       first_pass_by_user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      enlace_id INTEGER REFERENCES campana_enlaces(id) ON DELETE SET NULL,
       submitted_at TIMESTAMP NOT NULL DEFAULT NOW(),
       reviewed_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -282,6 +306,7 @@ export async function ensureAportesTable(): Promise<void> {
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS first_pass_by VARCHAR(160);
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS first_pass_by_user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS enlace_id INTEGER REFERENCES campana_enlaces(id) ON DELETE SET NULL;
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
   `);
 }
@@ -336,6 +361,7 @@ export async function ensureCoreSchema(): Promise<void> {
   await ensureCampanaBaneadosTable();
   await ensureNotificacionesTable();
   await ensureCampanasGuardadasTable();
+  await ensureCampanaEnlacesTable(); // antes de aportes: aportes.enlace_id la referencia
   await ensureAportesTable();
   await ensureSancionesTable();
   await ensureAuditLogTable();

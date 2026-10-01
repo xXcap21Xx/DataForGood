@@ -7,6 +7,7 @@ import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { ACCIONES_DE_SUPERVISION, registrarDecisionDeCampana, tomarCampanaParaSupervisar, type AccionDeSupervision } from "@/lib/supervision/decision";
 import { normalizarSecciones, seccionesDesdeFila } from "@/lib/campanas/checklist";
+import { asegurarEnlaceVigente } from "@/lib/campanas/enlaces";
 import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, hasCampaignEnded, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
 function normalizeDataTypes(input: unknown): string[] {
@@ -391,6 +392,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       ]
     );
 
+    // Pasó a activa (p. ej. se reactivó una finalizada): genera su enlace público.
+    if (result.rows[0].status === "activa" && currentStatus !== "activa") {
+      await asegurarEnlaceVigente(Number(id));
+    }
+
     return NextResponse.json({ message: "Campaña actualizada", data: mapCampaign(result.rows[0]) });
   } catch (error) {
     console.error("Error actualizando campaña", error);
@@ -405,13 +411,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
 
-    const existing = await pool.query(`SELECT creator_id FROM campanas WHERE id = $1 LIMIT 1`, [id]);
+    const existing = await pool.query(`SELECT creator_id, status FROM campanas WHERE id = $1 LIMIT 1`, [id]);
     if (existing.rowCount === 0) {
       return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
     }
     if (Number(existing.rows[0].creator_id) !== Number(user.id)) {
       return NextResponse.json({ error: "Solo quien creó la campaña puede editarla" }, { status: 403 });
     }
+    const estadoAnterior = String(existing.rows[0].status ?? "");
 
     const body = await request.json().catch(() => ({}));
 
@@ -532,6 +539,10 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         JSON.stringify(checklistSecciones),
       ]
     );
+
+    if (result.rows[0].status === "activa" && estadoAnterior !== "activa") {
+      await asegurarEnlaceVigente(Number(id));
+    }
 
     return NextResponse.json({ message: "Campaña actualizada", data: mapCampaign(result.rows[0]) });
   } catch (error) {

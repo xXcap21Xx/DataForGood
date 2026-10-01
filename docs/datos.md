@@ -40,9 +40,10 @@
 | `campana_supervisores` | Historial de dictámenes | `campana_id`, `supervisor_id` (NULL si fue el SuperUsuario), `por_superusuario`, `accion` (`aceptada`, `rechazada`, `reportada`, `reasignada`), `motivo` |
 | `campana_revisores` | Revisores por campaña | `campana_id`, `usuario_id`, `estado` (`invitado`, `aceptado`, `rechazado`) |
 | `campana_baneados` | Participantes baneados de una campaña | `campana_id`, `usuario_id`, `motivo`, `baneado_por` |
+| `campana_enlaces` | Enlaces públicos `/c/[token]` (historial: una fila por token) | `campana_id`, `token` (único), `creado_por`, `creado_en`, `expira_en` (24 h), `revocado_en` (al regenerar), `visitas`. Vigente = sin revocar y sin vencer. Reemplaza a `campanas.share_token`, que ya no se usa |
 | `campanas_guardadas` | Favoritos | `usuario_id`, `campana_id` |
 | `notificaciones` | Avisos para el usuario | `usuario_id`, `tipo` (p. ej. `invitacion_revisor`), `titulo`, `mensaje`, `campana_id`, `metadata` (JSONB), `leida_en` |
-| `aportes` | Aportes | `campaign_id`, `user_id` (NULL = anónimo), `participant_name`/`participant_email`, `description`, `file_path` (clave en MinIO), `file_original_name`, `file_mime_type`, `file_size_bytes`, `file_type`, `caracteristicas` (JSONB: respuestas de checklists), `status`, `rejection_reason`, `first_pass_by`/`first_pass_by_user_id` (revisor), `submitted_at`, `reviewed_at` |
+| `aportes` | Aportes | `campaign_id`, `user_id` (NULL = anónimo), `participant_name`/`participant_email`, `description`, `file_path` (clave en MinIO), `file_original_name`, `file_mime_type`, `file_size_bytes`, `file_type`, `caracteristicas` (JSONB: respuestas de checklists), `status`, `rejection_reason`, `first_pass_by`/`first_pass_by_user_id` (revisor), `enlace_id` (enlace público por el que llegó, o NULL), `submitted_at`, `reviewed_at` |
 | `sanciones` | Sanciones del panel | `usuario_id`, `tipo` (`STRIKE`, `SUSPENSION_TEMPORAL`, `BANEO_DE_CAMPANA`), `detalle`, `dias`, `activa`, `aplicada_en`, `aplicada_por`, `restaurada_en` |
 | `audit_log` | Bitácora de acciones sensibles (solo inserción) | `actor_tipo`, `actor_id`, `accion`, `objetivo_tipo`, `objetivo_id`, `detalle` (JSONB), `ip`, `created_at` |
 
@@ -74,6 +75,7 @@ borrador ──► en_revision ──(supervisor acepta)──► aceptada ─�
 | `rechazada` | El supervisor la rechazó con un motivo | El supervisor |
 
 - **Transiciones automáticas sin cron.** `activateScheduledCampaigns()` (`aceptada` → `activa`) y `finalizeExpiredCampaigns()` (`activa` → `finalizada`) de `lib/campaign-date.ts` se ejecutan **cada vez que se lee `GET /api/campanas`**. Una `pausada` no se finaliza sola.
+- **Enlace público automático.** Cada vez que una campaña **pasa a `activa`** (el supervisor la acepta y ya empezó, llega su fecha de inicio o se reactiva) se le genera un enlace `/c/[token]` de 24 h si no tiene uno vigente (`asegurarEnlaceVigente` de `lib/campanas/enlaces.ts`). Si la acepta con inicio futuro, el enlace se crea el día que arranca, no antes, para que no venza sin usarse. Después solo el creador lo regenera.
 - **"Reportada"** no cambia el estado: queda registrada en `campana_supervisores`.
 - **Tomar una campaña:** un supervisor la reserva con un `UPDATE ... WHERE supervisor_id IS NULL AND NOT supervisado_por_root`. Si dos la toman a la vez, solo uno gana; el otro recibe 409.
 - **Qué se puede editar según el estado** (`PATCH /api/campanas/[id]`):

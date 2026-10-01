@@ -6,6 +6,7 @@ import { getSessionUser } from "@/lib/session";
 import { saveUploadedFile } from "@/lib/minio";
 import { estaBaneadoDeCampana } from "@/lib/campanas/baneos";
 import { respuestasValidas, seccionesDesdeFila } from "@/lib/campanas/checklist";
+import { idDeEnlaceVigente } from "@/lib/campanas/enlaces";
 
 const ALLOWED_FILE_TYPES = new Set(["image/jpeg", "image/png"]);
 const MAX_FILE_SIZE = 10_000_000;
@@ -94,6 +95,7 @@ export async function GET(request: Request) {
 
 // POST: envía un aporte (multipart/form-data). Valida campaña activa, que no seas el creador,
 // que no estés baneado, la cuota, el tipo y tamaño del archivo; lo sube a MinIO e inserta la fila.
+// Campo opcional `enlace`: token de /c/[token]; si es el vigente de la campaña, se guarda en enlace_id.
 export async function POST(request: Request) {
   try {
     const user = await getSessionUser();
@@ -106,6 +108,7 @@ export async function POST(request: Request) {
     const description = String(formData.get("description") ?? "").trim();
     const rawCaracteristicas = formData.getAll("caracteristicas").map(String);
     const file = formData.get("file");
+    const tokenDeEnlace = String(formData.get("enlace") ?? "").trim().toLowerCase();
 
     if (!campaignId || !description) {
       return NextResponse.json({ error: "campaignId y description son obligatorios" }, { status: 400 });
@@ -157,13 +160,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Ya alcanzaste tu cuota en esta campaña" }, { status: 400 });
     }
 
+    // Llegó desde un enlace público (/c/[token]): se atribuye si el token es el
+    // vigente de esta campaña. Uno inválido o caducado no bloquea el aporte.
+    const enlaceId = tokenDeEnlace ? await idDeEnlaceVigente(tokenDeEnlace, campaignId) : null;
+
     const saved = await saveUploadedFile(file, `campanas/${campaignId}`);
 
     const result = await pool.query(
       `INSERT INTO aportes (
         campaign_id, user_id, participant_name, participant_email, description,
-        file_type, file_path, file_original_name, file_mime_type, file_size_bytes, caracteristicas
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb)
+        file_type, file_path, file_original_name, file_mime_type, file_size_bytes, caracteristicas, enlace_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
       RETURNING *`,
       [
         campaignId,
@@ -177,6 +184,7 @@ export async function POST(request: Request) {
         saved.mimeType,
         saved.sizeBytes,
         JSON.stringify(caracteristicas),
+        enlaceId,
       ]
     );
 

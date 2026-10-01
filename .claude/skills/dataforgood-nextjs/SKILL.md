@@ -20,14 +20,14 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
 | Documentación de la API | `/api/docs` (Swagger UI de `openapi.yaml`) | Abierta en `next dev`; sesión raíz en producción |
-| Pública | `/`, `/explorar` (campañas activas), `/datos`, `/datos/[id]`, `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
+| Pública | `/`, `/explorar` (campañas activas), `/datos`, `/datos/[id]`, `/c/[token]` (enlace público de una campaña), `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
 | Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario); `/cuenta-bloqueada` (fuera del grupo: cuenta suspendida o baneada) | Libre |
 | Participar, `(dashboard)` | `/campanas`, `/campanas/[id]`, `/campanas/[id]/aportar`, `/mis-aportes`, `/mis-aportes/[campanaId]`, `/cuenta` | Sesión de usuario |
-| Administrar campañas propias | `/mis-campanas`, `/mis-campanas/nueva` (`?edit=id`), `/mis-campanas/[id]/{panel, aportes, aportes/[aporteId], aportes/agregar-revisor, compartir, especial}` | Creador |
+| Administrar campañas propias | `/mis-campanas`, `/mis-campanas/nueva` (`?edit=id`), `/mis-campanas/[id]/{panel, aportes, aportes/[aporteId], aportes/agregar-revisor, especial}` (compartir es un cuadro en `/campanas/[id]`) | Creador |
 | Revisión de aportes | `/revisiones`, `/revisiones/finalizadas`, `/revisiones/[aporteId]`, `/revisiones/campanas/[campaignId]/usuarios/...` | Revisor aceptado de la campaña |
 | Supervisión (usuario promovido) | `/supervision`, `/supervision/campanas`, `/supervision/[campaignId]/{panel, usuarios/...}` | Rol `supervisor` |
 | Panel del SuperUsuario, `(panel)` | `/sistema`, `/sistema/campanas{, /dashboard, /[id]}`, `/usuarios{, /dashboard, /[id]{, /roles, /sancion}, /sanciones, /supervisores{, /[id]{, /revertir/[accionId]}}}`, `/supervisar/...` | Sesión raíz (`root_sessions`) |
-| Aún sin pantalla | enlace público `/c/[token]`, recuperar contraseña | — |
+| Aún sin pantalla | aporte anónimo desde `/c/[token]`, recuperar contraseña | — |
 
 ## Stack real
 

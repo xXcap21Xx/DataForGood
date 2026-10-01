@@ -54,7 +54,8 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 | Acción | Condición |
 | --- | --- |
-| Bandeja, panel, compartir, especial, editar, pausar, invitar revisor, banear | `campanas.creator_id = user.id` |
+| Bandeja, panel, especial, editar, pausar, invitar revisor, banear, regenerar el enlace público | `campanas.creator_id = user.id` |
+| Ver el enlace público y el QR (cuadro Compartir) | Cualquier usuario con sesión |
 | Primera instancia de revisión | Revisor aceptado de esa campaña |
 | Decisión final del aporte | Creador |
 | Ver el archivo de un aporte | Quien aportó, el creador, o un revisor aceptado si el aporte está `pendiente` o si él hizo la primera revisión (`app/api/aportes/[id]/archivo/route.ts`) |
@@ -89,14 +90,14 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 `registrarAuditoria()` en `lib/auditoria.ts`, llamado después de que la acción se completó. Si el registro falla, solo se reporta en consola: no revierte la acción.
 
 - **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`).
-- **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
+- **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `campana.enlace_regenerar`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
 - **Sin pantalla:** todavía no hay vista en el panel para consultarla; se lee con SQL.
 
 ## 8. Huecos conocidos
 
 - **Campaña activa sin supervisión (grave):** `POST /api/campanas` toma `status` del body (admite `activa`, `pausada`, `finalizada`...) y usa `activa` si no viene; tampoco aplica el límite de 5 activas. El `PATCH`/`PUT` de un borrador también acepta cualquier estado válido. La interfaz solo manda `borrador` o `en_revision`, pero una llamada directa se salta al supervisor. Debe aceptar solo `borrador` o `en_revision`. Detectado el 2026-10-01, sin corregir.
 - **Panel protegido solo por el layout:** `/sistema` y `/usuarios/**` no llaman a `exigirSesionRoot()` y sus funciones de `lib/` no verifican. Las server actions que escriben sí. Detectado el 2026-10-01, sin corregir.
-- **`GET /api/campanas/[id]/recoleccion-diaria`** pide sesión pero no que sea el creador: cualquier usuario ve las estadísticas de cualquier campaña. Las pantallas `/mis-campanas/[id]/{panel,compartir,especial}` tampoco comprueban `viewer.isCreator`. Detectado el 2026-10-01, sin corregir.
+- **`GET /api/campanas/[id]/recoleccion-diaria`** pide sesión pero no que sea el creador: cualquier usuario ve las estadísticas de cualquier campaña. Las pantallas `/mis-campanas/[id]/{panel,especial}` tampoco comprueban `viewer.isCreator`. Detectado el 2026-10-01, sin corregir.
 - **El registro acepta roles del body (grave):** `POST /api/usuarios` pasa `body.role`/`body.roles` por `normalizeRoles` (`lib/roles.ts`), que admite `supervisor`, `revisor` y `admin`. Cualquiera puede registrarse como supervisor, lo que rompe la regla de que solo el SuperUsuario lo asigna. Debe guardar siempre `["usuario"]`. Detectado el 2026-09-28, sin corregir.
 - **`GET /api/usuarios/[id]` no pide sesión** y devuelve correo, ubicación y XP de cualquier id: permite enumerar correos. Detectado el 2026-09-28, sin corregir.
 - **`revertirAccion` no hace nada todavía:** ya exige sesión raíz, pero su lógica sigue en `TODO`. Cuando se implemente, debe registrar `supervision.revertir` en la bitácora.
