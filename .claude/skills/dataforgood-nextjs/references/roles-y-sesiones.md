@@ -1,138 +1,104 @@
 # Cuentas, sesiones, roles y permisos
 
 ## Contenido
-1. Modelo
-2. Permisos globales
-3. Acceso por campaña
-4. Tres capas de protección
-5. Registro, verificación y perfil
-6. Inicio y cierre de sesión
-7. Asignar roles e invitar revisores
-8. Suspensiones y baneos
-9. Seguridad adicional
+1. Dos tipos de sesión
+2. Capas de protección
+3. Roles
+4. Acceso por campaña
+5. Registro, verificación e inicio de sesión
+6. Sanciones y baneos
+7. Bitácora (`audit_log`)
+8. Huecos conocidos
 
 Las reglas de negocio y los puntos abiertos están en `dominio.md`, secciones 1, 2 y 9.
 
-## 1. Modelo
+## 1. Dos tipos de sesión
 
-| Tabla | Contenido |
-| --- | --- |
-| `users` | Cuenta, perfil (alias, estado, ciudad, especialidad, intereses), `status` (`pendiente_verificacion`, `activo`, `suspendido`, `baneado`), `email_verified_at`, XP, nivel y racha |
-| `user_roles` | Roles **globales**: `supervisor`, `superusuario`, `administrador_campana`; guarda quién lo otorgó y cuándo |
-| `campaign_reviewers` | Revisor de aportes **por campaña**: `invitado` o `aceptado` |
-| `campaign_bans` | Baneo **por campaña** |
-| `email_verifications` | Hash del código de 6 dígitos, intentos restantes y vencimiento |
-| `sessions` | Hash del token de sesión y vencimiento |
-| `audit_log` | Acciones sensibles |
+| | Usuario | SuperUsuario |
+| --- | --- | --- |
+| Archivo | `lib/session.ts` | `lib/rootSession.ts` |
+| Cookie | `session_token`, httpOnly, `SameSite=Lax`, 30 días | `root_session_token`, httpOnly, `SameSite=Strict`, 2 horas |
+| Tabla | `sessions` (`usuario_id`) | `root_sessions` (sin usuario) |
+| Leer | `getSessionUser()` → `SessionUser \| null` (con `cache` de React: una consulta por petición) | `hasRootSession()` → `boolean` |
+| Crear / cerrar | `createSession(id)` / `destroySession()` | `createRootSession()` / `destroyRootSession()` |
 
-Toda cuenta es Usuario común de forma implícita. **Quien crea una campaña la administra**: eso se deduce de `campaigns.creator_id`, sin necesidad de un rol.
+- **Tokens:** 32 bytes aleatorios. En la BD solo se guarda su sha256.
+- **El SuperUsuario no es una fila de `usuarios`.** Su credencial está en `ROOT_USER_ID` + `ROOT_PASSWORD_HASH` (bcrypt) y entra por `/root` → `POST /api/auth/root`. Esa ruta compara sin cortocircuito y limita a 5 intentos por minuto por IP, con un `Map` en memoria.
+- **Las dos sesiones son independientes.** Una persona con rol `supervisor` no entra al panel raíz, y la sesión raíz no sirve en `(dashboard)`.
 
-## 2. Permisos globales
+## 2. Capas de protección
 
-`server/auth/permissions.ts`:
+1. **`proxy.ts`:** en páginas solo comprueba que exista la cookie y redirige; no es autorización. En `/api`, rechaza con 403 las mutaciones (POST, PATCH, PUT, DELETE) cuyo `Origin` no sea el host de la petición (`Host` o `X-Forwarded-Host`) ni el de `APP_ORIGIN`; también las que traen `Sec-Fetch-Site: cross-site` sin `Origin`. Sin `Origin` (clientes que no son navegador) deja pasar, porque no pueden usar la cookie de otra persona. Las server actions no pasan por ahí: Next verifica su `Origin`.
+2. **Layouts:** `(panel)/layout.tsx` (sesión raíz) y `(dashboard)/supervision/layout.tsx` (rol `supervisor`).
+3. **Cada página, route handler y server action vuelve a verificar.** En el panel se usa `exigirSesionRoot()` (`lib/supervision/root.ts`) o `exigirSuperUsuario()` (`lib/usuarios/acciones-usuarios.ts`, `acciones-supervisor.ts`). En la API, `getSessionUser()` más la comprobación de permiso sobre el recurso. **Excepción actual:** las páginas de `/sistema` y `/usuarios/**` y sus funciones de lectura (`lib/sistema/metricas.ts`, `lib/usuarios/{directorio,dashboard,supervisores}.ts`) no vuelven a comprobar la sesión raíz: dependen solo de `(panel)/layout.tsx` (ver § 8). Sí lo hacen `/supervisar/**` (`lib/supervision/root.ts`) y `/sistema/campanas/**` (`lib/campanas/sistema.ts`).
 
-| Quién | Permisos |
-| --- | --- |
-| Cuenta **verificada** (base) | `campanas.ver`, `campanas.crear`, `aportes.crear`, `perfil.editar` |
-| Supervisor | + `campanas.dictaminar`, `roles.asignar_supervisor` |
-| SuperUsuario (hereda de Supervisor) | + `roles.asignar_administrador_campana`, `usuarios.sancionar`, `sistema.panel` |
-| Administrador de campaña | Sin permisos definidos (punto abierto) |
-| Cuenta **sin verificar** | Ninguno: tiene sesión para completar `/verificar` y `/bienvenida`, pero no participa |
+## 3. Roles
 
-- **El código pregunta por acciones** (`can(user, 'campanas.dictaminar')`), nunca por nombres de rol.
-- **Los permisos se recalculan en cada petición.** Así, "los roles aparecen dentro de la misma sesión", como pide la rama.
-- **`permissions.test.ts` protege tres reglas:** quién asigna Supervisor, que solo el SuperUsuario asigna administrador de campaña y que una cuenta sin verificar no tiene permisos. Agrega un caso por cada permiso nuevo.
+`usuarios.role` es JSONB con códigos de `lib/roles.ts`: `usuario` (siempre), `supervisor`, `revisor` y `admin` (sin uso definido).
 
-## 3. Acceso por campaña
+| Rol | Cómo se obtiene | Qué habilita |
+| --- | --- | --- |
+| Usuario común | Toda cuenta | Explorar, aportar, crear y administrar sus campañas |
+| Revisor de aportes | El creador invita (`POST /api/campanas/[id]/revisores`) y la persona acepta desde sus notificaciones (`/api/notificaciones/[id]/aceptar`). Vale **por campaña** (`campana_revisores.estado = 'aceptado'`). `getSessionUser()` agrega `revisor` a `role` si tiene alguna asignación aceptada | `/revisiones`: primera instancia de los aportes de esas campañas |
+| Supervisor | **Solo el SuperUsuario** (`asignarRol`). Al revocarlo (`revocarRol`), las campañas que tomó y siguen `en_revision` quedan libres | `/supervision`: tomar y dictaminar campañas `en_revision` ajenas |
+| SuperUsuario | Credencial raíz | Panel `/sistema`, `/usuarios`, `/supervisar` |
 
-`server/modules/campanas/access.ts`:
+- **Crear campañas no requiere rol.**
+- **Supervisor y Revisor se pueden combinar.**
+- **Los roles se leen en cada petición**, así que un cambio aplica en la misma sesión.
+- **Nombres y textos de roles para la interfaz:** `lib/usuarios/rol-asignable.ts` (sin imports de servidor).
 
-- **`getCampaignAccess(actor, campaignId)`** devuelve `{ campaign, isOwner, isReviewer, isBanned }`. Lanza 404 si la campaña no existe. Solo cuenta como revisor quien tiene la invitación `aceptado`.
-- **`assertCampaignOwner(actor, campaignId)`** es la guardia de todo `/mis-campanas/[id]/*` y de sus endpoints.
+## 4. Acceso por campaña
+
+No hay una función central: cada route handler lo comprueba con SQL. Si agregas una ruta, copia la comprobación del handler más parecido, o mejor, extrae una función a `lib/`.
 
 | Acción | Condición |
 | --- | --- |
-| Ver la bandeja, el panel o el enlace; hacer especial; editar; pausar; agregar revisor; banear | `isOwner` |
-| Validar en primera instancia (`pendiente` → `espera_final`) | `isReviewer` |
-| Decisión final (`espera_final` o `pendiente` sin revisor → `aceptado` o `rechazado`) | `isOwner` |
-| Ver archivos de aportes | Autor, `isOwner` o `isReviewer` (ya implementado en `uploads/service.ts`) |
-| Aportar | `aportes.crear`, campaña `activa`, tipo solicitado, no `isBanned`, cuota disponible |
+| Bandeja, panel, compartir, especial, editar, pausar, invitar revisor, banear | `campanas.creator_id = user.id` |
+| Primera instancia de revisión | Revisor aceptado de esa campaña |
+| Decisión final del aporte | Creador |
+| Ver el archivo de un aporte | Quien aportó, el creador, o un revisor aceptado si el aporte está `pendiente` o si él hizo la primera revisión (`app/api/aportes/[id]/archivo/route.ts`) |
+| Aportar | Campaña `activa`, sin baneo en `campana_baneados`, cuota disponible y sin ser el creador |
+| Tomar y dictaminar | Supervisor que no sea el creador y la campaña esté `en_revision` y libre; o el SuperUsuario. Solo quien la tomó dictamina (`lib/supervision/decision.ts`) |
 
-Si el equipo decide que el SuperUsuario o el Supervisor también pueden intervenir en campañas ajenas, agrégalo **aquí**, en un solo lugar.
+## 5. Registro, verificación e inicio de sesión
 
-## 4. Tres capas de protección
+- **Registro:** `POST /api/usuarios` crea la cuenta con `email_verificado = false` y arranca la verificación.
+- **Verificación** (`lib/verification.ts`): código de 6 dígitos enviado por Gmail (`nodemailer`), guardado como hash. Vence en 15 minutos y admite 3 intentos. La cookie `pending_verification_id` liga la pantalla `/verificar` con la cuenta.
+- **Inicio de sesión:** `POST /api/auth/login` con bcrypt (`lib/password.ts` también reconoce hashes viejos y los migra). Tras 5 fallos bloquea 15 minutos (`locked_until`). Rechaza cuentas sin verificar.
+- **Google:** `GET /api/auth/google` genera `state` en la cookie `google_oauth_state`. El callback vincula `google_id` o crea la cuenta ya verificada.
+- **Recuperar contraseña:** no existe.
 
-| Capa | Dónde | Protege |
-| --- | --- | --- |
-| Interfaz | Menú y botones según permisos y acceso | Nada; es solo experiencia |
-| Entrada | `requirePermission` o `requireAuth` en Express; `requirePagePermission` en cada `page.tsx` | Corta pronto con 401/403 o redirige a `/entrar` |
-| Dato | `assertCan`, `assertCampaignOwner` y reglas del service | La protección real |
+## 6. Sanciones y baneos
 
-`proxy.ts` puede redirigir rápido si no hay cookie, pero **no es control de acceso**.
+- **Baneo por campaña:** el creador lo aplica con `POST /api/campanas/[id]/baneos` (tabla `campana_baneados`), y bloquea aportar a esa campaña. Lo ve y lo quita con `GET`/`DELETE` en la misma ruta, desde el detalle del aporte o la sección "Participantes baneados" de la bandeja. Las consultas viven en `lib/campanas/baneos.ts`. El participante ve el aviso antes de aportar gracias a `viewer.baneado` de `GET /api/campanas?id=`; en las listas cada campaña trae `isBanned` (etiqueta "Baneado" en `/campanas` y `/mis-aportes`), y `available=true` y el filtro "Puedo aportar" la excluyen. La ficha del usuario en el panel (`/usuarios/[id]`) lista sus baneos por campaña.
+- **Sanciones del panel** (`aplicarSancion` / `restaurarAcceso`): `STRIKE`, `BANEO_DE_CAMPANA` y `SUSPENSION_TEMPORAL` (con días). El servidor valida que el tipo sea uno de `TIPOS_DE_SANCION`, que el detalle tenga al menos 20 caracteres y que una suspensión traiga días enteros mayores que cero. El estado de la cuenta (`ACTIVA`, `CON_STRIKES`, `SUSPENDIDA`, `BANEADA`) se calcula en `lib/usuarios/directorio.ts`.
+- **Qué bloquea cada una** (`lib/sanciones.ts`, según los textos del formulario del panel):
+  - `STRIKE` suma al contador. Al llegar a `STRIKES_PARA_BANEO` (3), `aplicarSancion` agrega en la misma transacción un `BANEO_DE_CAMPANA` con `aplicada_por = 'Automático'`, salvo que ya tenga un baneo activo. Bloquea la fila del usuario (`FOR UPDATE`) para que dos strikes simultáneos no generen dos baneos. En la bitácora queda como `sancion.aplicar` con `automatico: true`.
+  - `SUSPENSION_TEMPORAL` bloquea la cuenta durante `dias` desde `aplicada_en`.
+  - `BANEO_DE_CAMPANA` (en la interfaz, "Baneo permanente") bloquea la cuenta hasta que se restaure.
+- **Qué significa "bloquear":**
+  - `getSessionUser()` devuelve `null`, así que ninguna ruta, página ni acción lo deja pasar;
+  - **no** se le saca de la app: conserva sus sesiones y puede iniciar sesión (correo o Google), pero `exigirUsuario()` (`lib/session.ts`) lo manda a `/cuenta-bloqueada`, que muestra si es baneo o suspensión (con fecha de fin), el motivo (`sanciones.detalle`) y un botón para cerrar sesión;
+  - en páginas de servidor de la zona de usuario usa `exigirUsuario()` en vez de `getSessionUser()` + `redirect("/entrar")`: layout y página corren en paralelo y ambos deben llevar al mismo lugar;
+  - `VigilanteDeSesion` (en el layout de `(dashboard)`) revisa la sesión en cada navegación en el cliente, para que una sanción aplicada a media sesión lleve a `/cuenta-bloqueada` sin esperar a recargar.
+- **Restaurar** (`restaurarAcceso`) desbloquea de inmediato. Una suspensión vencida deja de bloquear sola.
 
-## 5. Registro, verificación y perfil
+## 7. Bitácora (`audit_log`)
 
-1. **`POST /api/v1/auth/registro`** `{ alias, email, password, aceptaTerminos }`:
-   - valida con Zod las reglas de contraseña (8 o más caracteres, mayúscula, número y carácter especial) y `aceptaTerminos === true`;
-   - crea el usuario en `pendiente_verificacion`, con `argon2` para la contraseña;
-   - si el correo ya existe (error `23505`), responde 409 `EMAIL_EN_USO`, que la pantalla muestra como "Ese correo ya está registrado";
-   - crea el código (hash, `attempts_left = 3`, vencimiento) y lo envía por correo;
-   - crea la sesión y fija la cookie.
-2. **`POST /api/v1/auth/verificar`** `{ codigo }`:
-   - si el código venció, responde 410 `CODIGO_VENCIDO`;
-   - si es incorrecto, descuenta un intento y responde 400 con los intentos restantes; con 0 intentos, obliga a reenviar;
-   - si es correcto, marca `status = activo` y `email_verified_at`, y borra el código.
-3. **`POST /api/v1/auth/reenviar-codigo`**: invalida el código anterior y aplica un límite de envíos (por ejemplo, uno por minuto).
-4. **`PATCH /api/v1/perfil`** `{ state, city, specialty, interests }` desde `/bienvenida`. Si se omite, se asignan intereses por defecto (regla de `dominio.md`).
+`registrarAuditoria()` en `lib/auditoria.ts`, llamado después de que la acción se completó. Si el registro falla, solo se reporta en consola: no revierte la acción.
 
-La pantalla muestra el tiempo restante y los intentos **desde la respuesta del servidor**, no con valores fijos.
+- **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`).
+- **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
+- **Sin pantalla:** todavía no hay vista en el panel para consultarla; se lee con SQL.
 
-## 6. Inicio y cierre de sesión
+## 8. Huecos conocidos
 
-```ts
-// server/modules/auth/service.ts (patrón)
-export async function login(input: LoginInput) {
-  const [user] = await db.select().from(users).where(eq(users.email, input.email.toLowerCase().trim())).limit(1);
-  const ok = user?.passwordHash && (await verify(user.passwordHash, input.password));
-  if (!ok) throw new AppError(401, 'CREDENCIALES_INVALIDAS', 'Correo o contraseña incorrectos.'); // no revelar si el correo existe
-  if (user.status === 'suspendido' || user.status === 'baneado') {
-    throw new AppError(403, 'CUENTA_RESTRINGIDA', 'Tu cuenta está restringida.');
-  }
-  return { ...(await createSession(user.id)), needsVerification: user.status === 'pendiente_verificacion' };
-}
-```
-
-- **El router fija la cookie** con `sessionCookieOptions` y responde `{ needsVerification }`. Si es `true`, la pantalla redirige a `/verificar`; si no, a `/campanas`.
-- **Logout** borra la sesión y la cookie.
-- **"Continuar con Google" y la recuperación de contraseña** están pendientes de definición. Si se implementan, la cuenta de Google entra con `password_hash = null` y `email_verified_at` ya marcado; el token de recuperación es de un solo uso, hasheado y de corta duración, e invalida las sesiones al usarse.
-
-## 7. Asignar roles e invitar revisores
-
-**Supervisor:** `roles.asignar_supervisor` (SuperUsuario o Supervisor activo).
-
-1. Nadie se asigna roles a sí mismo.
-2. En una transacción: insertar en `user_roles` y registrar en `audit_log`.
-3. Al **retirar** un rol, invalida las sesiones de la persona afectada.
-
-**Administrador de campaña:** `roles.asignar_administrador_campana` (solo SuperUsuario), mismo procedimiento.
-
-**Revisor de aportes (por campaña):**
-
-1. `assertCampaignOwner`.
-2. Insertar en `campaign_reviewers` con `status = invitado` y notificar.
-3. La persona acepta con `POST /api/v1/revisiones/invitaciones/:campaignId/aceptar`, que cambia a `aceptado` y fija `accepted_at`.
-4. Mientras la campaña tenga al menos un revisor aceptado, `hasReviewerAssigned = true` y la bandeja usa dos instancias.
-
-## 8. Suspensiones y baneos
-
-| Tipo | Quién | Efecto |
-| --- | --- | --- |
-| Global (`users.status`) | `usuarios.sancionar` | Borra todas sus sesiones; `validateSession` rechaza suspendidas y baneadas (probado) |
-| Por campaña (`campaign_bans`) | Quien administra la campaña | No puede aportar a esa campaña (`BANEADO_EN_CAMPANA`, probado); el resto de la plataforma sigue igual |
-
-Ambos se registran en `audit_log` con motivo. Nadie sanciona globalmente a alguien de rango igual o superior.
-
-## 9. Seguridad adicional
-
-- **Límite de intentos** en login, registro, verificación, reenvío de código y aportes anónimos (por IP y por correo o token). Requiere `trust proxy` bien configurado.
-- **Nunca registres en logs** contraseñas, códigos, tokens ni el header `cookie`.
+- **Campaña activa sin supervisión (grave):** `POST /api/campanas` toma `status` del body (admite `activa`, `pausada`, `finalizada`...) y usa `activa` si no viene; tampoco aplica el límite de 5 activas. El `PATCH`/`PUT` de un borrador también acepta cualquier estado válido. La interfaz solo manda `borrador` o `en_revision`, pero una llamada directa se salta al supervisor. Debe aceptar solo `borrador` o `en_revision`. Detectado el 2026-10-01, sin corregir.
+- **Panel protegido solo por el layout:** `/sistema` y `/usuarios/**` no llaman a `exigirSesionRoot()` y sus funciones de `lib/` no verifican. Las server actions que escriben sí. Detectado el 2026-10-01, sin corregir.
+- **`GET /api/campanas/[id]/recoleccion-diaria`** pide sesión pero no que sea el creador: cualquier usuario ve las estadísticas de cualquier campaña. Las pantallas `/mis-campanas/[id]/{panel,compartir,especial}` tampoco comprueban `viewer.isCreator`. Detectado el 2026-10-01, sin corregir.
+- **El registro acepta roles del body (grave):** `POST /api/usuarios` pasa `body.role`/`body.roles` por `normalizeRoles` (`lib/roles.ts`), que admite `supervisor`, `revisor` y `admin`. Cualquiera puede registrarse como supervisor, lo que rompe la regla de que solo el SuperUsuario lo asigna. Debe guardar siempre `["usuario"]`. Detectado el 2026-09-28, sin corregir.
+- **`GET /api/usuarios/[id]` no pide sesión** y devuelve correo, ubicación y XP de cualquier id: permite enumerar correos. Detectado el 2026-09-28, sin corregir.
+- **`revertirAccion` no hace nada todavía:** ya exige sesión raíz, pero su lógica sigue en `TODO`. Cuando se implemente, debe registrar `supervision.revertir` en la bitácora.
+- **Buscador de revisores** (`GET /api/usuarios?campanaId=&q=`): solo el creador de esa campaña, con al menos 3 letras del nombre o un correo completo exacto. Devuelve 10 usuarios verificados como máximo, con el correo oculto (`an***@gmail.com`).
+- **El límite de intentos de `/root` vive en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. Hay dos límites: 5 por minuto por IP y 30 por minuto en total. La IP es el **último** valor de `X-Forwarded-For` (el que agrega el proxy), no el primero, que lo puede inventar el cliente.

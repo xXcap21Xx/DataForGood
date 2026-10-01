@@ -4,6 +4,7 @@
 export type CampaignStatus =
   | "borrador"
   | "en_revision"
+  | "aceptada" // supervisor ya la aprobó, esperando a que llegue su fecha de inicio
   | "activa"
   | "pausada"
   | "finalizada"
@@ -49,7 +50,10 @@ export interface Campaign {
   status: CampaignStatus;
   dataTypes: DataType[];
   collectionMode?: CollectionMode;
+  /** Solo lectura de campañas viejas: hoy se usa checklistSecciones. */
   checklistOpciones?: string[];
+  /** Checklists con título que el participante marca, además de la descripción obligatoria. */
+  checklistSecciones?: { titulo: string; opciones: string[] }[];
   goalContributions: number;
   quotaPerUser: number;
   currentContributions: number;
@@ -58,7 +62,9 @@ export interface Campaign {
   rejectedContributions: number;
   participants: number;
   startDate: string | null; // ISO date
+  startTime?: string | null; // "HH:MM", opcional
   endDate: string | null; // ISO date
+  endTime?: string | null; // "HH:MM", opcional
   locationCity: string;
   locationState: string;
   locationColonia?: string;
@@ -72,6 +78,10 @@ export interface Campaign {
   contributions?: Contribution[];
   /** Si el usuario en sesión la guardó. Ausente cuando no hay sesión. */
   isSaved?: boolean;
+  /** El creador baneó de esta campaña a quien consulta (GET /api/campanas). */
+  isBanned?: boolean;
+  /** Aportes del usuario en sesión a esta campaña. Solo viene en /api/campanas?misAportes=true. */
+  myContributionsCount?: number;
 }
 
 export interface Contribution {

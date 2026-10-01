@@ -1,6 +1,8 @@
+// POST /api/auth/login — inicio de sesión con correo y contraseña.
+// Lo llama /entrar. Crea la cookie session_token (lib/session.ts).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureUsuariosTable } from "@/lib/db-schema";
 import { createSession } from "@/lib/session";
 import { verifyPassword, hashPassword, wasLegacyHash } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
@@ -11,8 +13,6 @@ const LOCK_DURATION_MS = 1000 * 60 * 15; // 15 minutos
 
 export async function POST(request: Request) {
   try {
-    await ensureUsuariosTable();
-
     const body = await request.json();
     const email = String(body.email ?? "").trim().toLowerCase();
     const password = String(body.password ?? "");
@@ -92,6 +92,10 @@ export async function POST(request: Request) {
       `UPDATE usuarios SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1`,
       [usuario.id]
     );
+
+    // Una cuenta suspendida o baneada sí inicia sesión: al entrar a la app la
+    // mandan a /cuenta-bloqueada, donde ve el motivo, y getSessionUser no la
+    // deja usar nada (lib/sanciones.ts).
 
     if (!usuario.email_verificado) {
       const response = NextResponse.json(

@@ -1,7 +1,6 @@
 import { ZipArchive } from "archiver";
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { extensionForMime } from "@/lib/open-data";
 import { readUploadedFile } from "@/lib/minio";
 
@@ -13,7 +12,6 @@ import { readUploadedFile } from "@/lib/minio";
  */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
     const { id } = await context.params;
 
     const campana = await pool.query(

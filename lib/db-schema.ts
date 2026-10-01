@@ -4,9 +4,12 @@ import { pool } from "@/lib/db";
  * Único lugar donde se define el DDL de cada tabla. Antes estaba duplicado
  * (y ya divergido) en cada ruta/módulo que la usaba — p. ej. `usuarios` tenía
  * cuatro copias distintas del CREATE TABLE, una de ellas sin `email_verificado`
- * ni `locked_until`. Cualquier módulo que consulte una tabla debe llamar a su
- * `ensureXTable()` antes de la query: son idempotentes (`IF NOT EXISTS`), así
- * que no importa si ya se llamó en la misma petición.
+ * ni `locked_until`.
+ *
+ * `ensureCoreSchema()` corre UNA vez al arrancar el servidor (ver
+ * instrumentation.ts), no en cada petición. Las funciones son idempotentes
+ * (`IF NOT EXISTS`), así que repetirlas en cada arranque es inofensivo. Una
+ * tabla nueva se agrega aquí y en `ensureCoreSchema()`.
  */
 
 export async function ensureUsuariosTable(): Promise<void> {
@@ -95,6 +98,7 @@ export async function ensureCampanasTable(): Promise<void> {
       data_types JSONB NOT NULL DEFAULT '[]'::jsonb,
       collection_mode VARCHAR(20) NOT NULL DEFAULT 'checklist',
       checklist_opciones JSONB NOT NULL DEFAULT '[]'::jsonb,
+      checklist_secciones JSONB NOT NULL DEFAULT '[]'::jsonb,
       goal_contributions INTEGER NOT NULL DEFAULT 0,
       quota_per_user INTEGER NOT NULL DEFAULT 1,
       current_contributions INTEGER NOT NULL DEFAULT 0,
@@ -103,7 +107,9 @@ export async function ensureCampanasTable(): Promise<void> {
       rejected_contributions INTEGER NOT NULL DEFAULT 0,
       participants INTEGER NOT NULL DEFAULT 0,
       start_date DATE,
+      start_time TIME,
       end_date DATE,
+      end_time TIME,
       location_city VARCHAR(120),
       location_state VARCHAR(120),
       location_colonia VARCHAR(150),
@@ -113,7 +119,7 @@ export async function ensureCampanasTable(): Promise<void> {
       days_remaining INTEGER,
       has_reviewer_assigned BOOLEAN NOT NULL DEFAULT false,
       share_token VARCHAR(80),
-      share_token_expires_at TIMESTAMP,
+      share_token_expires_at TIMESTAMPTZ,
       aportes JSONB NOT NULL DEFAULT '[]'::jsonb,
       downloads_count INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -133,6 +139,7 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS data_types JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS collection_mode VARCHAR(20) NOT NULL DEFAULT 'checklist';
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS checklist_opciones JSONB NOT NULL DEFAULT '[]'::jsonb;
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS checklist_secciones JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS goal_contributions INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS quota_per_user INTEGER NOT NULL DEFAULT 1;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS current_contributions INTEGER NOT NULL DEFAULT 0;
@@ -141,7 +148,9 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS rejected_contributions INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS participants INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS start_date DATE;
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS start_time TIME;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS end_date DATE;
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS end_time TIME;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_city VARCHAR(120);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_state VARCHAR(120);
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS location_colonia VARCHAR(150);
@@ -151,9 +160,12 @@ export async function ensureCampanasTable(): Promise<void> {
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS days_remaining INTEGER;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS has_reviewer_assigned BOOLEAN NOT NULL DEFAULT false;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token VARCHAR(80);
-    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token_expires_at TIMESTAMP;
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS share_token_expires_at TIMESTAMPTZ;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS aportes JSONB NOT NULL DEFAULT '[]'::jsonb;
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS downloads_count INTEGER NOT NULL DEFAULT 0;
+    -- El SuperUsuario no tiene fila en usuarios: cuando dictamina desde
+    -- /supervisar, supervisor_id queda NULL y se marca aquí.
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS supervisado_por_root BOOLEAN NOT NULL DEFAULT false;
   `);
 }
 
@@ -167,6 +179,19 @@ export async function ensureCampanaSupervisoresTable(): Promise<void> {
       motivo TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+  `);
+
+  // Decisiones del SuperUsuario (sin fila en usuarios): supervisor_id NULL y
+  // por_superusuario = true. El CHECK exige uno de los dos.
+  await pool.query(`
+    ALTER TABLE campana_supervisores ALTER COLUMN supervisor_id DROP NOT NULL;
+    ALTER TABLE campana_supervisores ADD COLUMN IF NOT EXISTS por_superusuario BOOLEAN NOT NULL DEFAULT false;
+    DO $$ BEGIN
+      IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'campana_supervisores_autor_check') THEN
+        ALTER TABLE campana_supervisores ADD CONSTRAINT campana_supervisores_autor_check
+          CHECK (supervisor_id IS NOT NULL OR por_superusuario);
+      END IF;
+    END $$;
   `);
 }
 
@@ -277,7 +302,30 @@ export async function ensureSancionesTable(): Promise<void> {
   `);
 }
 
-/** Crea (si falta) todo lo que las pantallas de /usuarios y /sistema necesitan leer. */
+/**
+ * Bitácora de acciones sensibles (roles, sanciones, dictámenes, baneos,
+ * accesos raíz). Solo se inserta, nunca se edita. `actor_id` es NULL cuando
+ * el actor es el SuperUsuario (no tiene fila en usuarios).
+ */
+export async function ensureAuditLogTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS audit_log (
+      id BIGSERIAL PRIMARY KEY,
+      actor_tipo VARCHAR(20) NOT NULL CHECK (actor_tipo IN ('usuario', 'superusuario', 'anonimo')),
+      actor_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      accion VARCHAR(60) NOT NULL,
+      objetivo_tipo VARCHAR(30),
+      objetivo_id VARCHAR(40),
+      detalle JSONB NOT NULL DEFAULT '{}'::jsonb,
+      ip VARCHAR(64),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS audit_log_created_at_idx ON audit_log (created_at DESC);
+    CREATE INDEX IF NOT EXISTS audit_log_objetivo_idx ON audit_log (objetivo_tipo, objetivo_id);
+  `);
+}
+
+/** Crea (si falta) todo el esquema. Lo llama instrumentation.ts al arrancar. */
 export async function ensureCoreSchema(): Promise<void> {
   await ensureUsuariosTable();
   await ensureSessionsTable();
@@ -290,4 +338,5 @@ export async function ensureCoreSchema(): Promise<void> {
   await ensureCampanasGuardadasTable();
   await ensureAportesTable();
   await ensureSancionesTable();
+  await ensureAuditLogTable();
 }

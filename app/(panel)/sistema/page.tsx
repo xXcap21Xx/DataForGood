@@ -1,3 +1,6 @@
+// Pantalla /sistema: métricas generales del sistema (solo consulta).
+// Server Component. Datos: lib/sistema/metricas.ts. Protegida solo por el layout del panel.
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import MetricCard from "@/components/sistema/MetricCard";
@@ -30,7 +33,11 @@ export default async function PanelDelSistemaPage() {
         <MetricCard
           label="Campañas activas"
           value={m.campanasActivas}
-          links={[{ label: "Dashboard", href: "/campanas/dashboard" }]}
+          secundario={{ label: "Campañas finalizadas", value: m.campanasFinalizadas }}
+          links={[
+            { label: "Dashboard", href: "/sistema/campanas/dashboard" },
+            { label: "Lista", href: "/sistema/campanas" },
+          ]}
         />
         <MetricCard
           label="Aportes recolectados"

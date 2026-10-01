@@ -1,6 +1,8 @@
+// GET /api/campanas/[id]/recoleccion-diaria — aportes por día y por tipo para las gráficas del panel.
+// Ojo: pide sesión pero no comprueba que seas el creador (docs/README.md § 8).
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 
 const DIAS = 14;
@@ -33,8 +35,6 @@ function diasRecientes(dias: number): { clave: string; etiqueta: string }[] {
 // para la gráfica "Recolección diaria" del panel de campaña.
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });

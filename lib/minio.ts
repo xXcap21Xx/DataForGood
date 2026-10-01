@@ -1,27 +1,53 @@
+// Almacenamiento de archivos en MinIO (compatible con S3).
+// - saveUploadedFile(file, subdir): guarda <subdir>/<uuid>.<ext> y devuelve la clave.
+// - readUploadedFile(key): descarga el objeto a un Buffer.
+// El archivo siempre pasa por el servidor; el bucket es privado y no se expone al navegador.
+
 import { randomUUID } from "crypto";
 import path from "path";
 import { Client } from "minio";
 
 const BUCKET = process.env.MINIO_BUCKET || "aportes";
 
-export const minioClient = new Client({
-  endPoint: process.env.MINIO_ENDPOINT || "localhost",
-  port: Number(process.env.MINIO_PORT || 9000),
-  useSSL: process.env.MINIO_USE_SSL === "true",
-  accessKey: process.env.MINIO_ACCESS_KEY || "admin",
-  secretKey: process.env.MINIO_SECRET_KEY || "admin12345",
-});
+// Credenciales sin valor por defecto: la app usa un usuario limitado al
+// bucket (lo crea el servicio minio-init de docker-compose.yml), nunca el
+// root de MinIO. Si faltan, falla en el primer uso con un error claro.
+let client: Client | null = null;
+
+function getClient(): Client {
+  if (!client) {
+    const accessKey = process.env.MINIO_ACCESS_KEY;
+    const secretKey = process.env.MINIO_SECRET_KEY;
+    if (!accessKey || !secretKey) {
+      throw new Error("Faltan MINIO_ACCESS_KEY o MINIO_SECRET_KEY en el entorno.");
+    }
+    client = new Client({
+      endPoint: process.env.MINIO_ENDPOINT || "localhost",
+      port: Number(process.env.MINIO_PORT || 9000),
+      useSSL: process.env.MINIO_USE_SSL === "true",
+      accessKey,
+      secretKey,
+    });
+  }
+  return client;
+}
 
 let bucketEnsured: Promise<void> | null = null;
 
+// En Docker el bucket ya lo crea minio-init (el usuario de la app no tiene
+// permiso de crear buckets); esto cubre `next dev` contra un MinIO local.
 async function ensureBucket() {
   if (!bucketEnsured) {
     bucketEnsured = (async () => {
-      const exists = await minioClient.bucketExists(BUCKET).catch(() => false);
+      const exists = await getClient().bucketExists(BUCKET).catch(() => false);
       if (!exists) {
-        await minioClient.makeBucket(BUCKET);
+        await getClient().makeBucket(BUCKET);
       }
     })();
+    // Si falla, que el siguiente intento lo vuelva a probar.
+    bucketEnsured.catch(() => {
+      bucketEnsured = null;
+    });
   }
   return bucketEnsured;
 }
@@ -40,7 +66,7 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<Save
   const objectKey = `${subdir}/${randomUUID()}${extension}`;
   const buffer = Buffer.from(await file.arrayBuffer());
 
-  await minioClient.putObject(BUCKET, objectKey, buffer, buffer.byteLength, {
+  await getClient().putObject(BUCKET, objectKey, buffer, buffer.byteLength, {
     "Content-Type": file.type || "application/octet-stream",
   });
 
@@ -55,7 +81,7 @@ export async function saveUploadedFile(file: File, subdir: string): Promise<Save
 export async function readUploadedFile(objectKey: string): Promise<Buffer> {
   await ensureBucket();
 
-  const stream = await minioClient.getObject(BUCKET, objectKey);
+  const stream = await getClient().getObject(BUCKET, objectKey);
   const chunks: Buffer[] = [];
   for await (const chunk of stream) {
     chunks.push(chunk as Buffer);

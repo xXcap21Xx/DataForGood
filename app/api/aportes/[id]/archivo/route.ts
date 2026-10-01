@@ -1,13 +1,13 @@
+// GET /api/aportes/[id]/archivo — sirve el archivo del aporte desde MinIO, tras comprobar permisos.
+// Se usa como src de <img>. Nunca se exponen URLs directas al bucket.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
 import { readUploadedFile } from "@/lib/minio";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -26,10 +26,6 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     }
 
     const row = result.rows[0];
-    const roles = Array.isArray(user.role) ? user.role.map(String) : [];
-    if (roles.includes("supervisor")) {
-      return NextResponse.json({ error: "Los supervisores no pueden ver ni descargar el archivo del aporte" }, { status: 403 });
-    }
     const isOwner = Number(row.user_id) === Number(user.id);
     const isCampaignCreator = Number(row.campaign_creator_id) === Number(user.id);
     const reviewer = await pool.query(
@@ -40,6 +36,10 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const canViewAsReviewer = isAssignedReviewer && (
       String(row.status) === "pendiente" || Number(row.first_pass_by_user_id) === Number(user.id)
     );
+
+    // El rol de supervisor no da acceso al archivo (dictamina campañas, no
+    // aportes), pero tampoco lo quita: un supervisor lo ve si es quien aportó,
+    // quien creó la campaña o revisor aceptado de ella, como cualquiera.
     if (!isOwner && !isCampaignCreator && !canViewAsReviewer) {
       return NextResponse.json({ error: "No tienes permiso para ver este archivo" }, { status: 403 });
     }

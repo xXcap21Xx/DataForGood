@@ -1,7 +1,10 @@
+// /api/campanas/[id]/revisores — revisores de una campaña (tabla campana_revisores). Solo el creador.
+// Lo usa /mis-campanas/[id]/aportes/agregar-revisor.
+
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
 import { getSessionUser } from "@/lib/session";
+import { registrarAuditoria } from "@/lib/auditoria";
 
 // La invitación a revisor es por campaña (campana_revisores), no por el rol
 // global en usuarios.role: esta lista es lo que debe usar la pantalla de
@@ -10,8 +13,6 @@ import { getSessionUser } from "@/lib/session";
 // de OTRA campaña, o que tiene el rol por una asignación vieja).
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -36,10 +37,9 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
   }
 }
 
+// POST: invita a un usuario como revisor (le llega una notificación). Solo el creador.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
-    await ensureCoreSchema();
-
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
@@ -64,13 +64,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
 
     const candidate = await pool.query(`SELECT id, nombre, apellidos, role FROM usuarios WHERE id = $1 LIMIT 1`, [usuarioId]);
     if (candidate.rowCount === 0) return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-
-    const roles = Array.isArray(candidate.rows[0].role)
-      ? candidate.rows[0].role.map(String)
-      : [String(candidate.rows[0].role ?? "usuario")];
-    if (roles.includes("supervisor")) {
-      return NextResponse.json({ error: "Los supervisores no pueden ser revisores de aportes" }, { status: 400 });
-    }
 
     const existing = await pool.query(
       `SELECT estado FROM campana_revisores WHERE campana_id = $1 AND usuario_id = $2 LIMIT 1`,
@@ -98,6 +91,13 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
         JSON.stringify({ campanaId: String(id) }),
       ]
     );
+
+    await registrarAuditoria({
+      actor: { tipo: "usuario", id: Number(user.id) },
+      accion: "revisor.invitar",
+      objetivo: { tipo: "usuario", id: usuarioId },
+      detalle: { campanaId: Number(id) },
+    });
 
     return NextResponse.json({ message: "Invitación enviada" }, { status: 201 });
   } catch (error) {

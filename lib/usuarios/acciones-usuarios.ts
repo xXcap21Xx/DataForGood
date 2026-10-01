@@ -1,70 +1,36 @@
 "use server";
 
+// Server actions del panel sobre usuarios: asignarRol, revocarRol, aplicarSancion, restaurarAcceso.
+// Cada una verifica la sesión raíz (exigirSuperUsuario), aplica la regla y registra en audit_log.
+
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { pool } from "@/lib/db";
-import {
-  ensureCampanaRevisoresTable,
-  ensureCampanasTable,
-  ensureSancionesTable,
-  ensureUsuariosTable,
-} from "@/lib/db-schema";
 import { hasRootSession } from "@/lib/rootSession";
 import { normalizeRoles } from "@/lib/roles";
 import { CODIGO_DE_ROL, type RolAsignable } from "@/lib/usuarios/rol-asignable";
 import type { TipoDeSancion } from "@/lib/usuarios/directorio";
+import { retirarComoRevisorDeTodasLasCampanas } from "@/lib/usuarios/revisor";
+import { registrarAuditoria } from "@/lib/auditoria";
+import { STRIKES_PARA_BANEO, TIPOS_DE_SANCION } from "@/lib/sanciones";
 
 export type ResultadoDeAccion = { ok: true } | { ok: false; error: string };
 
 /*
  * ────────────────────────────────────────────────────────────────────────────
- * PENDIENTE DE CONECTAR
- *
- * Las cuatro acciones ya escriben de verdad (asignarRol/revocarRol en
- * `usuarios.role`, aplicarSancion/restaurarAcceso en `sanciones`). Falta:
- *   1. El registro en auditoría: quién, cuándo, sobre quién y con qué motivo
- *      (no existe tabla de auditoría todavía).
- *   2. TODO(dominio): al tercer STRIKE no hay escalamiento automático a
- *      baneo permanente ni bloqueo de correo — hoy hay que aplicar el baneo
- *      a mano con tipo BANEO_DE_CAMPANA. El contador de strikes sí es real.
- *   3. Notificar al usuario sancionado: no hay envío de notificaciones en
- *      la app todavía.
+ * Las cuatro acciones escriben de verdad (asignarRol/revocarRol en
+ * `usuarios.role`, aplicarSancion/restaurarAcceso en `sanciones`) y quedan en
+ * audit_log. La suspensión y el baneo bloquean la cuenta, y al tercer
+ * STRIKE la cuenta se banea sola (lib/sanciones.ts). Falta:
+ *   - Notificar al usuario sancionado: no hay envío de notificaciones en
+ *     la app todavía.
  * ────────────────────────────────────────────────────────────────────────────
  */
 
 async function exigirSuperUsuario(): Promise<void> {
   const autorizado = await hasRootSession();
   if (!autorizado) throw new Error("No autorizado");
-}
-
-/**
- * `campana_revisores` (no `usuarios.role`) es la fuente real de si alguien
- * es revisor: `lib/session.ts` reconstruye el rol "revisor" en cada sesión a
- * partir de sus filas 'aceptado' ahí. Si solo se limpia `usuarios.role`, el
- * rol vuelve a aparecer solo con el siguiente login. Se usa tanto al revocar
- * el rol como al asignar Supervisor (son mutuamente excluyentes).
- */
-async function retirarComoRevisorDeTodasLasCampanas(usuarioId: number): Promise<void> {
-  await ensureCampanaRevisoresTable();
-  await ensureCampanasTable();
-
-  const campanasAfectadas = await pool.query<{ campana_id: number }>(
-    `UPDATE campana_revisores SET estado = 'rechazado'
-     WHERE usuario_id = $1 AND estado = 'aceptado'
-     RETURNING campana_id`,
-    [usuarioId],
-  );
-
-  for (const fila of campanasAfectadas.rows) {
-    await pool.query(
-      `UPDATE campanas SET has_reviewer_assigned = EXISTS (
-         SELECT 1 FROM campana_revisores WHERE campana_id = $1 AND estado = 'aceptado'
-       ), updated_at = NOW()
-       WHERE id = $1`,
-      [fila.campana_id],
-    );
-  }
 }
 
 export async function asignarRol(
@@ -91,8 +57,6 @@ export async function asignarRol(
   }
 
   try {
-    await ensureUsuariosTable();
-
     const actual = await pool.query<{ role: string[] | null }>(
       `SELECT role FROM usuarios WHERE id = $1`,
       [numericId],
@@ -101,17 +65,22 @@ export async function asignarRol(
       return { ok: false, error: "El usuario no existe." };
     }
 
+    // Supervisor y revisor ya no son mutuamente excluyentes: se agrega el
+    // rol sin tocar los que ya tenía (incluido "revisor" si lo era).
     const codigo = CODIGO_DE_ROL[rol];
-    const rolesSinRevisor = (actual.rows[0].role ?? []).filter((r) => r !== "revisor");
-    const nuevosRoles = normalizeRoles([...rolesSinRevisor, codigo]);
+    const nuevosRoles = normalizeRoles([...(actual.rows[0].role ?? []), codigo]);
 
     await pool.query(`UPDATE usuarios SET role = $2::jsonb, updated_at = NOW() WHERE id = $1`, [
       numericId,
       JSON.stringify(nuevosRoles),
     ]);
-    // Supervisor y revisor son mutuamente excluyentes (normalizeRoles ya lo
-    // exige): si ya era revisor aceptado en alguna campaña, se le retira.
-    await retirarComoRevisorDeTodasLasCampanas(numericId);
+
+    await registrarAuditoria({
+      actor: { tipo: "superusuario" },
+      accion: "rol.asignar",
+      objetivo: { tipo: "usuario", id: numericId },
+      detalle: { rol },
+    });
 
     revalidatePath(`/usuarios/${usuarioId}/roles`);
     revalidatePath(`/usuarios/${usuarioId}`);
@@ -123,7 +92,10 @@ export async function asignarRol(
   }
 }
 
-export async function revocarRol(usuarioId: string): Promise<ResultadoDeAccion> {
+export async function revocarRol(
+  usuarioId: string,
+  rol: RolAsignable,
+): Promise<ResultadoDeAccion> {
   await exigirSuperUsuario();
 
   const numericId = Number(usuarioId);
@@ -132,8 +104,6 @@ export async function revocarRol(usuarioId: string): Promise<ResultadoDeAccion> 
   }
 
   try {
-    await ensureUsuariosTable();
-
     const actual = await pool.query<{ role: string[] | null }>(
       `SELECT role FROM usuarios WHERE id = $1`,
       [numericId],
@@ -142,19 +112,42 @@ export async function revocarRol(usuarioId: string): Promise<ResultadoDeAccion> 
       return { ok: false, error: "El usuario no existe." };
     }
 
-    // Revocar no detiene las campañas activas de esa persona: pasan a la
-    // tutela del supervisor del área (esa reasignación aún no existe).
+    // Ya no son mutuamente excluyentes: se retira solo el rol indicado, sin
+    // tocar el otro si también lo tenía. Revocar no detiene las campañas
+    // activas de esa persona: pasan a la tutela del supervisor del área (esa
+    // reasignación aún no existe).
+    const codigo = CODIGO_DE_ROL[rol];
     const nuevosRoles = normalizeRoles(
-      (actual.rows[0].role ?? []).filter((r) => r !== "supervisor" && r !== "revisor"),
+      (actual.rows[0].role ?? []).filter((r) => r !== codigo),
     );
 
     await pool.query(`UPDATE usuarios SET role = $2::jsonb, updated_at = NOW() WHERE id = $1`, [
       numericId,
       JSON.stringify(nuevosRoles),
     ]);
-    // Si era revisor aceptado en alguna campaña, se le retira ahí también:
-    // si no, la sesión se lo vuelve a asignar solo con el siguiente login.
-    await retirarComoRevisorDeTodasLasCampanas(numericId);
+
+    if (rol === "SUPERVISOR") {
+      // Una campaña tiene un solo supervisor: las que tomó y aún no dictamina
+      // vuelven a quedar libres para que otro supervisor las tome.
+      await pool.query(
+        `UPDATE campanas SET supervisor_id = NULL, updated_at = NOW()
+         WHERE supervisor_id = $1 AND status = 'en_revision'`,
+        [numericId],
+      );
+    }
+
+    if (rol === "REVISOR_DE_APORTES") {
+      // Si era revisor aceptado en alguna campaña, se le retira ahí también:
+      // si no, la sesión se lo vuelve a asignar solo con el siguiente login.
+      await retirarComoRevisorDeTodasLasCampanas(numericId);
+    }
+
+    await registrarAuditoria({
+      actor: { tipo: "superusuario" },
+      accion: "rol.revocar",
+      objetivo: { tipo: "usuario", id: numericId },
+      detalle: { rol },
+    });
 
     revalidatePath(`/usuarios/${usuarioId}/roles`);
     revalidatePath(`/usuarios/${usuarioId}`);
@@ -177,31 +170,96 @@ export async function aplicarSancion(
     return { ok: false, error: "ID de usuario inválido." };
   }
 
-  const detalle = datos.detalle.trim();
+  // Una server action se puede invocar con cualquier dato: no basta con que
+  // el formulario solo ofrezca estas opciones.
+  if (!TIPOS_DE_SANCION.has(datos.tipo)) {
+    return { ok: false, error: "Tipo de sanción inválido." };
+  }
+  const detalle = typeof datos.detalle === "string" ? datos.detalle.trim() : "";
   if (detalle.length < 20) {
     return { ok: false, error: "El detalle debe tener al menos 20 caracteres." };
   }
-  if (datos.tipo === "SUSPENSION_TEMPORAL" && !datos.dias) {
-    return { ok: false, error: "Indica cuántos días dura la suspensión." };
+  if (
+    datos.tipo === "SUSPENSION_TEMPORAL" &&
+    !(Number.isInteger(datos.dias) && (datos.dias as number) >= 1)
+  ) {
+    return { ok: false, error: "Indica cuántos días dura la suspensión (un número entero mayor que cero)." };
   }
 
-  try {
-    await ensureUsuariosTable();
-    await ensureSancionesTable();
+  const dias = datos.tipo === "SUSPENSION_TEMPORAL" ? datos.dias : null;
+  const client = await pool.connect();
+  let sancionId: number;
+  let baneoAutomatico: { id: number; strikes: number } | null = null;
 
-    const usuario = await pool.query(`SELECT id FROM usuarios WHERE id = $1`, [numericId]);
+  try {
+    await client.query("BEGIN");
+
+    // FOR UPDATE: dos strikes aplicados a la vez se forman en fila, así que
+    // el conteo de abajo no puede generar dos baneos automáticos.
+    const usuario = await client.query(`SELECT id FROM usuarios WHERE id = $1 FOR UPDATE`, [numericId]);
     if (usuario.rowCount === 0) {
+      await client.query("ROLLBACK");
       return { ok: false, error: "El usuario no existe." };
     }
 
-    await pool.query(
+    const sancion = await client.query<{ id: number }>(
       `INSERT INTO sanciones (usuario_id, tipo, detalle, dias)
-       VALUES ($1, $2, $3, $4)`,
-      [numericId, datos.tipo, detalle, datos.tipo === "SUSPENSION_TEMPORAL" ? datos.dias : null],
+       VALUES ($1, $2, $3, $4) RETURNING id`,
+      [numericId, datos.tipo, detalle, dias],
     );
+    sancionId = sancion.rows[0].id;
+
+    // Al llegar a STRIKES_PARA_BANEO strikes la cuenta se banea sola, salvo
+    // que ya tenga un baneo activo.
+    if (datos.tipo === "STRIKE") {
+      const conteo = await client.query<{ strikes: number; baneada: boolean }>(
+        `SELECT COUNT(*) FILTER (WHERE tipo = 'STRIKE')::int AS strikes,
+                BOOL_OR(activa AND tipo = 'BANEO_DE_CAMPANA') AS baneada
+         FROM sanciones WHERE usuario_id = $1`,
+        [numericId],
+      );
+      const { strikes, baneada } = conteo.rows[0];
+      if (strikes >= STRIKES_PARA_BANEO && !baneada) {
+        const baneo = await client.query<{ id: number }>(
+          `INSERT INTO sanciones (usuario_id, tipo, detalle, aplicada_por)
+           VALUES ($1, 'BANEO_DE_CAMPANA', $2, 'Automático') RETURNING id`,
+          [numericId, `Baneo automático al acumular ${strikes} strikes.`],
+        );
+        baneoAutomatico = { id: baneo.rows[0].id, strikes };
+      }
+    }
+
+    // Suspensión y baneo no cierran sus sesiones: el bloqueo aplica ya porque
+    // getSessionUser deja de aceptarlas, y así la persona ve en la app la
+    // pantalla de cuenta bloqueada con el motivo en vez de salir a /entrar.
+
+    await client.query("COMMIT");
   } catch (error) {
+    await client.query("ROLLBACK").catch(() => {});
     console.error("Error aplicando sanción", error);
     return { ok: false, error: "No se pudo aplicar la sanción." };
+  } finally {
+    client.release();
+  }
+
+  await registrarAuditoria({
+    actor: { tipo: "superusuario" },
+    accion: "sancion.aplicar",
+    objetivo: { tipo: "usuario", id: numericId },
+    detalle: { sancionId, tipo: datos.tipo, dias, motivo: detalle },
+  });
+  if (baneoAutomatico) {
+    await registrarAuditoria({
+      actor: { tipo: "superusuario" },
+      accion: "sancion.aplicar",
+      objetivo: { tipo: "usuario", id: numericId },
+      detalle: {
+        sancionId: baneoAutomatico.id,
+        tipo: "BANEO_DE_CAMPANA",
+        automatico: true,
+        strikes: baneoAutomatico.strikes,
+      },
+    });
   }
 
   revalidatePath("/usuarios/sanciones");
@@ -221,18 +279,24 @@ export async function restaurarAcceso(
   }
 
   try {
-    await ensureSancionesTable();
-
     // El contador de strikes NO se reinicia: se conserva para la escala de
     // penalización, así que esto solo cambia el estado de la cuenta.
-    const result = await pool.query(
+    const result = await pool.query<{ usuario_id: number; tipo: string }>(
       `UPDATE sanciones SET activa = false, restaurada_en = NOW()
-       WHERE id = $1 AND activa = true`,
+       WHERE id = $1 AND activa = true
+       RETURNING usuario_id, tipo`,
       [numericId],
     );
     if (result.rowCount === 0) {
       return { ok: false, error: "La sanción no existe o ya fue restaurada." };
     }
+
+    await registrarAuditoria({
+      actor: { tipo: "superusuario" },
+      accion: "sancion.restaurar",
+      objetivo: { tipo: "usuario", id: result.rows[0].usuario_id },
+      detalle: { sancionId: numericId, tipo: result.rows[0].tipo },
+    });
   } catch (error) {
     console.error("Error restaurando acceso", error);
     return { ok: false, error: "No se pudo restaurar el acceso." };

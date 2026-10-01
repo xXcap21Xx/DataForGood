@@ -1,3 +1,5 @@
+// Etiqueta de estado del panel del SuperUsuario.
+
 import { ReactNode } from "react";
 
 type Tone = "default" | "ok" | "warn" | "danger" | "on";

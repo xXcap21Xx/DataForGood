@@ -1,10 +1,14 @@
 "use client";
 
+// Pantalla /revisiones/campanas/[campaignId]: aportes por revisar de una campaña.
+// Componente cliente. Datos: GET /api/campanas/[id] y GET /api/aportes?campaignId=&reviewer=true (solo revisor aceptado).
+
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import Tag from "@/components/ui/Tag";
 import type { Campaign, Contribution } from "@/types";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default function ReviewerCampaignPage() {
   const { campaignId } = useParams<{ campaignId: string }>();
@@ -16,8 +20,8 @@ export default function ReviewerCampaignPage() {
     async function load() {
       try {
         const [campaignResponse, contributionsResponse] = await Promise.all([
-          fetch(`/api/campanas/${campaignId}`, { cache: "no-store" }),
-          fetch(`/api/aportes?campaignId=${campaignId}&reviewer=true`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/campanas/${campaignId}`, { cache: "no-store" }),
+          fetch(`${BASE_PATH}/api/aportes?campaignId=${campaignId}&reviewer=true`, { cache: "no-store" }),
         ]);
         const campaignPayload = await campaignResponse.json().catch(() => ({}));
         const contributionsPayload = await contributionsResponse.json().catch(() => ({}));

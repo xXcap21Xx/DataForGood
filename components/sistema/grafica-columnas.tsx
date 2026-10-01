@@ -1,3 +1,5 @@
+// Gráfica de columnas sencilla (SVG/CSS) para los dashboards del panel.
+
 export type Columna = { etiqueta: string; valor: number };
 
 /**

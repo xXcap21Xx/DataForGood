@@ -1,0 +1,761 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-09-28T19:59:35.492Z",
+  "__export_source": "dataforgood",
+  "resources": [
+    {
+      "_id": "wrk_dataforgood",
+      "_type": "workspace",
+      "parentId": null,
+      "name": "DataForGood API",
+      "scope": "collection",
+      "description": "Route handlers de app/api"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_dataforgood",
+      "name": "Base Environment",
+      "data": {
+        "base": "http://localhost:3000/dataforgood",
+        "campanaId": 1,
+        "aporteId": 1,
+        "usuarioId": 1,
+        "notificacionId": 1,
+        "datosId": 1
+      }
+    },
+    {
+      "_id": "env_docker",
+      "_type": "environment",
+      "parentId": "env_base",
+      "name": "Docker (localhost:3000/dataforgood)",
+      "data": {
+        "base": "http://localhost:3000/dataforgood"
+      }
+    },
+    {
+      "_id": "env_dev",
+      "_type": "environment",
+      "parentId": "env_base",
+      "name": "next dev (localhost:3000)",
+      "data": {
+        "base": "http://localhost:3000"
+      }
+    },
+    {
+      "_id": "env_prod",
+      "_type": "environment",
+      "parentId": "env_base",
+      "name": "Producción",
+      "data": {
+        "base": "https://multimodal-ai-lab.cicese.mx/dataforgood"
+      }
+    },
+    {
+      "_id": "fld_auth",
+      "_type": "request_group",
+      "parentId": "wrk_dataforgood",
+      "name": "1. Auth",
+      "metaSortKey": 0
+    },
+    {
+      "_id": "req_6",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Login",
+      "method": "POST",
+      "url": "{{ _.base }}/api/auth/login",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"email\": \"usuario@correo.com\",\n  \"password\": \"contraseña\"\n}"
+      },
+      "description": "Guarda la cookie session_token. Hazlo primero.",
+      "metaSortKey": 1
+    },
+    {
+      "_id": "req_7",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Sesión actual",
+      "method": "GET",
+      "url": "{{ _.base }}/api/auth/sesion",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 2
+    },
+    {
+      "_id": "req_8",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Logout",
+      "method": "POST",
+      "url": "{{ _.base }}/api/auth/logout",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 3
+    },
+    {
+      "_id": "req_9",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Registro",
+      "method": "POST",
+      "url": "{{ _.base }}/api/usuarios",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nombre\": \"Ana\",\n  \"apellidos\": \"Pérez López\",\n  \"email\": \"ana@correo.com\",\n  \"password\": \"Contraseña123\",\n  \"state\": \"Nayarit\",\n  \"city\": \"Tepic\",\n  \"specialty\": \"\",\n  \"intereses\": [\n    \"medio ambiente\"\n  ]\n}"
+      },
+      "description": "Guarda la cookie pending_verification_id para verificar.",
+      "metaSortKey": 4
+    },
+    {
+      "_id": "req_10",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Verificación pendiente",
+      "method": "GET",
+      "url": "{{ _.base }}/api/auth/verificar",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 5
+    },
+    {
+      "_id": "req_11",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Verificar código",
+      "method": "POST",
+      "url": "{{ _.base }}/api/auth/verificar",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"code\": \"123456\"\n}"
+      },
+      "description": "",
+      "metaSortKey": 6
+    },
+    {
+      "_id": "req_12",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Reenviar código",
+      "method": "POST",
+      "url": "{{ _.base }}/api/auth/verificar/reenviar",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 7
+    },
+    {
+      "_id": "req_13",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Login SuperUsuario (root)",
+      "method": "POST",
+      "url": "{{ _.base }}/api/auth/root",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"identificador\": \"ROOT_USER_ID\",\n  \"credencial\": \"contraseña\"\n}"
+      },
+      "description": "Guarda la cookie root_session_token (2 h). Límite: 5 intentos por minuto por IP.",
+      "metaSortKey": 8
+    },
+    {
+      "_id": "fld_campanas",
+      "_type": "request_group",
+      "parentId": "wrk_dataforgood",
+      "name": "2. Campañas",
+      "metaSortKey": 9
+    },
+    {
+      "_id": "req_15",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Listar campañas",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas",
+      "headers": [],
+      "parameters": [
+        {
+          "name": "available",
+          "value": "true",
+          "disabled": true
+        },
+        {
+          "name": "mine",
+          "value": "true",
+          "disabled": true
+        },
+        {
+          "name": "supervised",
+          "value": "true",
+          "disabled": true
+        },
+        {
+          "name": "misAportes",
+          "value": "true",
+          "disabled": true
+        },
+        {
+          "name": "id",
+          "value": "{{ _.campanaId }}",
+          "disabled": true
+        }
+      ],
+      "body": {},
+      "description": "Activa solo uno de los filtros.",
+      "metaSortKey": 10
+    },
+    {
+      "_id": "req_16",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Crear campaña",
+      "method": "POST",
+      "url": "{{ _.base }}/api/campanas",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Baches en Tepic\",\n  \"description\": \"Fotos de baches en calles de la ciudad\",\n  \"tematica\": \"infraestructura\",\n  \"dataTypes\": [\n    \"foto\"\n  ],\n  \"checklistSecciones\": [\n    {\n      \"titulo\": \"Tamaño del bache\",\n      \"opciones\": [\n        \"Chico\",\n        \"Mediano\",\n        \"Grande\"\n      ]\n    }\n  ],\n  \"goalContributions\": 100,\n  \"quotaPerUser\": 5,\n  \"xpPerContribution\": 30,\n  \"startDate\": \"2026-10-01\",\n  \"startTime\": \"08:00\",\n  \"endDate\": \"2026-10-31\",\n  \"endTime\": \"20:00\",\n  \"locationState\": \"Nayarit\",\n  \"locationCity\": \"Tepic\",\n  \"locationColonia\": \"\",\n  \"organizer\": \"\",\n  \"status\": \"en_revision\"\n}"
+      },
+      "description": "status: borrador, en_revision, aceptada, activa, pausada, finalizada, rechazada. dataTypes: texto, foto, video, audio, documento. checklistSecciones: cero o más checklists { titulo, opciones } además de la descripción obligatoria del aporte.",
+      "metaSortKey": 11
+    },
+    {
+      "_id": "req_17",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Detalle de campaña",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 12
+    },
+    {
+      "_id": "req_18",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Editar campaña (completa)",
+      "method": "PUT",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"name\": \"Baches en Tepic\",\n  \"description\": \"Descripción actualizada\",\n  \"tematica\": \"infraestructura\",\n  \"dataTypes\": [\n    \"foto\"\n  ],\n  \"goalContributions\": 120,\n  \"quotaPerUser\": 5,\n  \"startDate\": \"2026-10-01\",\n  \"startTime\": \"08:00\",\n  \"endDate\": \"2026-11-15\",\n  \"endTime\": \"20:00\",\n  \"locationState\": \"Nayarit\",\n  \"locationCity\": \"Tepic\",\n  \"status\": \"borrador\"\n}"
+      },
+      "description": "Solo el creador.",
+      "metaSortKey": 13
+    },
+    {
+      "_id": "req_19",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Editar campaña (parcial)",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"status\": \"finalizada\"\n}"
+      },
+      "description": "Solo el creador. Los campos editables dependen del estado actual.",
+      "metaSortKey": 14
+    },
+    {
+      "_id": "req_20",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Supervisor: tomar campaña",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"action\": \"tomar\"\n}"
+      },
+      "description": "",
+      "metaSortKey": 15
+    },
+    {
+      "_id": "req_21",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Supervisor: decidir campaña",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"action\": \"rechazada\",\n  \"motivo\": \"Motivo de la decisión\"\n}"
+      },
+      "description": "action: aceptada, rechazada o reportada.",
+      "metaSortKey": 16
+    },
+    {
+      "_id": "req_22",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Guardar campaña",
+      "method": "POST",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/guardar",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 17
+    },
+    {
+      "_id": "req_23",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Quitar de guardadas",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/guardar",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 18
+    },
+    {
+      "_id": "req_24",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Revisores de la campaña",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/revisores",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 19
+    },
+    {
+      "_id": "req_25",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Invitar revisor",
+      "method": "POST",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/revisores",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"usuarioId\": \"{{ _.usuarioId }}\"\n}"
+      },
+      "description": "",
+      "metaSortKey": 20
+    },
+    {
+      "_id": "req_26",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Banear participante",
+      "method": "POST",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/baneos",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"contributionId\": \"{{ _.aporteId }}\",\n  \"reason\": \"Motivo del baneo\"\n}"
+      },
+      "description": "Solo el creador. Se banea a quien envió ese aporte.",
+      "metaSortKey": 21
+    },
+    {
+      "_id": "req_26a",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Listar baneados de la campaña",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/baneos",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Solo el creador.",
+      "metaSortKey": 21.1
+    },
+    {
+      "_id": "req_26b",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Quitar baneo de la campaña",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/baneos",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"usuarioId\": {{ _.usuarioId }}\n}"
+      },
+      "description": "Solo el creador. La persona vuelve a poder aportar a la campaña.",
+      "metaSortKey": 21.2
+    },
+    {
+      "_id": "req_27",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Recolección diaria",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/recoleccion-diaria",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Ojo: solo pide sesión, no revisa permisos (pendiente conocido).",
+      "metaSortKey": 22
+    },
+    {
+      "_id": "fld_aportes",
+      "_type": "request_group",
+      "parentId": "wrk_dataforgood",
+      "name": "3. Aportes",
+      "metaSortKey": 23
+    },
+    {
+      "_id": "req_29",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Aportes de una campaña",
+      "method": "GET",
+      "url": "{{ _.base }}/api/aportes",
+      "headers": [],
+      "parameters": [
+        {
+          "name": "campaignId",
+          "value": "{{ _.campanaId }}",
+          "disabled": false
+        },
+        {
+          "name": "mine",
+          "value": "true",
+          "disabled": true
+        },
+        {
+          "name": "reviewer",
+          "value": "true",
+          "disabled": true
+        }
+      ],
+      "body": {},
+      "description": "",
+      "metaSortKey": 24
+    },
+    {
+      "_id": "req_30",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Enviar aporte (multipart)",
+      "method": "POST",
+      "url": "{{ _.base }}/api/aportes",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "multipart/form-data"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "campaignId",
+            "value": "{{ _.campanaId }}"
+          },
+          {
+            "name": "description",
+            "value": "Bache grande frente a la escuela"
+          },
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          }
+        ]
+      },
+      "description": "Elige el archivo en el campo file: .jpg/.jpeg/.png, máximo 10 MB.",
+      "metaSortKey": 25
+    },
+    {
+      "_id": "req_31",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Detalle de aporte",
+      "method": "GET",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 26
+    },
+    {
+      "_id": "req_32",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Editar aporte",
+      "method": "PUT",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"description\": \"Descripción corregida\",\n  \"caracteristicas\": []\n}"
+      },
+      "description": "Solo quien lo envió y antes de que entre a revisión.",
+      "metaSortKey": 27
+    },
+    {
+      "_id": "req_33",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Revisar aporte",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"status\": \"rechazado\",\n  \"rejectionReason\": \"La foto no corresponde\"\n}"
+      },
+      "description": "status: espera_final, aceptado o rechazado. rejectionReason es obligatorio al rechazar.",
+      "metaSortKey": 28
+    },
+    {
+      "_id": "req_34",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Eliminar aporte",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 29
+    },
+    {
+      "_id": "req_35",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Archivo del aporte",
+      "method": "GET",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}/archivo",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 30
+    },
+    {
+      "_id": "fld_otros",
+      "_type": "request_group",
+      "parentId": "wrk_dataforgood",
+      "name": "4. Usuarios, revisiones y datos",
+      "metaSortKey": 31
+    },
+    {
+      "_id": "req_37",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Buscar revisores",
+      "method": "GET",
+      "url": "{{ _.base }}/api/usuarios",
+      "headers": [],
+      "parameters": [
+        {
+          "name": "campanaId",
+          "value": "{{ _.campanaId }}",
+          "disabled": false
+        },
+        {
+          "name": "q",
+          "value": "ana",
+          "disabled": false
+        }
+      ],
+      "body": {},
+      "description": "Solo el creador de la campaña.",
+      "metaSortKey": 32
+    },
+    {
+      "_id": "req_38",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Perfil de usuario",
+      "method": "GET",
+      "url": "{{ _.base }}/api/usuarios/{{ _.usuarioId }}",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 33
+    },
+    {
+      "_id": "req_39",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Editar perfil",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/usuarios/{{ _.usuarioId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"nombre\": \"Ana\",\n  \"apellidos\": \"Pérez López\",\n  \"state\": \"Nayarit\",\n  \"city\": \"Tepic\",\n  \"specialty\": \"\",\n  \"intereses\": []\n}"
+      },
+      "description": "",
+      "metaSortKey": 34
+    },
+    {
+      "_id": "req_40",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Mis revisiones",
+      "method": "GET",
+      "url": "{{ _.base }}/api/revisiones",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 35
+    },
+    {
+      "_id": "req_41",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Notificaciones",
+      "method": "GET",
+      "url": "{{ _.base }}/api/notificaciones",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 36
+    },
+    {
+      "_id": "req_42",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Aceptar invitación de revisor",
+      "method": "POST",
+      "url": "{{ _.base }}/api/notificaciones/{{ _.notificacionId }}/aceptar",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 37
+    },
+    {
+      "_id": "req_43",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Descargar datos abiertos (ZIP)",
+      "method": "GET",
+      "url": "{{ _.base }}/api/datos/{{ _.datosId }}/descarga",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "",
+      "metaSortKey": 38
+    }
+  ]
+}

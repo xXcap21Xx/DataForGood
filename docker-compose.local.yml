@@ -1,0 +1,15 @@
+# Solo para desarrollo en tu máquina: publica Postgres y MinIO en
+# 127.0.0.1 (nunca en todas las interfaces) para usar `next dev` fuera de
+# Docker o abrir la consola de MinIO. NO lo uses en el servidor.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  minio:
+    ports:
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"

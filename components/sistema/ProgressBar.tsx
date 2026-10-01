@@ -1,3 +1,5 @@
+// Barra de progreso del panel del SuperUsuario.
+
 interface ProgressBarProps {
   pct: number;
   tone?: "accent" | "ok";

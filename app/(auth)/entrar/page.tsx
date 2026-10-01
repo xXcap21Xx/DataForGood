@@ -1,10 +1,20 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+// Pantalla /entrar: inicio de sesión con correo/contraseña o Google.
+// Acciones: POST /api/auth/login; Google vía GET /api/auth/google?next=...
+// Respeta ?next= (lib/redireccion.ts) para volver a la pantalla que se pidió.
+
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import { BASE_PATH } from "@/lib/base-path";
+import { conDestino, destinoSeguro } from "@/lib/redireccion";
+
+const ERRORES_DE_URL: Record<string, string> = {
+  google: "No se pudo iniciar sesión con Google. Intenta de nuevo.",
+};
 
 export default function EntrarPage() {
   return (
@@ -19,14 +29,15 @@ function EntrarForm() {
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [serverError, setServerError] = useState("");
+  // El error que llega en la URL (?error=google|bloqueada, desde el login con
+  // Google) es el valor inicial; enviar el formulario lo limpia.
+  const [serverError, setServerError] = useState(
+    () => ERRORES_DE_URL[searchParams.get("error") ?? ""] ?? ""
+  );
   const [submitting, setSubmitting] = useState(false);
-
-  useEffect(() => {
-    if (searchParams.get("error") === "google") {
-      setServerError("No se pudo iniciar sesión con Google. Intenta de nuevo.");
-    }
-  }, [searchParams]);
+  // Pantalla que se pidió sin sesión (proxy.ts la manda en ?next=).
+  const next = searchParams.get("next");
+  const destino = destinoSeguro(next);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -34,7 +45,7 @@ function EntrarForm() {
     setSubmitting(true);
 
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(`${BASE_PATH}/api/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -44,7 +55,7 @@ function EntrarForm() {
         const payload = await response.json().catch(() => ({}));
 
         if (payload.requiresVerification) {
-          router.push("/verificar");
+          router.push(conDestino("/verificar", next));
           return;
         }
 
@@ -52,7 +63,7 @@ function EntrarForm() {
         return;
       }
 
-      router.push("/campanas");
+      router.push(destino);
       router.refresh();
     } catch {
       setServerError("No se pudo conectar con el servicio de usuarios");
@@ -107,7 +118,7 @@ function EntrarForm() {
           type="button"
           className="mt-2.5 w-full"
           onClick={() => {
-            window.location.href = "/api/auth/google";
+            window.location.href = `${BASE_PATH}${conDestino("/api/auth/google", next)}`;
           }}
         >
           Continuar con Google
@@ -116,16 +127,16 @@ function EntrarForm() {
 
       <p className="mt-6 text-center text-[13px] text-ink-2">
         ¿No tienes cuenta?{" "}
-        <Link href="/registro" className="font-medium text-accent hover:underline">
+        <Link href={conDestino("/registro", next)} className="font-medium text-accent hover:underline">
           Regístrate
         </Link>
       </p>
 
       <div className="mt-6 rounded-lg bg-sunken p-4 text-[12.5px] leading-relaxed text-ink-2">
-        Toda cuenta entra como usuario común. El rol de supervisor lo asigna
-        el SuperUsuario o cualquier Supervisor ya activo; revisor y
-        administrador de campaña los asigna el SuperUsuario. Aparecen
-        después dentro de la misma sesión.
+        Toda cuenta entra como usuario común. El rol de supervisor solo lo
+        asigna el SuperUsuario; el de revisor de aportes te lo ofrece quien
+        creó una campaña, y lo aceptas desde tus notificaciones. Aparecen
+        dentro de la misma sesión.
       </div>
     </div>
   );

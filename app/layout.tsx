@@ -1,3 +1,6 @@
+// Layout raíz de toda la app: <html>, fuentes (next/font/google) y globals.css.
+// Todas las rutas pasan por aquí; cada route group agrega su propio layout encima.
+
 import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";

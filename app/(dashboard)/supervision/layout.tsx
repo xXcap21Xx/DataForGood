@@ -1,12 +1,12 @@
+// Layout de /supervision: exige sesión (exigirUsuario) y rol "supervisor"; si no, a /campanas.
+// Cada página vuelve a comprobarlo.
+
 import { redirect } from "next/navigation";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 
 export default async function SupervisionLayout({ children }: { children: React.ReactNode }) {
-  const user = await getSessionUser();
-  const isSupervisor = user?.role.includes("supervisor") ?? false;
-  const isReviewer = user?.role.includes("revisor") ?? false;
-
-  if (!isSupervisor || isReviewer) {
+  const user = await exigirUsuario();
+  if (!user.role.includes("supervisor")) {
     redirect("/campanas");
   }
 

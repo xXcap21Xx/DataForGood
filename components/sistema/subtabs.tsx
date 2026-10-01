@@ -1,5 +1,7 @@
 "use client";
 
+// Pestañas secundarias del panel (p. ej. Dashboard / Directorio / Sanciones).
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 

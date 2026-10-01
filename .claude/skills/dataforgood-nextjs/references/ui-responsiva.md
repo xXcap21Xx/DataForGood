@@ -1,4 +1,4 @@
-# Interfaz: sistema de diseño de la rama y diseño responsivo
+# Interfaz: sistema de diseño y diseño responsivo
 
 ## Contenido
 1. Tokens y tipografía
@@ -39,7 +39,7 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 
 | Componente | API | Notas |
 | --- | --- | --- |
-| `ui/Button` | `variant`: primary (verde) · secondary · danger · ghost; `size`: sm · md | Forma de píldora. Para navegar usa `ButtonLink` (`conectar-mocks.md`) |
+| `ui/Button` | `variant`: primary (verde) · secondary · danger · ghost; `size`: sm · md | Forma de píldora. Para navegar usa `ui/ButtonLink` (nunca `<Link>` envolviendo `<Button>`) |
 | `ui/Card` | `highlighted` | `rounded-lg border bg-surface p-4 shadow-sm` |
 | `ui/Input` | `Field` (label, hint, required), `Input`, `Textarea` | Asterisco rojo en obligatorios; la pista va en `text-ink-3` |
 | `ui/Tag` | `tone`: default · ok · warn · danger · on | Estados y temáticas |
@@ -48,15 +48,20 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 | `cards/CampaignCard` | `campaign` | Tarjeta vertical del catálogo |
 | `cards/ContributionCard` | `contribution` | Estado con `Tag` |
 | `layout/PublicHeader`, `PublicFooter` | — | Landing |
-| `layout/TopBar` | — | Búsqueda, notificaciones, avatar. Hoy lee el mock: recibirá el usuario por props |
-| `layout/SidebarNav` | — (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas |
+| `layout/TopBar` | `usuario: SessionUser` | Búsqueda, `NotificationsBell`, avatar |
+| `ui/SelectorDeTemas` | `opciones`, `seleccionados`, `onAceptar`, `quitables` | Muestra las temáticas elegidas y abre un `<dialog>` nativo con buscador; aplica solo al dar Aceptar. En `/bienvenida` y `/cuenta` (con `quitables`: × en cada una) |
+| `layout/CuentaBloqueada` | `nombre`, `bloqueo`, `historial` | Pantalla de `/cuenta-bloqueada`: motivo y contador de sanciones |
+| `layout/VigilanteDeSesion` | — | En el layout de `(dashboard)`: revisa la sesión en cada navegación y recarga si ya no vale |
+| `layout/SidebarNav` | `usuario` (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas; agrega Supervisión si `role` incluye `supervisor` |
 
-Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta uno nuevo (Select, Dialog, EmptyState, ButtonLink), sigue las mismas convenciones.
+Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta uno nuevo (Select, EmptyState), sigue las mismas convenciones. Para ventanas usa `<dialog>` nativo con `showModal()`, como `ui/SelectorDeTemas`.
+
+**Ajustes para móvil:** las pantallas de `(dashboard)` ya tienen overrides `max-md:` (tamaños de texto, padding y gaps más chicos) agregados por el equipo el 2026-09-30. Al editar esas pantallas, conserva esas clases; en un conflicto de merge, toma la lógica nueva y vuelve a aplicarle los `max-md:`.
 
 ## 3. Patrones visuales de la rama
 
 - **Chips de filtro:** `rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold`. Activo: `border-accent bg-accent text-white`. Inactivo: `border-line-2 bg-surface text-ink-2 hover:border-accent`. Si hay contador, va dentro en `font-mono`.
-- **Cajas informativas:** `rounded-lg p-3.5` o `p-4` con `text-[12.5px]`: neutra `bg-sunken text-ink-2`, aviso `bg-warn-tint text-warn`, información `bg-accent-tint text-accent-deep`, error `bg-danger-tint text-danger`, éxito `border border-ok bg-ok-tint text-ok`.
+- **Cajas informativas:** `rounded-lg p-3.5` o `p-4` con `text-[12.5px]`: neutra `bg-sunken text-ink-2`, aviso `bg-warn-tint text-warn`, información `border-l-4 border-accent bg-sunken text-ink-2` (no uses `bg-accent-tint` para avisos: se confundía con un botón), error `bg-danger-tint text-danger`, éxito `border border-ok bg-ok-tint text-ok`.
 - **Etiqueta de sección o de paso:** `font-mono text-[10.5px]` a `[12px] uppercase tracking-wide text-accent` o `text-ink-3` (por ejemplo "Paso 1 de 3 · Tus datos", "1 · Datos básicos").
 - **Enlace de regreso:** `← Volver a …` con `text-[13px] text-ink-2 hover:text-ink`, arriba del título.
 - **Cabecera de página:** título `text-xl` o `text-2xl font-extrabold` + subtítulo `text-[13px] text-ink-2`, con acciones a la derecha.
@@ -72,7 +77,16 @@ Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta 
 | `(auth)` | Logo y tarjeta centrados, `max-w-md`, fondo `bg-paper` |
 | `(dashboard)` | `TopBar` arriba; `SidebarNav` a la izquierda (16rem, sticky en `lg`); contenido `max-w-7xl` con `px-4 sm:px-6 lg:px-10` |
 
-Cuando existan roles, `(dashboard)/layout.tsx` obtiene el usuario y construye los elementos del menú en el servidor. Luego se los pasa a `SidebarNav` como prop: "Revisión" para revisores aceptados, "Supervisión" con `campanas.dictaminar`, "Sistema" con `sistema.panel`. El componente seguirá siendo cliente por `usePathname`.
+`(dashboard)/layout.tsx` obtiene el usuario con `getSessionUser()` (redirige a `/entrar` si no hay) y se lo pasa a `TopBar` y `SidebarNav`, que muestran los elementos según `usuario.role`.
+
+**Panel del SuperUsuario, `(panel)`:** usa su propio kit en `components/sistema/`, no el de `components/ui/`. Tiene:
+
+- `Topbar` y `Sidebar`;
+- `Button`, `Input`, `Tag`, `MetricCard` y `ProgressBar` propios;
+- `Subtabs`, `GraficaDeColumnas` e iconos;
+- en `ui.tsx`: `Encabezado`, `TituloDeSeccion`, `Volver`, `Aviso`, `Reparto`, `ListaClaveValor`, `Tarjeta`, `Identidad`, `MedidorDeStrikes`, `Paginacion`, `EnlaceBoton` y `formatearNumero`.
+
+Las pantallas del panel usan solo ese kit, y las de usuario solo `components/ui/`. No los mezcles.
 
 ## 5. Móvil: lo que ya funciona y lo que falta
 
@@ -105,10 +119,10 @@ Cuando existan roles, `(dashboard)/layout.tsx` obtiene el usuario y construye lo
 </label>
 ```
 
-- **Validación en el cliente:** mantén la que ya existe (formato y 10 MB) para avisar pronto; el servidor vuelve a validar (`KIND_RULES`).
+- **Validación en el cliente:** mantén la que ya existe (formato y 10 MB) para avisar pronto; el servidor vuelve a validar (`ALLOWED_FILE_TYPES` y `MAX_FILE_SIZE` en `app/api/aportes/route.ts`).
 - **Vista previa:** `URL.createObjectURL(file)`, liberando la URL después.
 - **Audio en vivo:** `MediaRecorder` (Chrome graba `audio/webm`, Safari `audio/mp4`). Requiere HTTPS o `localhost`; como respaldo, ofrece `<input type="file" accept="audio/*">`.
-- **Subida:** usa `uploadMedia` (`lib/upload-media.ts`), que muestra progreso real. Si falla, conserva lo que la persona escribió.
+- **Subida:** `FormData` con `fetch` a `POST /api/aportes` (ver `almacenamiento.md`). Si falla, conserva lo que la persona escribió.
 
 ## 7. Accesibilidad
 

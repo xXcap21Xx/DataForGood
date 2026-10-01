@@ -1,3 +1,6 @@
+// Verificación del correo: código de 6 dígitos enviado por Gmail (nodemailer), guardado como hash.
+// Vence en 15 minutos y admite 3 intentos. La cookie pending_verification_id liga /verificar con la cuenta.
+
 import { randomInt, createHash } from "crypto";
 import { cookies } from "next/headers";
 import type { NextResponse } from "next/server";

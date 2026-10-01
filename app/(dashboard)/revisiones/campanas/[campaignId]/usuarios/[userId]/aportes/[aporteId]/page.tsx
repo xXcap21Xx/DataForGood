@@ -1,15 +1,16 @@
+// Pantalla .../usuarios/[userId]/aportes/[aporteId] de /revisiones: detalle de un aporte (solo lectura).
+// Server Component con SQL directo tras exigirUsuario(); solo para revisores aceptados de la campaña.
+
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import Tag from "@/components/ui/Tag";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
+import { BASE_PATH } from "@/lib/base-path";
 
 export default async function ReviewerContributionDetailPage({ params }: { params: Promise<{ campaignId: string; userId: string; aporteId: string }> }) {
   const { campaignId, userId, aporteId } = await params;
-  await ensureCoreSchema();
-  const reviewer = await getSessionUser();
-  if (!reviewer) redirect("/entrar");
+  const reviewer = await exigirUsuario();
 
   const result = await pool.query(
     `SELECT a.id, a.participant_name, a.participant_email, a.description, a.file_type,
@@ -49,9 +50,9 @@ export default async function ReviewerContributionDetailPage({ params }: { param
         <section className="rounded-lg border border-line bg-surface p-5 shadow-sm">
           <h2 className="mb-3 text-[15px] font-extrabold text-ink">Archivo aprobado</h2>
           {contribution.file_type === "foto" ? (
-            <a href={`/api/aportes/${aporteId}/archivo`} target="_blank" rel="noreferrer" className="block">
+            <a href={`${BASE_PATH}/api/aportes/${aporteId}/archivo`} target="_blank" rel="noreferrer" className="block">
               <img
-                src={`/api/aportes/${aporteId}/archivo`}
+                src={`${BASE_PATH}/api/aportes/${aporteId}/archivo`}
                 alt={`Imagen aportada por ${contribution.participant_name}`}
                 className="aspect-video w-full rounded-lg border border-line-2 bg-sunken object-contain"
               />

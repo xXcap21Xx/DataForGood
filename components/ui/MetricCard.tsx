@@ -1,3 +1,5 @@
+// Tarjeta de métrica de la zona de usuario.
+
 import Link from "next/link";
 
 interface MetricCardProps {

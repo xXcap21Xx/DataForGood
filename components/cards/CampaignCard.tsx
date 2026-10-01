@@ -1,3 +1,5 @@
+// Tarjeta de campaña para las listas de la zona de usuario (/campanas, /mis-aportes...). Recibe un Campaign de types/index.ts.
+
 import Link from "next/link";
 import Card from "@/components/ui/Card";
 import Tag from "@/components/ui/Tag";
@@ -31,37 +33,41 @@ export default function CampaignCard({ campaign }: { campaign: Campaign }) {
   }) : "Sin fecha";
 
   return (
-    <Card className="flex flex-col gap-3">
+    <Card className="flex flex-col gap-3 max-md:gap-2.5 max-md:p-3.5">
       <div className="flex items-center justify-between gap-2">
         <Tag tone="ok">{campaign.tag}</Tag>
-        <Tag>{isActive ? "● Activa" : campaign.status === "en_revision" ? "◦ Próxima" : campaign.status}</Tag>
+        {campaign.isBanned ? (
+          <Tag tone="danger">Baneado</Tag>
+        ) : (
+          <Tag>{isActive ? "● Activa" : campaign.status === "en_revision" ? "◦ Próxima" : campaign.status}</Tag>
+        )}
       </div>
 
       <div>
-        <h3 className="text-base font-bold text-ink">{campaign.name}</h3>
-        <p className="mt-1 text-[13px] text-ink-2">{campaign.description}</p>
-        <p className="mt-1.5 font-mono text-[11px] text-ink-2">
+        <h3 className="text-base font-bold text-ink max-md:text-[15px]">{campaign.name}</h3>
+        <p className="mt-1 text-[13px] text-ink-2 max-md:text-[12px] max-md:leading-5">{campaign.description}</p>
+        <p className="mt-1.5 font-mono text-[11px] text-ink-2 max-md:text-[10.5px]">
           {formatDateRange(campaign.startDate, campaign.endDate)}
         </p>
-        <p className="mt-1 font-mono text-[11px] text-ink-2">
+        <p className="mt-1 font-mono text-[11px] text-ink-2 max-md:text-[10.5px]">
           Cierre: {closeDate} · {remainingDays} días restantes
         </p>
       </div>
 
       <ProgressBar pct={isActive ? pct : 0} />
 
-      <div className="flex gap-6">
+      <div className="flex gap-6 max-md:gap-5">
         <div>
-          <p className="font-mono text-[15px] font-bold text-ink">
+          <p className="font-mono text-[15px] font-bold text-ink max-md:text-[14px]">
             {campaign.currentContributions}/{campaign.goalContributions}
           </p>
-          <p className="text-[11px] text-ink-3">aportes</p>
+          <p className="text-[11px] text-ink-3 max-md:text-[10px]">aportes</p>
         </div>
         <div>
-          <p className="font-mono text-[15px] font-bold text-ink">
+          <p className="font-mono text-[15px] font-bold text-ink max-md:text-[14px]">
             {remainingDays}
           </p>
-          <p className="text-[11px] text-ink-3">días restantes</p>
+          <p className="text-[11px] text-ink-3 max-md:text-[10px]">días restantes</p>
         </div>
       </div>
 

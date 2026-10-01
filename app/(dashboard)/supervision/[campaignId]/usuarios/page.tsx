@@ -1,15 +1,17 @@
+// Pantalla /supervision/[campaignId]/usuarios: participantes de una campaña que supervisas.
+// Server Component con SQL directo; solo campañas activas o finalizadas con supervisor_id = tú.
+
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { BackLink } from "../../_ui";
 import { pool } from "@/lib/db";
-import { ensureCoreSchema } from "@/lib/db-schema";
-import { getSessionUser } from "@/lib/session";
+import { exigirUsuario } from "@/lib/session";
 
 type CampaignAccess = { id: number; name: string; status: string };
 
 async function getSupervisedCampaign(campaignId: string): Promise<CampaignAccess> {
-  const user = await getSessionUser();
-  if (!user || !user.role.includes("supervisor")) redirect("/campanas");
+  const user = await exigirUsuario();
+  if (!user.role.includes("supervisor")) redirect("/campanas");
 
   const result = await pool.query<CampaignAccess>(
     `SELECT id, name, status FROM campanas
@@ -23,7 +25,6 @@ async function getSupervisedCampaign(campaignId: string): Promise<CampaignAccess
 
 export default async function CampaignUsersPage({ params }: { params: Promise<{ campaignId: string }> }) {
   const { campaignId } = await params;
-  await ensureCoreSchema();
   const campaign = await getSupervisedCampaign(campaignId);
   const result = await pool.query(
     `SELECT a.user_id AS id,

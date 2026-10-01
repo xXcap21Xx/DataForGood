@@ -1,7 +1,11 @@
-import { redirect } from "next/navigation";
+// Layout de la zona de usuario (dashboard): TopBar + SidebarNav + VigilanteDeSesion.
+// Guardia: exigirUsuario() → sin sesión a /entrar, cuenta sancionada a /cuenta-bloqueada.
+// No basta por sí solo: cada página y cada endpoint vuelven a verificar (ver docs/permisos.md).
+
 import TopBar from "@/components/layout/TopBar";
 import SidebarNav from "@/components/layout/SidebarNav";
-import { getSessionUser } from "@/lib/session";
+import VigilanteDeSesion from "@/components/layout/VigilanteDeSesion";
+import { exigirUsuario } from "@/lib/session";
 
 export const dynamic = "force-dynamic";
 
@@ -10,14 +14,12 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const usuario = await getSessionUser();
-
-  if (!usuario) {
-    redirect("/entrar");
-  }
+  // Sin sesión va a /entrar; una cuenta suspendida o baneada, a /cuenta-bloqueada.
+  const usuario = await exigirUsuario();
 
   return (
     <div className="min-h-screen bg-paper">
+      <VigilanteDeSesion />
       <TopBar usuario={usuario} />
       <div className="dashboard-shell flex">
         <SidebarNav usuario={usuario} />

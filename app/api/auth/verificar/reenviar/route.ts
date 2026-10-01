@@ -1,3 +1,5 @@
+// POST /api/auth/verificar/reenviar — genera y envía un código nuevo. Lo usa /verificar.
+
 import { NextResponse } from "next/server";
 import { getPendingVerification, startVerification } from "@/lib/verification";
 

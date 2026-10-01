@@ -1,3 +1,6 @@
+// Hash y verificación de contraseñas con bcrypt. Reconoce hashes de un formato viejo y avisa
+// (wasLegacyHash) para que el login los migre.
+
 import { createHash } from "crypto";
 import bcrypt from "bcryptjs";
 

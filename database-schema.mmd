@@ -27,6 +27,7 @@ erDiagram
         timestamp created_at
         timestamp updated_at
     }
+
     SESSIONS {
         int id PK
         varchar token_hash UK
@@ -63,7 +64,9 @@ erDiagram
         int rejected_contributions
         int participants
         date start_date
+        time start_time
         date end_date
+        time end_time
         varchar location_city
         varchar location_state
         varchar organizer
@@ -73,6 +76,7 @@ erDiagram
         boolean has_reviewer_assigned
         varchar share_token
         timestamptz share_token_expires_at
+        jsonb aportes
         timestamp created_at
         timestamp updated_at
     }
@@ -177,7 +181,7 @@ erDiagram
 
     %% ROOT_SESSIONS no tiene FK: representa sesiones del SuperUsuario.
     %% APORTES.first_pass_by guarda el nombre del revisor, no una FK.
-    %% Los aportes se almacenan en la tabla APORTES.
+    %% CAMPANAS.aportes es un JSONB legado; la relacion normalizada es APORTES.
 
     %% Estados documentados:
     %% CAMPANAS.status: borrador | en_revision | activa | pausada | finalizada | rechazada

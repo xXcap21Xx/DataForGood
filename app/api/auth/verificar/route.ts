@@ -1,7 +1,11 @@
+// /api/auth/verificar — verificación del correo con código de 6 dígitos (lib/verification.ts).
+// La cuenta pendiente se identifica por la cookie pending_verification_id. Lo usa /verificar.
+
 import { NextResponse } from "next/server";
 import { createSession } from "@/lib/session";
 import { getPendingVerification, verifyCode, clearPendingVerificationCookie } from "@/lib/verification";
 
+// GET: correo al que se envió el código (para mostrarlo en /verificar).
 export async function GET() {
   try {
     const pending = await getPendingVerification();
@@ -23,6 +27,7 @@ export async function GET() {
   }
 }
 
+// POST: valida el código. Si es correcto, marca la cuenta como verificada y abre sesión.
 export async function POST(request: Request) {
   try {
     const pending = await getPendingVerification();
