@@ -73,8 +73,8 @@ export default async function SancionesPage() {
       <h2 className="mb-1 mt-10 text-[17px] font-extrabold text-ink">Dispositivos anónimos bloqueados</h2>
       <p className="mb-4 text-[13px] text-ink-2">
         Personas sin cuenta con {INAPROPIADOS_PARA_BLOQUEO} aportes marcados como inapropiados en{" "}
-        {VENTANA_DE_DIAS} días. No pueden aportar sin cuenta en ninguna campaña, desde ese
-        dispositivo ni desde su red, durante {DIAS_DE_BLOQUEO} días.
+        {VENTANA_DE_DIAS} días. No pueden aportar sin cuenta desde ese dispositivo en ninguna
+        campaña durante {DIAS_DE_BLOQUEO} días.
       </p>
       {bloqueos.length === 0 ? (
         <p className="py-4 text-[13px] text-ink-2">No hay dispositivos bloqueados.</p>

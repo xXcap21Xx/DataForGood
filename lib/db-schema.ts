@@ -298,7 +298,6 @@ export async function ensureAportesTable(): Promise<void> {
       first_pass_by_user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
       enlace_id INTEGER REFERENCES campana_enlaces(id) ON DELETE SET NULL,
       anonimo_id CHAR(64),
-      ip_hmac CHAR(64),
       inapropiado BOOLEAN NOT NULL DEFAULT false,
       inapropiado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
       inapropiado_en TIMESTAMPTZ,
@@ -321,12 +320,12 @@ export async function ensureAportesTable(): Promise<void> {
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS anonimo_id CHAR(64);
     CREATE INDEX IF NOT EXISTS aportes_anonimo_idx ON aportes (campaign_id, anonimo_id) WHERE anonimo_id IS NOT NULL;
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
-    -- Aporte sin cuenta: HMAC-SHA256 de la IP con ANONIMO_IP_SECRETO (lib/aportes/anonimato.ts).
-    -- Nunca la IP en claro. Sirve para el bloqueo global por red.
-    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS ip_hmac CHAR(64);
-    -- Espera entre aportes anónimos: último aporte del dispositivo y de la red, en cualquier campaña.
+    -- La IP de un aporte sin cuenta ya no se guarda de ninguna forma (2026-10-01): se quita
+    -- la columna del HMAC que existió unas horas, con los hashes que alcanzó a guardar.
+    DROP INDEX IF EXISTS aportes_ip_fecha_idx;
+    ALTER TABLE aportes DROP COLUMN IF EXISTS ip_hmac;
+    -- Espera entre aportes anónimos: último aporte del dispositivo, en cualquier campaña.
     CREATE INDEX IF NOT EXISTS aportes_anonimo_fecha_idx ON aportes (anonimo_id, submitted_at) WHERE anonimo_id IS NOT NULL;
-    CREATE INDEX IF NOT EXISTS aportes_ip_fecha_idx ON aportes (ip_hmac, submitted_at) WHERE ip_hmac IS NOT NULL;
     -- Marca "Contenido inapropiado" (creador o revisor) de un aporte anónimo. Solo
     -- estos cuentan para el bloqueo global del dispositivo (lib/aportes/sanciones-anonimas.ts).
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS inapropiado BOOLEAN NOT NULL DEFAULT false;
@@ -342,16 +341,14 @@ export async function ensureAportesTable(): Promise<void> {
  *   - campana_id con valor: el creador bloqueó ese dispositivo en su campaña.
  *     No vence; se quita desde "Participantes baneados". Solo por dispositivo.
  *   - campana_id NULL: bloqueo global automático al juntar aportes inapropiados.
- *     Vence en `hasta` y alcanza también a la red (ip_hmac). El SuperUsuario lo
- *     ve y lo quita en /usuarios/sanciones.
- * anonimo_id e ip_hmac son hashes: nunca la cookie ni la IP en claro.
+ *     Vence en `hasta`. El SuperUsuario lo ve y lo quita en /usuarios/sanciones.
+ * anonimo_id es el hash de la cookie, nunca su valor. No se guarda la IP.
  */
 export async function ensureDispositivosBloqueadosTable(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS dispositivos_bloqueados (
       id SERIAL PRIMARY KEY,
       anonimo_id CHAR(64) NOT NULL,
-      ip_hmac CHAR(64),
       campana_id INTEGER REFERENCES campanas(id) ON DELETE CASCADE,
       motivo TEXT NOT NULL,
       bloqueado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
@@ -362,7 +359,9 @@ export async function ensureDispositivosBloqueadosTable(): Promise<void> {
       restaurado_en TIMESTAMPTZ
     );
     CREATE INDEX IF NOT EXISTS dispositivos_bloqueados_anonimo_idx ON dispositivos_bloqueados (anonimo_id) WHERE activo;
-    CREATE INDEX IF NOT EXISTS dispositivos_bloqueados_ip_idx ON dispositivos_bloqueados (ip_hmac) WHERE activo AND ip_hmac IS NOT NULL;
+    -- Sin bloqueo por red desde el 2026-10-01: fuera el HMAC de la IP.
+    DROP INDEX IF EXISTS dispositivos_bloqueados_ip_idx;
+    ALTER TABLE dispositivos_bloqueados DROP COLUMN IF EXISTS ip_hmac;
   `);
 }
 

@@ -6,7 +6,7 @@
 //   - sin sesión: formulario anónimo (aporte-anonimo.tsx → POST /api/c/[token]/aportes),
 //     con la cuota por dispositivo, y la opción de entrar o registrarse con ?next=.
 //     Sin formulario (solo el aviso) si el creador apagó los aportes sin cuenta o si el
-//     dispositivo o su red están bloqueados (lib/aportes/sanciones-anonimas.ts).
+//     dispositivo está bloqueado (lib/aportes/sanciones-anonimas.ts).
 // Es TODO lo que ve una persona anónima: la campaña compartida y su formulario.
 
 import type { Metadata } from "next";
@@ -104,14 +104,7 @@ export default async function EnlacePublicoPage({ params }: { params: Promise<{ 
 /** Por qué no se muestra el formulario anónimo, o null si se muestra. El servidor vuelve a comprobarlo al enviar. */
 async function motivoSinFormulario(campana: CampanaDelEnlace, dispositivo: string | null): Promise<string | null> {
   if (!campana.permiteAnonimos) return "Esta campaña solo recibe aportes con cuenta.";
-  try {
-    const ip = ipDelCliente(await headers());
-    return (await bloqueoParaLaPagina(campana.id, dispositivo, ip)) ? MENSAJE_BLOQUEADO : null;
-  } catch (error) {
-    // Sin ANONIMO_IP_SECRETO no se puede comprobar: se muestra el formulario y el envío lo reporta.
-    console.error("No se pudo comprobar el bloqueo del dispositivo", error);
-    return null;
-  }
+  return (await bloqueoParaLaPagina(campana.id, dispositivo)) ? MENSAJE_BLOQUEADO : null;
 }
 
 function Invitacion({

@@ -752,8 +752,8 @@ paths:
         Público, sin sesión: es lo único que una persona sin cuenta puede hacer. Solo con un
         enlace vigente de una campaña activa que permita aportes sin cuenta. Con sesión iniciada
         responde 409 (se aporta con la cuenta). El aporte se guarda sin datos personales (`user_id`
-        NULL, "Anónimo", sin correo ni nombre de archivo, foto sin metadatos) y con el HMAC de la
-        IP, nunca la IP. Cuota: la cuota por persona de la campaña, contada por dispositivo con la
+        NULL, "Anónimo", sin correo ni nombre de archivo, foto sin metadatos) y sin ninguna
+        forma de la IP. Cuota: la cuota por persona de la campaña, contada por dispositivo con la
         cookie `anonimo_id` (se crea en la primera respuesta exitosa); además, un tope de 20 aportes
         anónimos por IP por hora, y 60 segundos de espera entre dos aportes del mismo
         dispositivo (en cualquier campaña). Solo responde cuántos aportes le quedan y la espera.
@@ -790,7 +790,7 @@ paths:
                       esperaSegundos: { type: integer, description: Segundos hasta poder enviar otro }
         "400": { $ref: "#/components/responses/BadRequest" }
         "403":
-          description: La campaña no permite aportes sin cuenta, o el dispositivo (o su red) está bloqueado
+          description: La campaña no permite aportes sin cuenta, o el dispositivo está bloqueado
         "404": { $ref: "#/components/responses/NotFound" }
         "409":
           description: Hay sesión iniciada, o la campaña ya no recibe aportes
@@ -849,7 +849,7 @@ paths:
         (`pendiente` → `espera_final`); el creador da la final.
         `rejectionReason` es obligatorio al rechazar. `inapropiado: true` marca un aporte
         anónimo como contenido inapropiado al rechazarlo; con 3 marcados en 30 días, el
-        dispositivo y su red quedan bloqueados 30 días en toda la plataforma (el mensaje lo
+        dispositivo queda bloqueado 30 días en toda la plataforma (el mensaje lo
         avisa). Si el creador acepta, se quita la marca.
       requestBody:
         required: true
@@ -920,7 +920,7 @@ paths:
       summary: Marcar un aporte anónimo como contenido inapropiado (creador o revisor aceptado)
       description: |
         No cambia el estado del aporte: decide el creador. Con 3 aportes inapropiados del mismo
-        dispositivo en 30 días, el dispositivo y su red quedan bloqueados 30 días. Bitácora
+        dispositivo en 30 días, el dispositivo queda bloqueado 30 días. Bitácora
         `aporte.inapropiado` (y `sancion.dispositivo_bloquear` si dispara el bloqueo).
       responses:
         "200":

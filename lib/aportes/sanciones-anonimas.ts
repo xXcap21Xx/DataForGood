@@ -1,6 +1,6 @@
 // Sanciones para aportes SIN cuenta (dominio.md, punto abierto 18, implementado el 2026-10-01).
 // A una persona anónima no hay cuenta que banear: se sanciona su dispositivo (hash de la
-// cookie anonimo_id) y, en el nivel global, también su red (HMAC de la IP).
+// cookie anonimo_id). La IP no se guarda, así que no hay bloqueo por red.
 //
 //   1. Aporte: creador o revisor lo marcan como "Contenido inapropiado". Solo esos cuentan
 //      para el nivel 4. El creador puede además borrar el archivo de MinIO.
@@ -8,8 +8,8 @@
 //      con campana_id). Se quita desde "Participantes baneados".
 //   3. Enlace: regenerar el token (ya existía) y el interruptor campanas.permite_anonimos.
 //   4. Plataforma: INAPROPIADOS_PARA_BLOQUEO aportes inapropiados del mismo dispositivo en
-//      VENTANA_DE_DIAS lo bloquean en toda la plataforma DIAS_DE_BLOQUEO días, junto con su
-//      red. El SuperUsuario lo ve y lo quita en /usuarios/sanciones.
+//      VENTANA_DE_DIAS lo bloquean en toda la plataforma DIAS_DE_BLOQUEO días. El
+//      SuperUsuario lo ve y lo quita en /usuarios/sanciones.
 //
 // Los route handlers verifican quién puede hacer qué; aquí solo se aplican las reglas.
 
@@ -25,27 +25,18 @@ export const DIAS_DE_BLOQUEO = 30;
 /** Condición SQL de un bloqueo que sigue en vigor. */
 const VIGENTE = `activo AND (hasta IS NULL OR hasta > NOW())`;
 
-/**
- * Si este dispositivo (o su red, en el nivel global) no puede aportar a la campaña.
- * 'global' gana sobre 'campana'. El bloqueo por campaña es solo por dispositivo: una
- * escuela entera no debe quedar fuera de una campaña por lo que hizo una persona.
- */
+/** Si este dispositivo no puede aportar a la campaña. 'global' gana sobre 'campana'. */
 export async function bloqueoDelDispositivo(entrada: {
   campanaId: number;
   anonimoId: string | null;
-  ipHmac: string | null;
 }): Promise<"global" | "campana" | null> {
-  if (!entrada.anonimoId && !entrada.ipHmac) return null;
+  if (!entrada.anonimoId) return null;
   const { rows } = await pool.query<{ campana_id: number | null }>(
     `SELECT campana_id FROM dispositivos_bloqueados
-     WHERE ${VIGENTE}
-       AND (
-         (campana_id IS NULL AND (anonimo_id = $2 OR ($3::text IS NOT NULL AND ip_hmac = $3)))
-         OR (campana_id = $1 AND anonimo_id = $2)
-       )
+     WHERE ${VIGENTE} AND anonimo_id = $2 AND (campana_id IS NULL OR campana_id = $1)
      ORDER BY campana_id NULLS FIRST
      LIMIT 1`,
-    [entrada.campanaId, entrada.anonimoId, entrada.ipHmac]
+    [entrada.campanaId, entrada.anonimoId]
   );
   if (rows.length === 0) return null;
   return rows[0].campana_id === null ? "global" : "campana";
@@ -60,8 +51,8 @@ export async function marcarInapropiado(aporteId: number, usuarioId: number): Pr
   const client = await pool.connect();
   try {
     await client.query("BEGIN");
-    const { rows: aportes } = await client.query<{ anonimo_id: string; ip_hmac: string | null; campaign_id: number; inapropiado: boolean }>(
-      `SELECT anonimo_id, ip_hmac, campaign_id, inapropiado FROM aportes
+    const { rows: aportes } = await client.query<{ anonimo_id: string; campaign_id: number; inapropiado: boolean }>(
+      `SELECT anonimo_id, campaign_id, inapropiado FROM aportes
        WHERE id = $1 AND user_id IS NULL AND anonimo_id IS NOT NULL
        FOR UPDATE`,
       [aporteId]
@@ -96,12 +87,11 @@ export async function marcarInapropiado(aporteId: number, usuarioId: number): Pr
     let bloqueoId: number | null = null;
     if (conteo[0].n >= INAPROPIADOS_PARA_BLOQUEO && !yaBloqueado) {
       const { rows } = await client.query<{ id: number }>(
-        `INSERT INTO dispositivos_bloqueados (anonimo_id, ip_hmac, campana_id, motivo, bloqueado_por, aporte_id, hasta)
-         VALUES ($1, $2, NULL, $3, NULL, $4, NOW() + make_interval(days => $5))
+        `INSERT INTO dispositivos_bloqueados (anonimo_id, campana_id, motivo, bloqueado_por, aporte_id, hasta)
+         VALUES ($1, NULL, $2, NULL, $3, NOW() + make_interval(days => $4))
          RETURNING id`,
         [
           aporte.anonimo_id,
-          aporte.ip_hmac,
           `${conteo[0].n} aportes marcados como inapropiados en ${VENTANA_DE_DIAS} días`,
           aporteId,
           DIAS_DE_BLOQUEO,

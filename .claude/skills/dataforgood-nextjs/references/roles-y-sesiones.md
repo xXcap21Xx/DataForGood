@@ -60,7 +60,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 | Decisión final del aporte | Creador |
 | Ver el archivo de un aporte | Quien aportó, el creador, o un revisor aceptado si el aporte está `pendiente` o si él hizo la primera revisión (`app/api/aportes/[id]/archivo/route.ts`) |
 | Aportar | Campaña `activa`, sin baneo en `campana_baneados`, cuota disponible y sin ser el creador |
-| Aportar sin cuenta (persona anónima) | Solo desde `/c/[token]` con enlace vigente, campaña `activa` con `permite_anonimos` y sin bloqueo del dispositivo o de su red; cuota por dispositivo, 60 s de espera entre aportes del mismo dispositivo y tope por IP (`lib/campanas/aportes-anonimos.ts`). No ve ni modifica nada más |
+| Aportar sin cuenta (persona anónima) | Solo desde `/c/[token]` con enlace vigente, campaña `activa` con `permite_anonimos` y sin bloqueo del dispositivo; cuota por dispositivo, 60 s de espera entre aportes del mismo dispositivo y tope por IP (`lib/campanas/aportes-anonimos.ts`). No ve ni modifica nada más |
 | Marcar un aporte anónimo como inapropiado | Creador (al rechazar, `PATCH /api/aportes/[id]`) o revisor aceptado (`POST /api/aportes/[id]/inapropiado`) |
 | Bloquear el dispositivo de un aporte anónimo en la campaña, borrar su archivo, apagar los aportes sin cuenta | Solo el creador |
 | Quitar un bloqueo global de dispositivo | SuperUsuario (`/usuarios/sanciones`) |
@@ -93,7 +93,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 `registrarAuditoria()` en `lib/auditoria.ts`, llamado después de que la acción se completó. Si el registro falla, solo se reporta en consola: no revierte la acción.
 
-- **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`, `aporte:7`, `dispositivo:2`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`). Para el actor `anonimo` la IP **no** se guarda (`guardarIp: false`): el aporte ya lleva su HMAC.
+- **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`, `aporte:7`, `dispositivo:2`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`). Para el actor `anonimo` la IP **no** se guarda (`guardarIp: false`): la IP de una persona sin cuenta no se guarda en ningún lado.
 - **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `campana.enlace_regenerar`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
 - **Sin pantalla:** todavía no hay vista en el panel para consultarla; se lee con SQL.
 
@@ -101,7 +101,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 - ~~**Campaña activa sin supervisión**~~ *Corregido el 2026-10-01: `POST /api/campanas` exige sesión (antes tomaba el creador del body), solo acepta `borrador` o `en_revision` y fija contadores, XP y "especial" del lado del servidor; el `PATCH` en borrador/en revisión/rechazada solo acepta esos dos estados; el `PUT` solo vale en esos estados. El límite de 5 activas se aplica al enviar a revisión. Regla en `lib/campanas/estado-del-creador.ts`.*
 - **Panel protegido solo por el layout:** `/sistema` y `/usuarios/**` no llaman a `exigirSesionRoot()` y sus funciones de `lib/` no verifican. Las server actions que escriben sí. Detectado el 2026-10-01, sin corregir.
-- **El tope por IP y el bloqueo por red dependen del proxy:** `ipDelCliente` toma el último valor de `X-Forwarded-For`. Si alguien llega a la app sin pasar por el proxy (puerto 3000 abierto a Internet), puede escribir la IP que quiera. La cuota por dispositivo sí aplica. Se resuelve en el despliegue: el puerto de la app solo debe ser accesible desde el proxy. Detectado el 2026-10-01.
+- **El tope y la espera por IP dependen del proxy:** `ipDelCliente` toma el último valor de `X-Forwarded-For`. Si alguien llega a la app sin pasar por el proxy (puerto 3000 abierto a Internet), puede escribir la IP que quiera. La cuota por dispositivo sí aplica. Se resuelve en el despliegue: el puerto de la app solo debe ser accesible desde el proxy. Detectado el 2026-10-01.
 - ~~**`GET /api/campanas/[id]/recoleccion-diaria` sin comprobar creador**~~ *Corregido el 2026-10-01: solo el creador.* Las pantallas `/mis-campanas/[id]/{panel,especial}` siguen sin comprobar `viewer.isCreator` (sin datos que filtrar: la API ya responde 403).
 - ~~**El registro acepta roles del body**~~ *Corregido el 2026-10-01: `POST /api/usuarios` guarda siempre `["usuario"]`.*
 - ~~**`GET /api/usuarios/[id]` sin sesión**~~ *Corregido el 2026-10-01: solo la cuenta propia (401/403), como el `PATCH`. Ninguna pantalla lo usaba.*

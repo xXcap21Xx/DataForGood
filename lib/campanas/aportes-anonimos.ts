@@ -9,19 +9,19 @@
 //     sin nombre de archivo y la foto sin metadatos (lib/aportes/imagen.ts).
 //   - Cuota por dispositivo: la misma cuota por persona de la campaña, contada por una cookie
 //     anónima (lib/aportes/anonimato.ts). En la BD solo va su sha256 (aportes.anonimo_id).
-//   - Red: se guarda el HMAC de la IP (aportes.ip_hmac), nunca la IP. Sirve para el bloqueo
-//     global de lib/aportes/sanciones-anonimas.ts.
-//   - Tope por IP en memoria (TOPE_POR_IP_POR_HORA) contra quien borre la cookie para
-//     inundar la campaña.
+//   - La IP no se guarda en la BD de ninguna forma. Los límites por IP viven en memoria
+//     (se reinician con cada despliegue): el tope por hora y la espera sin cookie.
+//   - Tope por IP (TOPE_POR_IP_POR_HORA) contra quien borre la cookie para inundar la campaña.
 //   - Espera entre aportes (ESPERA_ENTRE_APORTES_SEGUNDOS) por dispositivo, en cualquier
-//     campaña: frena a quien manda uno tras otro. Se mide con aportes.submitted_at.
+//     campaña: frena a quien manda uno tras otro. Se mide con aportes.submitted_at. Un envío
+//     SIN cookie (dispositivo nuevo) además espera desde el último aporte anónimo de su IP.
 //   - Un dispositivo bloqueado en la campaña o en la plataforma no puede aportar.
 
 import { randomBytes } from "node:crypto";
 import type { PoolClient } from "pg";
 import { pool } from "@/lib/db";
 import { LARGO_MAXIMO_DESCRIPCION, errorDeArchivo, guardarFotoDelAporte, insertarAporteConCuota } from "@/lib/aportes/comun";
-import { hashDeDispositivo, hmacDeIp } from "@/lib/aportes/anonimato";
+import { hashDeDispositivo } from "@/lib/aportes/anonimato";
 import { bloqueoDelDispositivo } from "@/lib/aportes/sanciones-anonimas";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { respuestasValidas } from "@/lib/campanas/checklist";
@@ -42,6 +42,8 @@ export const ESPERA_ENTRE_APORTES_SEGUNDOS = 60;
  * Las IPs vencidas se podan como mucho una vez por minuto, para que el Map no crezca sin fin.
  */
 const enviosPorIp = new Map<string, { n: number; desde: number }>();
+/** Último aporte anónimo por IP, para la espera de los envíos sin cookie. Solo en memoria. */
+const ultimoEnvioPorIp = new Map<string, number>();
 let ultimaPoda = 0;
 
 function podarVencidas(ahora: number): void {
@@ -50,6 +52,25 @@ function podarVencidas(ahora: number): void {
   for (const [ip, registro] of enviosPorIp) {
     if (ahora - registro.desde > VENTANA_MS) enviosPorIp.delete(ip);
   }
+  for (const [ip, momento] of ultimoEnvioPorIp) {
+    if (ahora - momento > ESPERA_ENTRE_APORTES_SEGUNDOS * 1000) ultimoEnvioPorIp.delete(ip);
+  }
+}
+
+/**
+ * Espera de un envío SIN cookie: sin ella cada envío es un "dispositivo nuevo" y se saltaba
+ * la espera. Si ya puede, reserva el turno de esa IP en el mismo paso (síncrono: dos envíos
+ * simultáneos no pasan los dos). Quien ya tiene cookie no espera por otros de su red.
+ */
+function reservarEsperaSinCookie(ip: string): number {
+  if (!ip || ip === "desconocida") return 0;
+  const ahora = Date.now();
+  podarVencidas(ahora);
+  const ultimo = ultimoEnvioPorIp.get(ip);
+  const faltan = ultimo === undefined ? 0 : Math.ceil((ultimo + ESPERA_ENTRE_APORTES_SEGUNDOS * 1000 - ahora) / 1000);
+  if (faltan > 0) return faltan;
+  ultimoEnvioPorIp.set(ip, ahora);
+  return 0;
 }
 
 function topeAlcanzado(ip: string): boolean {
@@ -63,11 +84,7 @@ function contarEnvio(ip: string): void {
   const registro = enviosPorIp.get(ip);
   if (!registro || ahora - registro.desde > VENTANA_MS) enviosPorIp.set(ip, { n: 1, desde: ahora });
   else registro.n += 1;
-}
-
-/** HMAC de la IP, o null si no se conoce (no hay que agrupar a todos los "desconocida"). */
-export function ipHmacDe(ip: string): string | null {
-  return ip && ip !== "desconocida" ? hmacDeIp(ip) : null;
+  if (ip && ip !== "desconocida") ultimoEnvioPorIp.set(ip, ahora);
 }
 
 /** Aportes que este dispositivo ya envió a la campaña (0 si no tiene cookie). */
@@ -97,21 +114,6 @@ export async function segundosDeEspera(
   return Math.max(0, Number(rows[0]?.faltan ?? 0));
 }
 
-/**
- * Igual, pero contando el último aporte anónimo de la red (aportes.ip_hmac). Se aplica
- * solo a envíos SIN cookie: sin ella cada envío era un "dispositivo nuevo" y se saltaba
- * la espera. Quien ya tiene cookie no espera por lo que mandan otros en su red.
- */
-async function segundosDeEsperaDeRed(ipHmac: string | null, client: Pick<PoolClient, "query"> = pool): Promise<number> {
-  if (!ipHmac) return 0;
-  const { rows } = await client.query<{ faltan: number | null }>(
-    `SELECT CEIL(EXTRACT(EPOCH FROM (MAX(submitted_at) + make_interval(secs => $2) - LOCALTIMESTAMP)))::int AS faltan
-     FROM aportes WHERE ip_hmac = $1`,
-    [ipHmac, ESPERA_ENTRE_APORTES_SEGUNDOS]
-  );
-  return Math.max(0, Number(rows[0]?.faltan ?? 0));
-}
-
 function mensajeDeEspera(segundos: number): string {
   return `Espera ${segundos} ${segundos === 1 ? "segundo" : "segundos"} antes de enviar otro aporte.`;
 }
@@ -122,12 +124,8 @@ export async function esperaDelDispositivo(dispositivo: string | null): Promise<
 }
 
 /** Lo que ve /c/[token] para decidir si muestra el formulario. */
-export async function bloqueoParaLaPagina(campanaId: number, dispositivo: string | null, ip: string) {
-  return bloqueoDelDispositivo({
-    campanaId,
-    anonimoId: dispositivo ? hashDeDispositivo(dispositivo) : null,
-    ipHmac: ipHmacDe(ip),
-  });
+export async function bloqueoParaLaPagina(campanaId: number, dispositivo: string | null) {
+  return bloqueoDelDispositivo({ campanaId, anonimoId: dispositivo ? hashDeDispositivo(dispositivo) : null });
 }
 
 export const MENSAJE_BLOQUEADO = "No puedes enviar aportes sin cuenta a esta campaña.";
@@ -157,17 +155,15 @@ export async function enviarAporteAnonimo(entrada: {
     return { ok: false, status: 429, error: "Se enviaron demasiados aportes desde tu red. Intenta más tarde." };
   }
 
-  const ipHmac = ipHmacDe(entrada.ip);
   const dispositivoNuevo = entrada.dispositivo === null;
   const dispositivo = entrada.dispositivo ?? randomBytes(32).toString("hex");
   const anonimoId = hashDeDispositivo(dispositivo);
-  // Un dispositivo nuevo no puede estar bloqueado por cookie, pero su red sí.
-  if (await bloqueoDelDispositivo({ campanaId: campana.id, anonimoId, ipHmac })) {
+  if (await bloqueoDelDispositivo({ campanaId: campana.id, anonimoId })) {
     return { ok: false, status: 403, error: MENSAJE_BLOQUEADO };
   }
 
   // Aviso rápido de la espera, antes de subir nada; la comprobación que cuenta va en la transacción.
-  const faltan = Math.max(await segundosDeEspera(anonimoId), dispositivoNuevo ? await segundosDeEsperaDeRed(ipHmac) : 0);
+  const faltan = await segundosDeEspera(anonimoId);
   if (faltan > 0) return { ok: false, status: 429, error: mensajeDeEspera(faltan), esperaSegundos: faltan };
 
   const descripcion = entrada.descripcion.trim();
@@ -186,6 +182,12 @@ export async function enviarAporteAnonimo(entrada: {
     return { ok: false, status: 400, error: MENSAJE_CUOTA };
   }
 
+  // Sin cookie: espera por IP (en memoria). Se reserva aquí, ya validado el envío.
+  if (dispositivoNuevo) {
+    const faltanRed = reservarEsperaSinCookie(entrada.ip);
+    if (faltanRed > 0) return { ok: false, status: 429, error: mensajeDeEspera(faltanRed), esperaSegundos: faltanRed };
+  }
+
   // Solo respuestas que existen en los checklists de la campaña ("Título: opción").
   const caracteristicas = respuestasValidas(entrada.caracteristicas, campana.secciones);
   const foto = await guardarFotoDelAporte(entrada.archivo, campana.id);
@@ -200,14 +202,7 @@ export async function enviarAporteAnonimo(entrada: {
       // Candado por dispositivo (el de la cuota es por campaña): dos envíos simultáneos a
       // campañas distintas tampoco se saltan la espera.
       await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [`espera:${anonimoId}`]);
-      // Sin cookie, además un candado por red: varios envíos sin cookie a la vez esperan entre sí.
-      if (dispositivoNuevo && ipHmac) {
-        await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [`espera-red:${ipHmac}`]);
-      }
-      const segundos = Math.max(
-        await segundosDeEspera(anonimoId, client),
-        dispositivoNuevo ? await segundosDeEsperaDeRed(ipHmac, client) : 0
-      );
+      const segundos = await segundosDeEspera(anonimoId, client);
       return segundos > 0 ? { error: mensajeDeEspera(segundos), esperaSegundos: segundos } : null;
     },
     contar: async (client) => {
@@ -222,8 +217,8 @@ export async function enviarAporteAnonimo(entrada: {
         `INSERT INTO aportes (
           campaign_id, user_id, participant_name, participant_email, description,
           file_type, file_path, file_original_name, file_mime_type, file_size_bytes,
-          caracteristicas, enlace_id, anonimo_id, ip_hmac
-        ) VALUES ($1, NULL, 'Anónimo', NULL, $2, 'foto', $3, NULL, $4, $5, $6::jsonb, $7, $8, $9)
+          caracteristicas, enlace_id, anonimo_id
+        ) VALUES ($1, NULL, 'Anónimo', NULL, $2, 'foto', $3, NULL, $4, $5, $6::jsonb, $7, $8)
         RETURNING id`,
         // file_original_name va NULL: el nombre del archivo puede traer datos personales.
         [
@@ -235,7 +230,6 @@ export async function enviarAporteAnonimo(entrada: {
           JSON.stringify(caracteristicas),
           enlace.id,
           anonimoId,
-          ipHmac,
         ]
       );
       return rows[0].id;
@@ -248,7 +242,7 @@ export async function enviarAporteAnonimo(entrada: {
   }
   contarEnvio(entrada.ip);
 
-  // Sin IP en claro: el aporte ya guarda su HMAC.
+  // Sin IP: la persona anónima no deja su IP en ningún lado de la BD.
   await registrarAuditoria({
     actor: { tipo: "anonimo" },
     accion: "aporte.anonimo_enviar",

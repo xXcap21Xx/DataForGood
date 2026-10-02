@@ -751,7 +751,7 @@
         "mimeType": "application/json",
         "text": "{\n  \"status\": \"rechazado\",\n  \"rejectionReason\": \"Contenido ofensivo\",\n  \"inapropiado\": true\n}"
       },
-      "description": "Solo aportes anónimos. Con 3 inapropiados del mismo dispositivo en 30 días, se bloquea 30 días junto con su red.",
+      "description": "Solo aportes anónimos. Con 3 inapropiados del mismo dispositivo en 30 días, se bloquea 30 días.",
       "metaSortKey": 28.1
     },
     {
