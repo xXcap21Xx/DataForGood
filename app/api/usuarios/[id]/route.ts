@@ -1,11 +1,11 @@
 // /api/usuarios/[id] — perfil de un usuario.
-// Ojo: el GET no pide sesión (hueco conocido, docs/README.md § 8).
+// GET y PATCH solo sobre la cuenta propia.
 
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 
-// GET: perfil de un usuario. Ojo: no pide sesión (hueco conocido).
+// GET: tu propio perfil (401 sin sesión, 403 si el id no es el tuyo).
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
@@ -19,6 +19,16 @@ export async function GET(
         { error: "El id del usuario es obligatorio" },
         { status: 400 }
       );
+    }
+
+    // Solo la cuenta propia, igual que el PATCH: antes respondía sin sesión y
+    // dejaba sacar el correo y la ubicación de cualquier id.
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) {
+      return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+    }
+    if (Number(sessionUser.id) !== Number(rawId)) {
+      return NextResponse.json({ error: "Solo puedes ver tu propia cuenta" }, { status: 403 });
     }
 
     const result = await pool.query(

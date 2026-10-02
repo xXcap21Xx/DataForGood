@@ -161,9 +161,9 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 
 | Método y ruta | Acceso | Qué hace | La llama |
 | --- | --- | --- | --- |
-| `POST /api/usuarios` | Libre | Registro. Crea la cuenta sin verificar y envía el código | `/registro` |
+| `POST /api/usuarios` | Libre | Registro. Crea la cuenta sin verificar, siempre con el rol `usuario`, y envía el código | `/registro` |
 | `GET /api/usuarios?campanaId=&q=` | Sesión + creador de esa campaña | Busca personas para invitar como revisor (máx. 10, correo oculto) | `agregar-revisor` |
-| `GET /api/usuarios/[id]` | **Libre (hueco conocido)** | Perfil de un usuario | — |
+| `GET /api/usuarios/[id]` | Sesión + la cuenta propia | Tu perfil | — |
 | `PATCH /api/usuarios/[id]` | Sesión, solo tu propio id | Actualiza perfil (estado, ciudad, especialidad, intereses...) | `/bienvenida`, `/cuenta` |
 
 ### Campañas
@@ -176,10 +176,10 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 | `GET /api/campanas?misAportes=true` | Sesión | Campañas donde aportaste o que guardaste | `/mis-aportes` |
 | `GET /api/campanas?available=true` | Sesión | Activas a las que todavía puedes aportar | — |
 | `GET /api/campanas?supervised=true` | Sesión | Campañas que supervisas | `/supervision` |
-| `POST /api/campanas` | Sesión | Crea una campaña (`borrador` o `en_revision`). Máx. 5 activas por persona | Formulario |
+| `POST /api/campanas` | Sesión | Crea una campaña de quien tiene la sesión: solo `borrador` (por defecto) o `en_revision`; con 5 activas, solo borrador. Contadores, XP (50) y "especial" los fija el servidor (`lib/campanas/estado-del-creador.ts`) | Formulario |
 | `GET /api/campanas/[id]` | Libre | Detalle de la campaña + `viewer.isCreator` | Bandeja, formulario de edición, revisión |
-| `PATCH /api/campanas/[id]` | Sesión | **Tres usos según el body:** `{ action: "tomar" }` (supervisor la toma); `{ action: "aceptada"\|"rechazada"\|"reportada", motivo }` (dictamen del supervisor que la tomó); cualquier otro body = edición del creador, con reglas por estado | Formulario, `/mis-campanas`, `/supervision/[id]` |
-| `PUT /api/campanas/[id]` | Sesión + creador | Reemplazo completo de los campos editables (pensado para Insomnia) | — |
+| `PATCH /api/campanas/[id]` | Sesión | **Tres usos según el body:** `{ action: "tomar" }` (supervisor la toma); `{ action: "aceptada"\|"rechazada"\|"reportada", motivo }` (dictamen del supervisor que la tomó); cualquier otro body = edición del creador, con reglas por estado (en borrador, en revisión o rechazada solo puede pedir `borrador` o `en_revision`; XP y "revisor asignado" no se editan) | Formulario, `/mis-campanas`, `/supervision/[id]` |
+| `PUT /api/campanas/[id]` | Sesión + creador, campaña en `borrador`, `en_revision` o `rechazada` | Reemplazo completo de los campos editables (pensado para Insomnia). `status` solo `borrador` o `en_revision`; no cambia XP ni "revisor asignado" | — |
 | `POST`, `DELETE /api/campanas/[id]/guardar` | Sesión | Guardar o quitar de favoritos | `/campanas/[id]` |
 | `GET`, `POST /api/campanas/[id]/revisores` | Sesión + creador | Listar revisores; invitar a uno (le llega una notificación) | `agregar-revisor` |
 | `GET`, `POST`, `DELETE /api/campanas/[id]/baneos` | Sesión + creador | Listar (`data`: cuentas; `dispositivos`: anónimos bloqueados), banear o desbanear. Con un aporte anónimo, `POST` bloquea su dispositivo en la campaña; `DELETE { bloqueoId }` lo desbloquea. Bitácora `campana.{bloquear,desbloquear}_dispositivo` | Detalle del aporte, `baneados.tsx` |

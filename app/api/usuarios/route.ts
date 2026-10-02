@@ -1,12 +1,12 @@
 // /api/usuarios — registro de cuentas y buscador de revisores.
-// Ojo: el POST lee roles del body (hueco conocido, docs/README.md § 8).
+// El registro siempre crea la cuenta con el rol "usuario": los demás los asigna el
+// SuperUsuario (Supervisor) o se ganan al aceptar una invitación (Revisor).
 
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
-import { normalizeRoles } from "@/lib/roles";
 import { getSessionUser } from "@/lib/session";
 
 // POST: registro. Crea la cuenta sin verificar y envía el código por correo.
@@ -22,7 +22,8 @@ export async function POST(request: Request) {
     const city = String(body.city ?? "").trim();
     const specialty = String(body.specialty ?? "").trim();
     const intereses = Array.isArray(body.intereses) ? body.intereses : [];
-    const roles = normalizeRoles(body.role ?? body.roles ?? ["usuario"]);
+    // Nunca se leen roles del body: antes cualquiera podía registrarse como supervisor.
+    const roles = ["usuario"];
 
     if (!nombre || !apellidos || !email || password.length < 6) {
       return NextResponse.json(

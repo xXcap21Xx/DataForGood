@@ -208,9 +208,6 @@ Están anotados para que no te sorprendan. No los "arregles de paso": cada uno e
 
 | Problema | Dónde |
 | --- | --- |
-| **Se puede crear una campaña ya `activa` sin supervisión.** `POST /api/campanas` toma `status` del body y, si no viene, usa `activa`; tampoco revisa el límite de 5 activas. El `PATCH` de un borrador también acepta cualquier estado válido. La interfaz siempre manda `borrador` o `en_revision`, pero alguien que llame a la API directamente se salta al supervisor | `app/api/campanas/route.ts` (POST), `app/api/campanas/[id]/route.ts` (PATCH/PUT) |
-| **El registro acepta roles desde el body.** Alguien puede registrarse como `supervisor` | `app/api/usuarios/route.ts` (POST) + `lib/roles.ts` |
-| **`GET /api/usuarios/[id]` no pide sesión** y devuelve el correo de cualquier usuario | `app/api/usuarios/[id]/route.ts` |
 | **`GET /api/campanas/[id]/recoleccion-diaria`** solo pide sesión, no que seas el creador: cualquier usuario ve las estadísticas de cualquier campaña | `app/api/campanas/[id]/recoleccion-diaria/route.ts` |
 | **La revisión en dos instancias no está completa.** Cuando un revisor acepta un aporte, el servidor lo deja en `aceptado` directamente; nunca lo pone en `espera_final`, aunque la interfaz sí muestra ese estado | `app/api/aportes/[id]/route.ts` (PATCH) |
 | **Páginas del panel protegidas solo por el layout.** `/sistema` y `/usuarios/**` no vuelven a comprobar la sesión raíz (ni la página ni sus funciones de `lib/`). Las server actions que escriben sí verifican | `app/(panel)/sistema/page.tsx`, `app/(panel)/usuarios/**`, `lib/usuarios/{directorio,dashboard,supervisores}.ts`, `lib/sistema/metricas.ts` |

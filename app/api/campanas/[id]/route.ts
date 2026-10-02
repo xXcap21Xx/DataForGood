@@ -3,6 +3,11 @@
 // ({ action: "aceptada" | "rechazada" | "reportada", motivo }) o edición del creador.
 
 import { NextResponse } from "next/server";
+import {
+  ESTADOS_CON_EDICION_COMPLETA,
+  MAX_CAMPANAS_ACTIVAS as MAX_ACTIVE_CAMPAIGNS,
+  errorDeEstadoPedido,
+} from "@/lib/campanas/estado-del-creador";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { ACCIONES_DE_SUPERVISION, registrarDecisionDeCampana, tomarCampanaParaSupervisar, type AccionDeSupervision } from "@/lib/supervision/decision";
@@ -31,7 +36,6 @@ const ALLOWED_STATUS = new Set([
   "rechazada",
 ]);
 
-const MAX_ACTIVE_CAMPAIGNS = 5;
 
 function normalizeCampaignStatus(input: unknown): string | null {
   const value = String(input ?? "").trim().toLowerCase();
@@ -271,6 +275,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if ("status" in body && normalizeCampaignStatus(body.status) === null) {
       return NextResponse.json({ error: `status debe ser uno de: ${Array.from(ALLOWED_STATUS).join(", ")}` }, { status: 400 });
     }
+    // Borrador, en revisión o rechazada: el creador solo la guarda o la (re)envía a revisión.
+    // Antes aceptaba cualquier estado, y un PATCH { status: "activa" } se saltaba al supervisor.
+    if ("status" in body && ESTADOS_CON_EDICION_COMPLETA.has(currentStatus)) {
+      const errorDeEstado = await errorDeEstadoPedido(String(normalizeCampaignStatus(body.status)), user.id);
+      if (errorDeEstado) return NextResponse.json({ error: errorDeEstado }, { status: 400 });
+    }
 
     const name = "name" in body ? String(body.name ?? "").trim() : null;
     const description = "description" in body ? String(body.description ?? "").trim() : null;
@@ -306,8 +316,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     const locationState = "locationState" in body || "location_state" in body ? String(body.locationState ?? body.location_state ?? "").trim() : null;
     const locationColonia = "locationColonia" in body || "location_colonia" in body ? String(body.locationColonia ?? body.location_colonia ?? "").trim() : null;
     const organizer = "organizer" in body ? String(body.organizer ?? "").trim() : null;
-    const xpPerContribution = "xpPerContribution" in body || "xp_per_contribution" in body ? Number(body.xpPerContribution ?? body.xp_per_contribution) : null;
-    const hasReviewerAssigned = "hasReviewerAssigned" in body || "has_reviewer_assigned" in body ? Boolean(body.hasReviewerAssigned ?? body.has_reviewer_assigned) : null;
+    // El XP y "revisor asignado" no los cambia el creador (lib/campanas/estado-del-creador.ts):
+    // has_reviewer_assigned lo pone aceptar la invitación de revisor.
+    const xpPerContribution = null;
+    const hasReviewerAssigned = null;
 
     // Igual que en POST/PUT: un borrador puede quedar incompleto, pero si
     // esta edición manda (o deja) la campaña en cualquier otro estado, cada
@@ -419,6 +431,14 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
       return NextResponse.json({ error: "Solo quien creó la campaña puede editarla" }, { status: 403 });
     }
     const estadoAnterior = String(existing.rows[0].status ?? "");
+    // El reemplazo completo solo vale donde el PATCH también deja editar todo; si no,
+    // un PUT se saltaba las reglas por estado (activa, aceptada, finalizada...).
+    if (!ESTADOS_CON_EDICION_COMPLETA.has(estadoAnterior)) {
+      return NextResponse.json(
+        { error: "Solo se reemplaza por completo una campaña en borrador, en revisión o rechazada" },
+        { status: 403 }
+      );
+    }
 
     const body = await request.json().catch(() => ({}));
 
@@ -433,6 +453,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     if (status === null) {
       return NextResponse.json({ error: `status debe ser uno de: ${Array.from(ALLOWED_STATUS).join(", ")}` }, { status: 400 });
     }
+    const errorDeEstado = await errorDeEstadoPedido(status, user.id);
+    if (errorDeEstado) return NextResponse.json({ error: errorDeEstado }, { status: 400 });
 
     const dataTypes = normalizeDataTypes(body.dataTypes ?? body.data_types ?? []);
     const secciones = normalizarSecciones(
@@ -457,8 +479,9 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
     const locationState = String(body.locationState ?? body.location_state ?? "").trim();
     const locationColonia = String(body.locationColonia ?? body.location_colonia ?? "").trim();
     const organizer = String(body.organizer ?? "").trim();
-    const xpPerContribution = Number(body.xpPerContribution ?? body.xp_per_contribution ?? 0);
-    const hasReviewerAssigned = Boolean(body.hasReviewerAssigned ?? body.has_reviewer_assigned ?? false);
+    // El XP y "revisor asignado" se conservan: no los decide el creador.
+    const xpPerContribution = null;
+    const hasReviewerAssigned = null;
 
     // Un borrador puede quedar incompleto a propósito; para cualquier otro
     // estado sí se exigen los campos importantes, igual que en POST /api/campanas.
@@ -505,8 +528,8 @@ export async function PUT(request: Request, context: { params: Promise<{ id: str
         location_state = $12,
         location_colonia = $13,
         organizer = $14,
-        xp_per_contribution = $15,
-        has_reviewer_assigned = $16,
+        xp_per_contribution = COALESCE($15::int, xp_per_contribution),
+        has_reviewer_assigned = COALESCE($16::boolean, has_reviewer_assigned),
         collection_mode = $17,
         checklist_opciones = $18::jsonb,
         start_time = $19,
