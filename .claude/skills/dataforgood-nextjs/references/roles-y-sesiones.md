@@ -60,7 +60,10 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 | Decisión final del aporte | Creador |
 | Ver el archivo de un aporte | Quien aportó, el creador, o un revisor aceptado si el aporte está `pendiente` o si él hizo la primera revisión (`app/api/aportes/[id]/archivo/route.ts`) |
 | Aportar | Campaña `activa`, sin baneo en `campana_baneados`, cuota disponible y sin ser el creador |
-| Aportar sin cuenta (persona anónima) | Solo desde `/c/[token]` con enlace vigente y campaña `activa`; cuota por dispositivo + tope por IP (`lib/campanas/aportes-anonimos.ts`). No ve ni modifica nada más |
+| Aportar sin cuenta (persona anónima) | Solo desde `/c/[token]` con enlace vigente, campaña `activa` con `permite_anonimos` y sin bloqueo del dispositivo o de su red; cuota por dispositivo, 60 s de espera entre aportes del mismo dispositivo y tope por IP (`lib/campanas/aportes-anonimos.ts`). No ve ni modifica nada más |
+| Marcar un aporte anónimo como inapropiado | Creador (al rechazar, `PATCH /api/aportes/[id]`) o revisor aceptado (`POST /api/aportes/[id]/inapropiado`) |
+| Bloquear el dispositivo de un aporte anónimo en la campaña, borrar su archivo, apagar los aportes sin cuenta | Solo el creador |
+| Quitar un bloqueo global de dispositivo | SuperUsuario (`/usuarios/sanciones`) |
 | Tomar y dictaminar | Supervisor que no sea el creador y la campaña esté `en_revision` y libre; o el SuperUsuario. Solo quien la tomó dictamina (`lib/supervision/decision.ts`) |
 
 ## 5. Registro, verificación e inicio de sesión
@@ -90,7 +93,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 `registrarAuditoria()` en `lib/auditoria.ts`, llamado después de que la acción se completó. Si el registro falla, solo se reporta en consola: no revierte la acción.
 
-- **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`).
+- **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`, `aporte:7`, `dispositivo:2`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`). Para el actor `anonimo` la IP **no** se guarda (`guardarIp: false`): el aporte ya lleva su HMAC.
 - **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `campana.enlace_regenerar`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
 - **Sin pantalla:** todavía no hay vista en el panel para consultarla; se lee con SQL.
 
@@ -98,7 +101,7 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 - **Campaña activa sin supervisión (grave):** `POST /api/campanas` toma `status` del body (admite `activa`, `pausada`, `finalizada`...) y usa `activa` si no viene; tampoco aplica el límite de 5 activas. El `PATCH`/`PUT` de un borrador también acepta cualquier estado válido. La interfaz solo manda `borrador` o `en_revision`, pero una llamada directa se salta al supervisor. Debe aceptar solo `borrador` o `en_revision`. Detectado el 2026-10-01, sin corregir.
 - **Panel protegido solo por el layout:** `/sistema` y `/usuarios/**` no llaman a `exigirSesionRoot()` y sus funciones de `lib/` no verifican. Las server actions que escriben sí. Detectado el 2026-10-01, sin corregir.
-- **Sin sanciones para aportes anónimos:** a una persona sin cuenta solo se le puede rechazar el aporte; no hay bloqueo por dispositivo ni por campaña. La propuesta está en `dominio.md`, punto abierto 18. Detectado el 2026-10-01, sin corregir.
+- **El tope por IP y el bloqueo por red dependen del proxy:** `ipDelCliente` toma el último valor de `X-Forwarded-For`. Si alguien llega a la app sin pasar por el proxy (puerto 3000 abierto a Internet), puede escribir la IP que quiera. La cuota por dispositivo sí aplica. Se resuelve en el despliegue: el puerto de la app solo debe ser accesible desde el proxy. Detectado el 2026-10-01.
 - **`GET /api/campanas/[id]/recoleccion-diaria`** pide sesión pero no que sea el creador: cualquier usuario ve las estadísticas de cualquier campaña. Las pantallas `/mis-campanas/[id]/{panel,especial}` tampoco comprueban `viewer.isCreator`. Detectado el 2026-10-01, sin corregir.
 - **El registro acepta roles del body (grave):** `POST /api/usuarios` pasa `body.role`/`body.roles` por `normalizeRoles` (`lib/roles.ts`), que admite `supervisor`, `revisor` y `admin`. Cualquiera puede registrarse como supervisor, lo que rompe la regla de que solo el SuperUsuario lo asigna. Debe guardar siempre `["usuario"]`. Detectado el 2026-09-28, sin corregir.
 - **`GET /api/usuarios/[id]` no pide sesión** y devuelve correo, ubicación y XP de cualquier id: permite enumerar correos. Detectado el 2026-09-28, sin corregir.

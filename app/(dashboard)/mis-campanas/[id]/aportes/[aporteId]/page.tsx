@@ -2,8 +2,10 @@
 
 // Pantalla /mis-campanas/[id]/aportes/[aporteId]: detalle de un aporte para el creador.
 // Componente cliente. Datos: GET /api/aportes/[id]; imagen desde GET /api/aportes/[id]/archivo.
-// Acciones: aceptar/rechazar con PATCH /api/aportes/[id] { status, rejectionReason };
+// Acciones: aceptar/rechazar con PATCH /api/aportes/[id] { status, rejectionReason, inapropiado };
 // banear o desbanear al participante con POST/DELETE /api/campanas/[id]/baneos.
+// Aporte anónimo (sin cuenta): "Contenido inapropiado" al rechazar, bloquear su dispositivo
+// en la campaña (misma API de baneos) y borrar el archivo (DELETE /api/aportes/[id]/archivo).
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
@@ -33,6 +35,9 @@ export default function RevisionAportePage() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [showBanForm, setShowBanForm] = useState(false);
+  const [inapropiado, setInapropiado] = useState(false);
+  const [confirmarBorrado, setConfirmarBorrado] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
   const [banReason, setBanReason] = useState("");
   // Si el autor ya está baneado de la campaña se ofrece quitar el baneo en vez de banearlo otra vez.
   const [autorBaneado, setAutorBaneado] = useState(false);
@@ -73,10 +78,18 @@ export default function RevisionAportePage() {
       const response = await fetch(`${BASE_PATH}/api/aportes/${params.aporteId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, rejectionReason }),
+        body: JSON.stringify({ status, rejectionReason, ...(status === "rechazado" && inapropiado ? { inapropiado: true } : {}) }),
       });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "No se pudo actualizar el aporte");
+      // Si con este rechazo el dispositivo quedó bloqueado en toda la plataforma, se avisa antes de salir.
+      if (payload.message && payload.message !== "Aporte actualizado") {
+        setAviso(payload.message);
+        setItem((actual) => (actual ? { ...actual, ...(payload.data as Contribution) } : actual));
+        setShowRejectForm(false);
+        setSubmitting(false);
+        return;
+      }
       router.push(`/mis-campanas/${params.id}/aportes`);
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "No se pudo actualizar el aporte");
@@ -107,9 +120,53 @@ export default function RevisionAportePage() {
       if (!response.ok) throw new Error(payload.error ?? "No se pudo banear al usuario");
       setShowBanForm(false);
       setBanReason("");
-      setAutorBaneado(true);
+      if (item?.userId === null) {
+        // El GET del aporte trae el id del bloqueo para poder quitarlo desde aquí.
+        const recarga = await fetch(`${BASE_PATH}/api/aportes/${params.aporteId}`, { cache: "no-store" });
+        const datos = await recarga.json().catch(() => ({}));
+        if (recarga.ok) setItem(datos.data as Contribution);
+      } else {
+        setAutorBaneado(true);
+      }
     } catch (cause) {
       setActionError(cause instanceof Error ? cause.message : "No se pudo banear al usuario");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function desbloquearDispositivo() {
+    if (!item?.dispositivoBloqueadoId) return;
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      const response = await fetch(`${BASE_PATH}/api/campanas/${params.id}/baneos`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bloqueoId: item.dispositivoBloqueadoId }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo desbloquear el dispositivo");
+      setItem({ ...item, dispositivoBloqueadoId: null });
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "No se pudo desbloquear el dispositivo");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function borrarArchivo() {
+    if (!item) return;
+    setSubmitting(true);
+    setActionError(null);
+    try {
+      const response = await fetch(`${BASE_PATH}/api/aportes/${item.id}/archivo`, { method: "DELETE" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo borrar el archivo");
+      setItem({ ...item, archivoBorrado: true });
+      setConfirmarBorrado(false);
+    } catch (cause) {
+      setActionError(cause instanceof Error ? cause.message : "No se pudo borrar el archivo");
     } finally {
       setSubmitting(false);
     }
@@ -137,6 +194,7 @@ export default function RevisionAportePage() {
 
   const canReject = Boolean(reason) || customReason.trim().length > 0;
   const alreadyReviewed = item.status === "aceptado" || item.status === "rechazado";
+  const esAnonimo = item.userId === null;
 
   return (
     <div className="mx-auto max-w-3xl">
@@ -151,19 +209,28 @@ export default function RevisionAportePage() {
         <div>
           <h1 className="text-xl font-extrabold text-ink">Aporte {item.id}</h1>
         </div>
-        <Tag tone={item.status === "aceptado" ? "ok" : item.status === "rechazado" ? "danger" : "warn"}>
-          {item.status === "aceptado"
-            ? "Aceptado"
-            : item.status === "rechazado"
-              ? "Rechazado"
-              : item.firstPassBy
-                ? `Validado por ${item.firstPassBy} · espera aprobación final`
-                : "Sin revisar"}
-        </Tag>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {item.inapropiado && <Tag tone="danger">Contenido inapropiado</Tag>}
+          <Tag tone={item.status === "aceptado" ? "ok" : item.status === "rechazado" ? "danger" : "warn"}>
+            {item.status === "aceptado"
+              ? "Aceptado"
+              : item.status === "rechazado"
+                ? "Rechazado"
+                : item.firstPassBy
+                  ? `Validado por ${item.firstPassBy} · espera aprobación final`
+                  : "Sin revisar"}
+          </Tag>
+        </div>
       </div>
 
+      {aviso && <p className="mb-4 rounded border border-warn bg-warn-tint p-3 text-[12.5px] text-warn">{aviso}</p>}
+
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        {item.fileType === "foto" ? (
+        {item.archivoBorrado ? (
+          <div className="flex h-44 items-center justify-center rounded-lg border border-dashed border-line-2 bg-sunken text-[12.5px] text-ink-3">
+            Archivo borrado
+          </div>
+        ) : item.fileType === "foto" ? (
           <img
             src={`${BASE_PATH}/api/aportes/${item.id}/archivo`}
             alt="Archivo del aporte"
@@ -255,10 +322,27 @@ export default function RevisionAportePage() {
                   placeholder="Motivo técnico o de contenido"
                 />
               </Field>
+              {esAnonimo && (
+                <label className="mb-3 flex items-start gap-2 text-[12.5px] text-ink">
+                  <input
+                    type="checkbox"
+                    checked={inapropiado}
+                    onChange={(e) => setInapropiado(e.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="font-medium">Contenido inapropiado</span>
+                    <span className="block text-[11.5px] text-ink-3">
+                      Úsalo solo si el contenido es ofensivo, ilegal o dañino. Si un mismo dispositivo junta varios, se
+                      bloquea en toda la plataforma.
+                    </span>
+                  </span>
+                </label>
+              )}
               <p className="mb-3 text-[11.5px] text-ink-3">
                 {item.userId === null
                   ? "Obligatorio al rechazar. Es un aporte anónimo: queda registrado, pero nadie lo recibe."
-                  : "Obligatorio al rechazar. El participante lo recibirá por notificación."}
+                  : "Obligatorio al rechazar. El participante lo verá en Mis aportes."}
               </p>
               <Button variant="danger" type="submit" disabled={!canReject || submitting}>
                 Confirmar rechazo
@@ -268,28 +352,67 @@ export default function RevisionAportePage() {
 
           {showBanForm && (
             <form onSubmit={banUser} className="mb-4 rounded-lg border border-danger p-4">
-              <p className="mb-2 text-[13px] font-medium text-ink">Banear usuario de la campaña</p>
+              <p className="mb-2 text-[13px] font-medium text-ink">
+                {esAnonimo ? "Bloquear este dispositivo en la campaña" : "Banear usuario de la campaña"}
+              </p>
               <Textarea
                 rows={3}
                 value={banReason}
                 onChange={(e) => setBanReason(e.target.value)}
-                placeholder="Explica por qué este usuario ya no puede participar en la campaña"
+                placeholder={
+                  esAnonimo
+                    ? "Explica por qué este dispositivo ya no puede enviar aportes sin cuenta"
+                    : "Explica por qué este usuario ya no puede participar en la campaña"
+                }
                 required
               />
               <div className="mt-3 flex gap-2">
                 <Button type="button" size="sm" onClick={() => setShowBanForm(false)}>Cancelar</Button>
-                <Button variant="danger" size="sm" type="submit" disabled={!banReason.trim() || submitting}>Confirmar baneo</Button>
+                <Button variant="danger" size="sm" type="submit" disabled={!banReason.trim() || submitting}>{esAnonimo ? "Confirmar bloqueo" : "Confirmar baneo"}</Button>
               </div>
             </form>
           )}
         </div>
       </div>
 
-      {(item.userId !== null || !alreadyReviewed) && (
+      {esAnonimo && !item.archivoBorrado && (
+        <div className="mt-6 rounded-lg border border-line p-4">
+          <p className="text-[13px] font-medium text-ink">Borrar el archivo</p>
+          <p className="mb-3 text-[12px] text-ink-2">
+            Para contenido ilegal o dañino. Se borra del almacenamiento y no se puede recuperar; el registro del aporte se
+            conserva.
+          </p>
+          {confirmarBorrado ? (
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" onClick={() => setConfirmarBorrado(false)} disabled={submitting}>Cancelar</Button>
+              <Button variant="danger" size="sm" onClick={() => void borrarArchivo()} disabled={submitting}>
+                Sí, borrar el archivo
+              </Button>
+            </div>
+          ) : (
+            <Button variant="danger" size="sm" onClick={() => setConfirmarBorrado(true)} disabled={submitting}>
+              Borrar archivo
+            </Button>
+          )}
+        </div>
+      )}
+
+      {(item.userId !== null || !alreadyReviewed || esAnonimo) && (
         <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
-          {item.userId === null ? (
-            // Aporte sin cuenta (enlace público): no hay a quién banear.
-            <p className="text-[12px] text-ink-3">Aporte anónimo, enviado desde el enlace público.</p>
+          {esAnonimo ? (
+            // Aporte sin cuenta (enlace público): se bloquea el dispositivo, no una cuenta.
+            item.dispositivoBloqueadoId ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Tag tone="danger">Dispositivo bloqueado en esta campaña</Tag>
+                <Button size="sm" onClick={() => void desbloquearDispositivo()} disabled={submitting}>
+                  Desbloquear
+                </Button>
+              </div>
+            ) : (
+              <Button variant="danger" size="sm" onClick={() => setShowBanForm(true)} disabled={submitting}>
+                Bloquear este dispositivo en la campaña
+              </Button>
+            )
           ) : autorBaneado ? (
             <div className="flex flex-wrap items-center gap-2">
               <Tag tone="danger">Baneado de esta campaña</Tag>

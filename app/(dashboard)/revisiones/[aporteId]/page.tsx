@@ -2,6 +2,8 @@
 
 // Pantalla /revisiones/[aporteId]: revisar un aporte como revisor.
 // Componente cliente. Datos: GET /api/aportes/[id]. Acción: PATCH /api/aportes/[id] { status: "aceptado" }.
+// Aporte anónimo: "Marcar como inapropiado" con POST /api/aportes/[id]/inapropiado (no cambia
+// el estado; decide el creador).
 // Ojo: hoy el servidor lo deja en "aceptado", no en "espera_final" (docs/README.md § 8).
 
 import Link from "next/link";
@@ -25,6 +27,7 @@ export default function RevisionAportePage() {
   const [item, setItem] = useState<Contribution | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -60,6 +63,22 @@ export default function RevisionAportePage() {
     }
   }
 
+  async function marcarInapropiado() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch(`${BASE_PATH}/api/aportes/${aporteId}/inapropiado`, { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo marcar el aporte");
+      setItem((actual) => (actual ? { ...actual, inapropiado: true } : actual));
+      setAviso(payload.message ?? "Marcado como inapropiado");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo marcar el aporte");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (error && !item) {
     return <p className="mx-auto max-w-3xl text-sm text-danger">{error}</p>;
   }
@@ -84,15 +103,23 @@ export default function RevisionAportePage() {
           <h1 className="mt-2 text-2xl font-extrabold text-ink">Vista previa del aporte</h1>
           <p className="mt-1 text-[13px] text-ink-2">Revisa el contenido antes de validarlo para la aprobación final del creador.</p>
         </div>
-        <Tag tone={statusTone}>{STATUS_LABELS[item.status] ?? item.status}</Tag>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {item.inapropiado && <Tag tone="danger">Contenido inapropiado</Tag>}
+          <Tag tone={statusTone}>{STATUS_LABELS[item.status] ?? item.status}</Tag>
+        </div>
       </div>
 
       {error && <p className="mb-4 rounded border border-danger bg-danger-tint p-3 text-[12.5px] text-danger">{error}</p>}
+      {aviso && <p className="mb-4 rounded border border-warn bg-warn-tint p-3 text-[12.5px] text-warn">{aviso}</p>}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,.9fr)]">
         <section className="rounded-lg border border-line bg-surface p-5 shadow-sm">
           <p className="mb-3 text-[12.5px] font-semibold text-ink">Archivo enviado</p>
-          {item.fileType === "foto" ? (
+          {item.archivoBorrado ? (
+            <div className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-line-2 bg-sunken text-[12.5px] text-ink-3">
+              El creador borró este archivo
+            </div>
+          ) : item.fileType === "foto" ? (
             <img
               src={`${BASE_PATH}/api/aportes/${item.id}/archivo`}
               alt={`Vista previa del aporte de ${item.participantName}`}
@@ -139,9 +166,16 @@ export default function RevisionAportePage() {
         <p className="max-w-xl text-[12.5px] text-ink-2">
           Al aceptar, el aporte queda aprobado y el dueño de la campaña podrá consultarlo en su historial.
         </p>
-        <Button variant="primary" disabled={alreadyValidated || submitting} onClick={() => void acceptContribution()}>
-          {submitting ? "Validando..." : alreadyValidated ? "Aporte ya validado" : "Aceptar aporte"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {item.userId === null && !item.inapropiado && (
+            <Button variant="danger" disabled={submitting} onClick={() => void marcarInapropiado()}>
+              Marcar como inapropiado
+            </Button>
+          )}
+          <Button variant="primary" disabled={alreadyValidated || submitting} onClick={() => void acceptContribution()}>
+            {submitting ? "Validando..." : alreadyValidated ? "Aporte ya validado" : "Aceptar aporte"}
+          </Button>
+        </div>
       </div>
     </div>
   );

@@ -100,6 +100,9 @@ export interface Contribution {
   rejectionReason?: string;
   firstPassBy?: string; // nombre del revisor que dio la primera instancia
   firstPassByUserId?: string;
+  inapropiado?: boolean; // aporte anónimo marcado como "Contenido inapropiado"
+  archivoBorrado?: boolean; // el creador borró el archivo de MinIO
+  dispositivoBloqueadoId?: string | null; // solo al creador: bloqueo en la campaña del dispositivo anónimo
 }
 
 export interface ReviewerCandidate {

@@ -5,12 +5,14 @@
 
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { COOKIE_ANONIMO, dispositivoValido, enviarAporteAnonimo } from "@/lib/campanas/aportes-anonimos";
+import { COOKIE_ANONIMO, dispositivoValido } from "@/lib/aportes/anonimato";
+import { enviarAporteAnonimo } from "@/lib/campanas/aportes-anonimos";
 import { ipDelCliente } from "@/lib/ip";
 import { getSessionUser } from "@/lib/session";
 
 // POST (multipart/form-data: file, description, caracteristicas[]): envía el aporte como
-// "Anónimo". Cuota por dispositivo (cookie anonimo_id, se crea aquí si no existe) y tope por IP.
+// "Anónimo". Cuota por dispositivo (cookie anonimo_id, se crea aquí si no existe), tope por IP
+// y espera entre aportes del mismo dispositivo (429 con esperaSegundos y Retry-After).
 export async function POST(request: Request, context: { params: Promise<{ token: string }> }) {
   try {
     const { token } = await context.params;
@@ -31,7 +33,15 @@ export async function POST(request: Request, context: { params: Promise<{ token:
       archivo: formData.get("file"),
     });
 
-    if (!resultado.ok) return NextResponse.json({ error: resultado.error }, { status: resultado.status });
+    if (!resultado.ok) {
+      return NextResponse.json(
+        { error: resultado.error, ...(resultado.esperaSegundos ? { esperaSegundos: resultado.esperaSegundos } : {}) },
+        {
+          status: resultado.status,
+          ...(resultado.esperaSegundos ? { headers: { "Retry-After": String(resultado.esperaSegundos) } } : {}),
+        }
+      );
+    }
 
     if (resultado.dispositivoNuevo) {
       cookieStore.set(COOKIE_ANONIMO, resultado.dispositivo, {
@@ -45,7 +55,10 @@ export async function POST(request: Request, context: { params: Promise<{ token:
 
     // Sin id ni datos del aporte: la persona anónima no puede consultarlo después.
     return NextResponse.json(
-      { message: "Aporte enviado. Quedará pendiente de revisión.", data: { restantes: resultado.restantes } },
+      {
+        message: "Aporte enviado. Quedará pendiente de revisión.",
+        data: { restantes: resultado.restantes, esperaSegundos: resultado.esperaSegundos },
+      },
       { status: 201 }
     );
   } catch (error) {

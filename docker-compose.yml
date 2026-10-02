@@ -112,6 +112,8 @@ services:
       # Usuario limitado que crea minio-init, nunca el root.
       MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:?Falta MINIO_ACCESS_KEY en .env}
       MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:?Falta MINIO_SECRET_KEY en .env}
+      # Secreto del HMAC de la IP de los aportes sin cuenta (lib/aportes/anonimato.ts).
+      ANONIMO_IP_SECRETO: ${ANONIMO_IP_SECRETO:?Falta ANONIMO_IP_SECRETO en .env}
     ports:
       # Puerto del host al que apunta el proxy (en producción, 3002).
       - "${APP_PORT:-3000}:3000"

@@ -29,7 +29,7 @@ No piden sesión. Archivos en `app/` (fuera de los grupos).
 | `/datos` | `app/datos/page.tsx` | S | `lib/open-data.ts` (`buscarConjuntosAbiertos`, facetas). Catálogo de campañas `finalizada` |
 | `/datos/[id]` | `app/datos/[id]/page.tsx` | S | `lib/open-data.ts` (`obtenerConjuntoAbierto`). El botón de descarga apunta a `GET /api/datos/[id]/descarga` |
 | `/contacto`, `/privacidad`, `/sobre-nosotros` | `app/<nombre>/page.tsx` | S | Texto fijo |
-| `/c/[token]` | `app/c/[token]/page.tsx` | S | Enlace público de una campaña (se comparte como enlace o QR desde `/campanas/[id]`). `lib/campanas/enlaces.ts`: `buscarEnlacePorToken` y `registrarVisita` (suma una visita por apertura). Si el token es vigente y la campaña está activa, invita a aportar: con sesión → `/campanas/[id]/aportar?enlace=<token>`; **sin sesión → formulario anónimo** (`aporte-anonimo.tsx` → `POST /api/c/[token]/aportes`; cuántos le quedan con `aportesDelDispositivo` de `lib/campanas/aportes-anonimos.ts`) y opción de `/entrar` o `/registro` con `?next=`. Si no, muestra "no válido", "ya no funciona" (revocado) o "caducó". Es lo único que ve una persona anónima. No indexable |
+| `/c/[token]` | `app/c/[token]/page.tsx` | S | Enlace público de una campaña (se comparte como enlace o QR desde `/campanas/[id]`). `lib/campanas/enlaces.ts`: `buscarEnlacePorToken` y `registrarVisita` (suma una visita por apertura). Si el token es vigente y la campaña está activa, invita a aportar: con sesión → `/campanas/[id]/aportar?enlace=<token>`; **sin sesión → formulario anónimo** (`aporte-anonimo.tsx` → `POST /api/c/[token]/aportes`; cuántos le quedan con `aportesDelDispositivo` de `lib/campanas/aportes-anonimos.ts`) y opción de `/entrar` o `/registro` con `?next=`. Si no, muestra "no válido", "ya no funciona" (revocado) o "caducó". Sin formulario si el creador apagó los aportes sin cuenta o si el dispositivo o su red están bloqueados (`bloqueoParaLaPagina`). Es lo único que ve una persona anónima. No indexable |
 | `/cuenta-bloqueada` | `app/cuenta-bloqueada/page.tsx` | S | `obtenerBloqueoDeLaSesion()` de `lib/session.ts`; dibuja `components/layout/CuentaBloqueada.tsx`. Si la cuenta no está bloqueada, redirige a `/campanas` o a `/entrar` |
 | `/api/docs` | `app/api/docs/route.ts` | — | Swagger UI de `openapi.yaml`. Abierta en `next dev`; en producción pide sesión raíz (`lib/api-docs.ts`) |
 
@@ -60,10 +60,10 @@ Flujo de alta: `/registro` → `/verificar` → `/bienvenida` → `/campanas` (o
 | URL | Archivo | Tipo | Datos y acciones |
 | --- | --- | --- | --- |
 | `/campanas` | `campanas/page.tsx` | C | `GET /api/campanas` (activas) y `GET /api/auth/sesion` (para el filtro "Tu localidad"). Filtros por temática en el cliente |
-| `/campanas/[id]` | `campanas/[id]/page.tsx` | C | `GET /api/campanas?id=` (incluye `viewer`: si eres el creador, si estás baneado, cuántos aportes llevas). Guardar como favorita: `POST`/`DELETE /api/campanas/[id]/guardar`. El botón **Compartir** abre un `<dialog>` (`compartir.tsx` + `enlace-publico.tsx` + `regenerar.tsx`) con el enlace público `/c/[token]`, cuenta regresiva, copiar, QR y descargas: lo carga con `GET /api/campanas/[id]/enlace` y el QR con `GET /api/campanas/[id]/qr`. Cualquiera con sesión lo ve; solo el creador regenera (`POST /api/campanas/[id]/enlace`) y ve visitas y aportes del enlace |
+| `/campanas/[id]` | `campanas/[id]/page.tsx` | C | `GET /api/campanas?id=` (incluye `viewer`: si eres el creador, si estás baneado, cuántos aportes llevas). Guardar como favorita: `POST`/`DELETE /api/campanas/[id]/guardar`. El botón **Compartir** abre un `<dialog>` (`compartir.tsx` + `enlace-publico.tsx` + `regenerar.tsx`) con el enlace público `/c/[token]`, cuenta regresiva, copiar, QR y descargas: lo carga con `GET /api/campanas/[id]/enlace` y el QR con `GET /api/campanas/[id]/qr`. Cualquiera con sesión lo ve; solo el creador regenera (`POST /api/campanas/[id]/enlace`), ve visitas y aportes del enlace y cambia "Permitir aportes sin cuenta" (`permitir-anonimos.tsx` → `PATCH /api/campanas/[id]/enlace`) |
 | `/campanas/[id]/aportar` | `campanas/[id]/aportar/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true` (tus aportes, para la cuota). Envía con `POST /api/aportes` (`multipart/form-data` con el archivo). Checklists con `lib/campanas/checklist.ts`. Si la URL trae `?enlace=<token>` (viene de `/c/[token]`), lo reenvía para atribuir el aporte al enlace |
 | `/mis-aportes` | `mis-aportes/page.tsx` | C | `GET /api/campanas?misAportes=true` (campañas en las que aportaste o que guardaste) |
-| `/mis-aportes/[campanaId]` | `mis-aportes/[campanaId]/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true`. Borrar un aporte no aceptado: `DELETE /api/aportes/[id]` |
+| `/mis-aportes/[campanaId]` | `mis-aportes/[campanaId]/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true`. Muestra el motivo de los rechazados. Borrar un aporte no aceptado: `DELETE /api/aportes/[id]` |
 | `/cuenta` | `cuenta/page.tsx` + `PerfilForm.tsx` | S + C | La página lee el usuario con `exigirUsuario()`. El formulario guarda con `PATCH /api/usuarios/[id]` |
 
 ### Administrar campañas propias (creador)
@@ -75,7 +75,7 @@ Cualquier usuario puede crear campañas. Todas estas rutas comprueban en el serv
 | `/mis-campanas` | `mis-campanas/page.tsx` | C | `GET /api/campanas?mine=true`. Botón "Finalizar": `PATCH /api/campanas/[id]` con `{ status: "finalizada" }` |
 | `/mis-campanas/nueva` (`?edit=<id>` para editar) | `mis-campanas/nueva/page.tsx` + `NuevaCampanaForm.tsx` | S + C | Crear: `POST /api/campanas`. Editar: `GET /api/campanas/[id]` y `PATCH /api/campanas/[id]`. Lo que se puede editar depende del estado (ver [datos.md](datos.md) § 3) |
 | `/mis-campanas/[id]/aportes` | `mis-campanas/[id]/aportes/page.tsx` | C | Bandeja de aportes: `GET /api/campanas/[id]`, `GET /api/aportes?campaignId=` (todos, solo el creador). La sección de baneados (`baneados.tsx`) usa `GET`/`DELETE /api/campanas/[id]/baneos` |
-| `/mis-campanas/[id]/aportes/[aporteId]` | `.../aportes/[aporteId]/page.tsx` | C | `GET /api/aportes/[id]`; aceptar o rechazar: `PATCH /api/aportes/[id]` con `{ status, rejectionReason }`. Banear al participante: `POST`/`DELETE /api/campanas/[id]/baneos` (no aparece en aportes anónimos). La imagen se carga de `GET /api/aportes/[id]/archivo` |
+| `/mis-campanas/[id]/aportes/[aporteId]` | `.../aportes/[aporteId]/page.tsx` | C | `GET /api/aportes/[id]`; aceptar o rechazar: `PATCH /api/aportes/[id]` con `{ status, rejectionReason, inapropiado? }`. Banear al participante: `POST`/`DELETE /api/campanas/[id]/baneos`; en un aporte anónimo, el mismo `POST` bloquea su dispositivo en la campaña y `DELETE { bloqueoId }` lo desbloquea. Borrar el archivo de un aporte anónimo: `DELETE /api/aportes/[id]/archivo`. La imagen se carga de `GET /api/aportes/[id]/archivo` |
 | `/mis-campanas/[id]/aportes/agregar-revisor` | `.../agregar-revisor/page.tsx` | C | Buscar personas: `GET /api/usuarios?campanaId=&q=`. Listar e invitar revisores: `GET`/`POST /api/campanas/[id]/revisores` |
 | `/mis-campanas/[id]/panel` | `mis-campanas/[id]/panel/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/campanas/[id]/recoleccion-diaria` (gráficas) |
 | `/mis-campanas/[id]/especial` | `mis-campanas/[id]/especial/page.tsx` | C | `GET /api/campanas?id=`. Pantalla de campaña especial (multiplicador de XP); la regla aún no está implementada en el servidor |
@@ -89,7 +89,7 @@ Para revisores que aceptaron una invitación (`campana_revisores.estado = 'acept
 | `/revisiones` | `revisiones/page.tsx` → `CampaignList.tsx` | S → C | `GET /api/revisiones` (campañas donde eres revisor), pestaña "en curso" |
 | `/revisiones/finalizadas` | `revisiones/finalizadas/page.tsx` → `CampaignList.tsx` | S → C | Lo mismo, pestaña "finalizadas" |
 | `/revisiones/campanas/[campaignId]` | `revisiones/campanas/[campaignId]/page.tsx` | C | `GET /api/campanas/[id]`, `GET /api/aportes?campaignId=&reviewer=true` |
-| `/revisiones/[aporteId]` | `revisiones/[aporteId]/page.tsx` | C | `GET /api/aportes/[id]`; aceptar: `PATCH /api/aportes/[id]` con `{ status: "aceptado" }` |
+| `/revisiones/[aporteId]` | `revisiones/[aporteId]/page.tsx` | C | `GET /api/aportes/[id]`; aceptar: `PATCH /api/aportes/[id]` con `{ status: "aceptado" }`. Aporte anónimo: "Marcar como inapropiado" con `POST /api/aportes/[id]/inapropiado` |
 | `/revisiones/campanas/[campaignId]/usuarios`, `.../usuarios/[userId]/aportes`, `.../aportes/[aporteId]` | `revisiones/campanas/[campaignId]/usuarios/**/page.tsx` | S | SQL directo con `pool` tras `exigirUsuario()`; comprueban en la consulta que seas revisor aceptado |
 
 ### Supervisión (usuario con rol `supervisor`)
@@ -126,7 +126,7 @@ Patrón: página de servidor que lee de `lib/` + componente cliente hermano que 
 | `/usuarios/[id]` | `usuarios/[id]/page.tsx` | `obtenerUsuario`, `baneosDeUsuario` (`lib/campanas/baneos.ts`) | — |
 | `/usuarios/[id]/roles` | `usuarios/[id]/roles/page.tsx` + `botones-de-rol.tsx` | `obtenerUsuario` | `asignarRol`, `revocarRol` |
 | `/usuarios/[id]/sancion` | `usuarios/[id]/sancion/page.tsx` + `formulario.tsx` | `obtenerReporteDeSancion` | `aplicarSancion` |
-| `/usuarios/sanciones` | `usuarios/sanciones/page.tsx` + `boton-restaurar.tsx` | `listarSancionesActivas` | `restaurarAcceso` |
+| `/usuarios/sanciones` | `usuarios/sanciones/page.tsx` + `boton-restaurar.tsx` + `boton-quitar-bloqueo.tsx` | `listarSancionesActivas`, `listarBloqueosGlobales` | `restaurarAcceso`, `quitarBloqueoDeDispositivo` |
 | `/usuarios/supervisores` | `usuarios/supervisores/page.tsx` + `buscador.tsx` | `lib/usuarios/supervisores.ts` | — |
 | `/usuarios/supervisores/[id]` | `usuarios/supervisores/[id]/page.tsx` | `obtenerActividad` | — |
 | `/usuarios/supervisores/[id]/revertir/[accionId]` | `.../revertir/[accionId]/page.tsx` + `formulario.tsx` | `obtenerAccion` | `revertirAccion` (**sin lógica todavía**) |
@@ -182,10 +182,11 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 | `PUT /api/campanas/[id]` | Sesión + creador | Reemplazo completo de los campos editables (pensado para Insomnia) | — |
 | `POST`, `DELETE /api/campanas/[id]/guardar` | Sesión | Guardar o quitar de favoritos | `/campanas/[id]` |
 | `GET`, `POST /api/campanas/[id]/revisores` | Sesión + creador | Listar revisores; invitar a uno (le llega una notificación) | `agregar-revisor` |
-| `GET`, `POST`, `DELETE /api/campanas/[id]/baneos` | Sesión + creador | Listar, banear o desbanear participantes de la campaña | Detalle del aporte, `baneados.tsx` |
+| `GET`, `POST`, `DELETE /api/campanas/[id]/baneos` | Sesión + creador | Listar (`data`: cuentas; `dispositivos`: anónimos bloqueados), banear o desbanear. Con un aporte anónimo, `POST` bloquea su dispositivo en la campaña; `DELETE { bloqueoId }` lo desbloquea. Bitácora `campana.{bloquear,desbloquear}_dispositivo` | Detalle del aporte, `baneados.tsx` |
 | `GET /api/campanas/[id]/recoleccion-diaria` | Sesión (**no comprueba creador**) | Aportes por día y por tipo, para las gráficas | `/mis-campanas/[id]/panel` |
 | `GET /api/campanas/[id]/enlace` | Sesión | Enlace actual (vigente o caducado) o `null`, el estado de la campaña y `viewer.esCreador`. Visitas y aportes del enlace solo para el creador | Cuadro Compartir de `/campanas/[id]` |
 | `POST /api/campanas/[id]/enlace` | Sesión + creador, campaña `activa` | Genera o regenera el enlace público (24 h). Revoca el anterior sin borrarlo. Bitácora `campana.enlace_regenerar` | `regenerar.tsx` en `/campanas/[id]` |
+| `PATCH /api/campanas/[id]/enlace` | Sesión + creador | `{ permiteAnonimos }`: permite o corta los aportes sin cuenta. Bitácora `campana.anonimos_cambiar` | `permitir-anonimos.tsx` en `/campanas/[id]` |
 | `GET /api/campanas/[id]/qr?formato=png\|svg` | Sesión | QR (512 px) del enlace vigente, como descarga; también se usa como `<img>`. `410` si caducó | Cuadro Compartir de `/campanas/[id]` |
 
 ### Aportes
@@ -197,11 +198,13 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 | `GET /api/aportes?campaignId=&reviewer=true` | Sesión + revisor aceptado | Aportes para revisar | `/revisiones/campanas/[id]` |
 | `POST /api/aportes` | Sesión | `multipart/form-data`: sube el archivo a MinIO e inserta el aporte. Valida: campaña activa, no eres el creador, no estás baneado, te queda cuota, JPG/PNG ≤ 10 MB. Campo opcional `enlace` (token de `/c/[token]`): si es el vigente de la campaña, se guarda en `aportes.enlace_id` | `/campanas/[id]/aportar` |
 | `GET /api/aportes/[id]` | Sesión + quien aportó, creador o revisor | Detalle | Detalle del aporte, revisiones |
-| `PATCH /api/aportes/[id]` | Sesión + creador o revisor aceptado | Revisar: `{ status: "aceptado" \| "rechazado", rejectionReason }`. El motivo es obligatorio al rechazar. El revisor solo puede aceptar aportes `pendiente`. Actualiza los contadores de la campaña | Detalle del aporte, `/revisiones/[aporteId]` |
+| `PATCH /api/aportes/[id]` | Sesión + creador o revisor aceptado | Revisar: `{ status: "aceptado" \| "rechazado", rejectionReason, inapropiado? }`. El motivo es obligatorio al rechazar. `inapropiado: true` solo al rechazar un aporte anónimo (puede disparar el bloqueo global). Si el creador acepta, se quita la marca. El revisor solo puede aceptar aportes `pendiente`. Actualiza los contadores de la campaña | Detalle del aporte, `/revisiones/[aporteId]` |
 | `PUT /api/aportes/[id]` | Sesión + quien aportó, mientras esté `pendiente` | Editar descripción y características | — (Insomnia) |
 | `DELETE /api/aportes/[id]` | Sesión + quien aportó, si el aporte no está `aceptado` | Borra el aporte y ajusta los contadores. No revisa el estado de la campaña | `/mis-aportes/[campanaId]` |
-| `POST /api/c/[token]/aportes` | **Libre (sin sesión)**, solo enlace vigente de campaña activa; con sesión responde 409 | Aporte anónimo (`multipart/form-data`: `file`, `description`, `caracteristicas`). Guarda `user_id` NULL, "Anónimo", sin correo ni nombre de archivo. Cuota por dispositivo (cookie `anonimo_id`) y tope de 20 por IP por hora. Responde solo cuántos le quedan | Formulario de `/c/[token]` |
-| `GET /api/aportes/[id]/archivo` | Sesión + quien aportó, creador, o revisor (si el aporte está pendiente o él lo revisó) | Lee el archivo de MinIO y lo devuelve. Se usa como `src` de `<img>` | Pantallas de detalle |
+| `POST /api/c/[token]/aportes` | **Libre (sin sesión)**, solo enlace vigente de campaña activa; con sesión responde 409 | Aporte anónimo (`multipart/form-data`: `file`, `description`, `caracteristicas`). Guarda `user_id` NULL, "Anónimo", sin correo ni nombre de archivo. Cuota por dispositivo (cookie `anonimo_id`), 60 s de espera entre aportes del mismo dispositivo (`429` con `esperaSegundos` y `Retry-After`) y tope de 20 por IP por hora. `403` si la campaña no permite anónimos o el dispositivo o su red están bloqueados. La foto se guarda sin metadatos. Responde solo cuántos le quedan | Formulario de `/c/[token]` |
+| `GET /api/aportes/[id]/archivo` | Sesión + quien aportó, creador, o revisor (si el aporte está pendiente o él lo revisó) | Lee el archivo de MinIO y lo devuelve con `nosniff`. `410` si se borró. Se usa como `src` de `<img>` | Pantallas de detalle |
+| `DELETE /api/aportes/[id]/archivo` | Sesión + creador, solo aportes anónimos | Borra el archivo de MinIO; la fila se conserva. Bitácora `aporte.archivo_borrar` | Detalle del aporte del creador |
+| `POST /api/aportes/[id]/inapropiado` | Sesión + creador o revisor aceptado, solo aportes anónimos | Marca "Contenido inapropiado" sin cambiar el estado; puede disparar el bloqueo global. Bitácora `aporte.inapropiado` | `/revisiones/[aporteId]` |
 
 ### Revisiones, notificaciones y datos abiertos
 

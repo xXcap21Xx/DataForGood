@@ -40,10 +40,11 @@
 | `campana_supervisores` | Historial de dictámenes | `campana_id`, `supervisor_id` (NULL si fue el SuperUsuario), `por_superusuario`, `accion` (`aceptada`, `rechazada`, `reportada`, `reasignada`), `motivo` |
 | `campana_revisores` | Revisores por campaña | `campana_id`, `usuario_id`, `estado` (`invitado`, `aceptado`, `rechazado`) |
 | `campana_baneados` | Participantes baneados de una campaña | `campana_id`, `usuario_id`, `motivo`, `baneado_por` |
+| `dispositivos_bloqueados` | Bloqueos de personas sin cuenta | `anonimo_id`, `ip_hmac`, `campana_id` (NULL = global), `motivo`, `bloqueado_por`, `aporte_id`, `hasta`, `activo`, `restaurado_en` |
 | `campana_enlaces` | Enlaces públicos `/c/[token]` (historial: una fila por token) | `campana_id`, `token` (único), `creado_por`, `creado_en`, `expira_en` (24 h), `revocado_en` (al regenerar), `visitas`. Vigente = sin revocar y sin vencer. Reemplaza a `campanas.share_token`, que ya no se usa |
 | `campanas_guardadas` | Favoritos | `usuario_id`, `campana_id` |
 | `notificaciones` | Avisos para el usuario | `usuario_id`, `tipo` (p. ej. `invitacion_revisor`), `titulo`, `mensaje`, `campana_id`, `metadata` (JSONB), `leida_en` |
-| `aportes` | Aportes | `campaign_id`, `user_id` (NULL = anónimo), `participant_name`/`participant_email`, `description`, `file_path` (clave en MinIO), `file_original_name`, `file_mime_type`, `file_size_bytes`, `file_type`, `caracteristicas` (JSONB: respuestas de checklists), `status`, `rejection_reason`, `first_pass_by`/`first_pass_by_user_id` (revisor), `enlace_id` (enlace público por el que llegó, o NULL), `anonimo_id` (aporte sin cuenta: sha256 de la cookie del dispositivo, para su cuota; NULL si tiene cuenta), `submitted_at`, `reviewed_at`. Un aporte anónimo tiene `user_id` NULL, `participant_name` "Anónimo" y ni correo ni `file_original_name` |
+| `aportes` | Aportes | `campaign_id`, `user_id` (NULL = anónimo), `participant_name`/`participant_email`, `description`, `file_path` (clave en MinIO), `file_original_name`, `file_mime_type`, `file_size_bytes`, `file_type`, `caracteristicas` (JSONB: respuestas de checklists), `status`, `rejection_reason`, `first_pass_by`/`first_pass_by_user_id` (revisor), `enlace_id` (enlace público por el que llegó, o NULL), `anonimo_id` (aporte sin cuenta: sha256 de la cookie del dispositivo, para su cuota; NULL si tiene cuenta), `ip_hmac` (HMAC de la IP, solo anónimos), `inapropiado`/`inapropiado_por`/`inapropiado_en`, `archivo_borrado_en`, `submitted_at`, `reviewed_at`. Un aporte anónimo tiene `user_id` NULL, `participant_name` "Anónimo" y ni correo ni `file_original_name` |
 | `sanciones` | Sanciones del panel | `usuario_id`, `tipo` (`STRIKE`, `SUSPENSION_TEMPORAL`, `BANEO_DE_CAMPANA`), `detalle`, `dias`, `activa`, `aplicada_en`, `aplicada_por`, `restaurada_en` |
 | `audit_log` | Bitácora de acciones sensibles (solo inserción) | `actor_tipo`, `actor_id`, `accion`, `objetivo_tipo`, `objetivo_id`, `detalle` (JSONB), `ip`, `created_at` |
 
@@ -92,14 +93,15 @@ borrador ──► en_revision ──(supervisor acepta)──► aceptada ─�
 | `aceptado` | Aprobado; cuenta para la meta y para los datos abiertos |
 | `rechazado` | Rechazado con `rejection_reason`; **sigue contando para la cuota** de la persona |
 
-Reglas al enviar (`POST /api/aportes`): campaña `activa`, no ser el creador, no estar baneado (`campana_baneados`), tener cuota disponible, archivo JPG/PNG de hasta 10 MB y descripción obligatoria (máx. 1000 caracteres).
+Reglas al enviar (`POST /api/aportes`): campaña `activa`, no ser el creador, no estar baneado (`campana_baneados`), tener cuota disponible, archivo JPG/PNG de hasta 10 MB (se comprueba la firma real y se quitan los metadatos) y descripción obligatoria (máx. 1000 caracteres). La cuota se cuenta dentro de una transacción con candado, así que dos envíos simultáneos no la pasan.
 
 **Contadores:** cuando un aporte se crea, cambia de estado o se borra, el handler actualiza los contadores de `campanas` (`pending_contributions`, `approved_contributions`...). Si escribes código que cambia aportes, actualiza también los contadores.
 
 ## 5. Archivos en MinIO
 
 - **Módulo:** `lib/minio.ts`.
-  - `saveUploadedFile(file, subdir)` guarda el objeto como `<subdir>/<uuid>.<ext>` y devuelve la clave, el nombre original, el mime y el tamaño. Los aportes usan `subdir = campanas/<campaignId>`.
+  - `guardarArchivo(buffer, { subdir, extension, mimeType })` guarda el objeto como `<subdir>/<uuid><ext>` y devuelve la clave, el mime y el tamaño. Los aportes usan `subdir = campanas/<campaignId>` y llegan ya limpios desde `guardarFotoDelAporte()` (`lib/aportes/comun.ts`).
+  - `borrarArchivo(key)` borra el objeto (archivo de un aporte anónimo que el creador quitó).
   - `readUploadedFile(key)` descarga el objeto completo a un `Buffer`.
 - **El archivo pasa por el servidor.** El navegador sube `multipart/form-data` a `POST /api/aportes`, y el handler lo sube a MinIO. No hay URLs firmadas.
 - **Para mostrarlo**, usa `GET /api/aportes/[id]/archivo` como `src`: verifica permisos y lo sirve con `Cache-Control: private`. **Nunca armes URLs directas a MinIO:** el bucket es privado y no se publica.

@@ -35,7 +35,7 @@ export type EnlaceDeCampana = {
 };
 
 export type CampanaDelCreador = { id: number; nombre: string; status: string };
-export type CampanaParaCompartir = CampanaDelCreador & { creadorId: number };
+export type CampanaParaCompartir = CampanaDelCreador & { creadorId: number; permiteAnonimos: boolean };
 
 export function urlPublica(token: string): string {
   return absoluteUrl(`/c/${token}`).toString();
@@ -71,14 +71,23 @@ const SELECT_ENLACE = `
 /** Datos mínimos de la campaña para el cuadro "Compartir"; null si no existe. */
 export async function obtenerCampanaParaCompartir(campanaId: string): Promise<CampanaParaCompartir | null> {
   if (!/^\d+$/.test(campanaId)) return null;
-  const { rows } = await pool.query(`SELECT id, name, status, creator_id FROM campanas WHERE id = $1 LIMIT 1`, [campanaId]);
+  const { rows } = await pool.query(
+    `SELECT id, name, status, creator_id, permite_anonimos FROM campanas WHERE id = $1 LIMIT 1`,
+    [campanaId]
+  );
   if (rows.length === 0) return null;
   return {
     id: Number(rows[0].id),
     nombre: String(rows[0].name),
     status: String(rows[0].status),
     creadorId: Number(rows[0].creator_id),
+    permiteAnonimos: rows[0].permite_anonimos !== false,
   };
+}
+
+/** Interruptor del creador "Permitir aportes sin cuenta" (campanas.permite_anonimos). */
+export async function cambiarPermiteAnonimos(campanaId: number, permitir: boolean): Promise<void> {
+  await pool.query(`UPDATE campanas SET permite_anonimos = $2, updated_at = NOW() WHERE id = $1`, [campanaId, permitir]);
 }
 
 /** La campaña si `usuarioId` es su creador; null si no existe o es ajena. */
@@ -186,6 +195,8 @@ export type CampanaDelEnlace = {
   fechaFin: string | null;
   /** Checklists que el participante puede marcar (el formulario anónimo los muestra). */
   secciones: SeccionDeChecklist[];
+  /** Interruptor del creador: si es false, /c/[token] no acepta aportes sin cuenta. */
+  permiteAnonimos: boolean;
 };
 
 export type ResultadoDeToken =
@@ -199,7 +210,7 @@ export async function buscarEnlacePorToken(token: string): Promise<ResultadoDeTo
     `SELECT e.*, (SELECT COUNT(*) FROM aportes a WHERE a.enlace_id = e.id)::int AS aportes_recibidos,
             c.name, c.description, c.tematica, c.tag, c.organizer, c.creator_name, c.location_city, c.location_state,
             c.status, c.goal_contributions, c.current_contributions, c.quota_per_user, c.end_date,
-            c.checklist_secciones, c.checklist_opciones, c.collection_mode
+            c.checklist_secciones, c.checklist_opciones, c.collection_mode, c.permite_anonimos
      FROM campana_enlaces e
      JOIN campanas c ON c.id = e.campana_id
      WHERE e.token = $1
@@ -224,6 +235,7 @@ export async function buscarEnlacePorToken(token: string): Promise<ResultadoDeTo
     cuotaPorPersona: Number(row.quota_per_user ?? 0),
     fechaFin: normalizeCampaignDate(row.end_date),
     secciones: seccionesDesdeFila(row),
+    permiteAnonimos: row.permite_anonimos !== false,
   };
 
   if (enlace.revocadoEn) return { tipo: "revocado", enlace, campana };

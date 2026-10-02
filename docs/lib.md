@@ -14,7 +14,7 @@
 | --- | --- | --- |
 | `db.ts` | Pool de conexiones a PostgreSQL (se crea en el primer uso) | `pool`, `dbQuery` |
 | `db-schema.ts` | **El esquema completo** de la BD. Lo ejecuta `instrumentation.ts` al arrancar | `ensureCoreSchema`, `ensure<Tabla>Table` |
-| `minio.ts` | Cliente de MinIO: subir y leer archivos | `saveUploadedFile`, `readUploadedFile` |
+| `minio.ts` | Cliente de MinIO: guardar, leer y borrar archivos | `guardarArchivo`, `readUploadedFile`, `borrarArchivo` |
 | `base-path.ts` 🟢 | Prefijo de la app (`/dataforgood` en producción, vacío en `next dev`) | `BASE_PATH` |
 | `app-url.ts` | URL absoluta con `APP_ORIGIN` + `BASE_PATH` (para redirecciones y correos) | `absoluteUrl` |
 | `ip.ts` | IP real del cliente detrás del proxy | `ipDelCliente` |
@@ -52,7 +52,11 @@
 | Archivo | Qué hace | Lo usa |
 | --- | --- | --- |
 | `archivo.ts` 🟢 | Tipos y tamaño de archivo permitidos, largo de la descripción y `errorDeArchivo()` | Los dos endpoints de aportes y el formulario anónimo |
-| `comun.ts` | `sumarAporteALaCampana()` (contadores desnormalizados) y reexporta `archivo.ts` | `POST /api/aportes`, `aportes-anonimos.ts` |
+| `comun.ts` | `guardarFotoDelAporte()` (valida, limpia y sube a MinIO), `insertarAporteConCuota()` (cuenta e inserta con candado: sin carrera de cuota), `sumarAporteALaCampana()` y reexporta `archivo.ts` | `POST /api/aportes`, `aportes-anonimos.ts` |
+| `imagen.ts` | `limpiarImagen()`: comprueba la firma JPG/PNG y vuelve a codificar con `sharp`, quitando EXIF (GPS), ICC y XMP | `comun.ts` |
+| `anonimato.ts` | Cookie `anonimo_id`, `hashDeDispositivo()` y `hmacDeIp()` (necesita `ANONIMO_IP_SECRETO`) | Aporte anónimo, `/c/[token]`, sanciones |
+| `sanciones-anonimas.ts` | Sanciones a personas sin cuenta: marcar inapropiado, bloqueo por campaña, bloqueo global automático (3 inapropiados en 30 días → 30 días), borrar archivo, listar y quitar bloqueos | API de aportes y de baneos, `/usuarios/sanciones` |
+| `acciones-bloqueos.ts` | Server action `quitarBloqueoDeDispositivo` (SuperUsuario) | `/usuarios/sanciones` |
 
 ### `campanas/`
 
@@ -61,7 +65,7 @@
 | `publicas.ts` | Búsqueda de campañas activas con filtros | `/explorar` |
 | `panel.ts` | Métricas de una campaña (aportes por estado, participantes, avance) | Paneles de `/supervision`, `/supervisar`, `/sistema/campanas/[id]` |
 | `baneos.ts` | Baneos por campaña: consultar, listar, quitar | API de baneos, `/api/aportes`, `/usuarios/[id]` |
-| `aportes-anonimos.ts` | Aporte **sin cuenta** desde `/c/[token]`: valida enlace y campaña, cuota por dispositivo (cookie `anonimo_id`, se guarda su hash), tope por IP en memoria (`TOPE_POR_IP_POR_HORA`) y guarda el aporte sin datos personales | `POST /api/c/[token]/aportes`, `/c/[token]` |
+| `aportes-anonimos.ts` | Aporte **sin cuenta** desde `/c/[token]`: valida enlace, campaña e interruptor `permite_anonimos`, bloqueos del dispositivo o su red, cuota por dispositivo (se guarda el hash de la cookie), espera entre aportes del dispositivo (`ESPERA_ENTRE_APORTES_SEGUNDOS`), tope por IP en memoria (`TOPE_POR_IP_POR_HORA`, se poda cada minuto) y guarda el aporte sin datos personales, con el HMAC de la IP. Bitácora `aporte.anonimo_enviar` sin IP | `POST /api/c/[token]/aportes`, `/c/[token]` |
 | `enlaces.ts` | Enlace público `/c/[token]`: `asegurarEnlaceVigente` (se genera solo al quedar activa la campaña), `regenerarEnlace` (creador), buscar por token, contar visitas, atribuir aportes y generar el QR (SVG/PNG con `qrcode`). Todo en transacción con la campaña bloqueada. No autoriza: el llamador comprueba antes | `/api/campanas/[id]/{enlace,qr}`, `/c/[token]`, `POST /api/aportes`, `lib/supervision/decision.ts`, `lib/campaign-date.ts`, `PATCH`/`PUT /api/campanas/[id]` |
 | `checklist.ts` 🟢 | Checklists con título: normalizar, validar respuestas, límites (`MAX_SECCIONES`...) | Formulario de campaña, aportar, API |
 | `sistema.ts` | Consultas del panel del SuperUsuario (listado, conteos, dashboard). Exigen sesión raíz | `/sistema/campanas/**` |

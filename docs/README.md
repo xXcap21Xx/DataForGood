@@ -217,7 +217,9 @@ Están anotados para que no te sorprendan. No los "arregles de paso": cada uno e
 | **`revertirAccion` no hace nada** todavía (tiene la guardia, pero la lógica es un `TODO`) | `lib/usuarios/acciones-supervisor.ts` |
 | Recuperar contraseña: **no existe** | — |
 | **Tope de aportes anónimos por IP en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. En local, sin proxy delante, todas las peticiones caen en la misma "IP" (`desconocida`) y comparten el tope de 20 por hora | `lib/campanas/aportes-anonimos.ts` |
-| **No hay sanciones para aportes anónimos:** solo se puede rechazar el aporte; no hay bloqueo del dispositivo ni forma de cortar los aportes sin cuenta de una campaña (salvo regenerar el enlace). Hay una propuesta en la skill (`dominio.md`, punto 18) | `lib/campanas/aportes-anonimos.ts` |
+| **El tope por IP y el bloqueo por red confían en `X-Forwarded-For`.** Detrás del proxy es correcto; si el puerto de la app queda abierto a Internet, alguien puede inventar su IP. La cuota por dispositivo sí aplica. Se resuelve en el despliegue, no en el código | `lib/ip.ts`, `docker-compose.yml` |
+| **Bloqueo global por red:** si un dispositivo junta 3 aportes inapropiados, su red también queda bloqueada 30 días para aportar sin cuenta. En una escuela u oficina afecta a todos; el SuperUsuario lo quita en `/usuarios/sanciones` | `lib/aportes/sanciones-anonimas.ts` |
+| **Fotos anteriores al 2026-10-01 sin limpiar:** pueden conservar su EXIF (GPS incluido) y salen así en el ZIP de datos abiertos | MinIO |
 | **Un usuario sancionado puede aportar como anónimo** desde un enlace (al no tener sesión válida ve el formulario anónimo), igual que cualquiera que cierre sesión. No hay forma de ligar el dispositivo a la cuenta | `app/c/[token]/page.tsx` |
 | Solo se aceptan fotos JPG/PNG de hasta 10 MB | `app/api/aportes/route.ts` |
 | El build falla a veces descargando Google Fonts; reintentar. La solución es `next/font/local` | `app/layout.tsx` |

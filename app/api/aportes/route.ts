@@ -3,11 +3,10 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
-import { saveUploadedFile } from "@/lib/minio";
 import { estaBaneadoDeCampana } from "@/lib/campanas/baneos";
 import { respuestasValidas, seccionesDesdeFila } from "@/lib/campanas/checklist";
 import { idDeEnlaceVigente } from "@/lib/campanas/enlaces";
-import { LARGO_MAXIMO_DESCRIPCION, errorDeArchivo, sumarAporteALaCampana } from "@/lib/aportes/comun";
+import { LARGO_MAXIMO_DESCRIPCION, errorDeArchivo, guardarFotoDelAporte, insertarAporteConCuota } from "@/lib/aportes/comun";
 
 function mapAporte(row: Record<string, unknown>) {
   return {
@@ -155,33 +154,54 @@ export async function POST(request: Request) {
     // vigente de esta campaña. Uno inválido o caducado no bloquea el aporte.
     const enlaceId = tokenDeEnlace ? await idDeEnlaceVigente(tokenDeEnlace, campaignId) : null;
 
-    const saved = await saveUploadedFile(file, `campanas/${campaignId}`);
+    // Se comprueba que sea de verdad JPG/PNG y se guarda sin metadatos (EXIF con GPS, etc.).
+    const foto = await guardarFotoDelAporte(file, campaignId);
+    if (!foto.ok) return NextResponse.json({ error: foto.error }, { status: 400 });
+    const saved = foto.guardado;
 
-    const result = await pool.query(
-      `INSERT INTO aportes (
-        campaign_id, user_id, participant_name, participant_email, description,
-        file_type, file_path, file_original_name, file_mime_type, file_size_bytes, caracteristicas, enlace_id
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
-      RETURNING *`,
-      [
-        campaignId,
-        user.id,
-        `${user.nombre} ${user.apellidos}`.trim(),
-        user.email,
-        description,
-        "foto",
-        saved.relativePath,
-        saved.originalName,
-        saved.mimeType,
-        saved.sizeBytes,
-        JSON.stringify(caracteristicas),
-        enlaceId,
-      ]
-    );
+    // Cuenta e inserta con candado: dos envíos simultáneos no pasan la cuota.
+    const insertado = await insertarAporteConCuota({
+      campaignId,
+      persona: `usuario:${user.id}`,
+      cuota: Number(campaign.quota_per_user),
+      archivoSubido: saved.relativePath,
+      contar: async (client) => {
+        const { rows } = await client.query(
+          `SELECT COUNT(*)::int AS count FROM aportes WHERE campaign_id = $1 AND user_id = $2`,
+          [campaignId, user.id]
+        );
+        return Number(rows[0]?.count ?? 0);
+      },
+      insertar: async (client) => {
+        const { rows } = await client.query(
+          `INSERT INTO aportes (
+            campaign_id, user_id, participant_name, participant_email, description,
+            file_type, file_path, file_original_name, file_mime_type, file_size_bytes, caracteristicas, enlace_id
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11::jsonb, $12)
+          RETURNING *`,
+          [
+            campaignId,
+            user.id,
+            `${user.nombre} ${user.apellidos}`.trim(),
+            user.email,
+            description,
+            "foto",
+            saved.relativePath,
+            file.name,
+            saved.mimeType,
+            saved.sizeBytes,
+            JSON.stringify(caracteristicas),
+            enlaceId,
+          ]
+        );
+        return rows[0];
+      },
+    });
+    if (!insertado.ok) {
+      return NextResponse.json({ error: "Ya alcanzaste tu cuota en esta campaña" }, { status: 400 });
+    }
 
-    await sumarAporteALaCampana(campaignId, existingCount === 0);
-
-    return NextResponse.json({ message: "Aporte enviado", data: mapAporte(result.rows[0]) }, { status: 201 });
+    return NextResponse.json({ message: "Aporte enviado", data: mapAporte(insertado.fila) }, { status: 201 });
   } catch (error) {
     console.error("Error creando aporte", error);
     return NextResponse.json({ error: "No se pudo enviar el aporte" }, { status: 500 });

@@ -1,10 +1,11 @@
 "use client";
 
 // Formulario de /c/[token] para aportar SIN cuenta. Envía a POST /api/c/[token]/aportes,
-// que valida el enlace, la cuota por dispositivo y el tope por IP. Después de enviar, la
-// persona solo ve cuántos aportes le quedan: no puede consultar ni editar lo que mandó.
+// que valida el enlace, la cuota por dispositivo, el tope por IP y la espera entre aportes.
+// Después de enviar, la persona solo ve cuántos aportes le quedan y una cuenta regresiva
+// hasta el siguiente: no puede consultar ni editar lo que mandó.
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Field, Textarea } from "@/components/ui/Input";
 import { LARGO_MAXIMO_DESCRIPCION, errorDeArchivo } from "@/lib/aportes/archivo";
@@ -16,13 +17,17 @@ export default function AporteAnonimo({
   secciones,
   cuota,
   restantesIniciales,
+  esperaInicial,
 }: {
   token: string;
   secciones: SeccionDeChecklist[];
   cuota: number;
   restantesIniciales: number;
+  /** Segundos que faltan para poder enviar otro (lo calcula el servidor). */
+  esperaInicial: number;
 }) {
   const [restantes, setRestantes] = useState(restantesIniciales);
+  const [espera, setEspera] = useState(esperaInicial);
   const [archivo, setArchivo] = useState<File | null>(null);
   const [errorArchivo, setErrorArchivo] = useState<string | null>(null);
   const [descripcion, setDescripcion] = useState("");
@@ -32,6 +37,14 @@ export default function AporteAnonimo({
   const [enviado, setEnviado] = useState(false);
   // Cambia la key del input de archivo para vaciarlo después de enviar.
   const [vuelta, setVuelta] = useState(0);
+
+  // Cuenta regresiva de la espera. Solo informa: el servidor la vuelve a comprobar.
+  const enEspera = espera > 0;
+  useEffect(() => {
+    if (!enEspera) return;
+    const intervalo = setInterval(() => setEspera((s) => Math.max(0, s - 1)), 1000);
+    return () => clearInterval(intervalo);
+  }, [enEspera]);
 
   function elegirArchivo(e: React.ChangeEvent<HTMLInputElement>) {
     const elegido = e.target.files?.[0] ?? null;
@@ -56,8 +69,16 @@ export default function AporteAnonimo({
       marcadas.forEach((valor) => datos.append("caracteristicas", valor));
       const response = await fetch(`${BASE_PATH}/api/c/${encodeURIComponent(token)}/aportes`, { method: "POST", body: datos });
       const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.error ?? "No se pudo enviar el aporte");
+      if (!response.ok) {
+        // La espera no es un error: el botón muestra la cuenta regresiva.
+        if (payload.esperaSegundos) {
+          setEspera(Number(payload.esperaSegundos));
+          return;
+        }
+        throw new Error(payload.error ?? "No se pudo enviar el aporte");
+      }
       setRestantes(Number(payload.data?.restantes ?? 0));
+      setEspera(Number(payload.data?.esperaSegundos ?? 0));
       setEnviado(true);
       setArchivo(null);
       setDescripcion("");
@@ -80,7 +101,11 @@ export default function AporteAnonimo({
   }
 
   const puedeEnviar =
-    Boolean(archivo) && descripcion.trim().length > 0 && descripcion.length <= LARGO_MAXIMO_DESCRIPCION && !enviando;
+    Boolean(archivo) &&
+    descripcion.trim().length > 0 &&
+    descripcion.length <= LARGO_MAXIMO_DESCRIPCION &&
+    !enviando &&
+    espera === 0;
 
   return (
     <form onSubmit={enviar}>
@@ -142,7 +167,7 @@ export default function AporteAnonimo({
       )}
 
       <Button variant="primary" type="submit" className="w-full" disabled={!puedeEnviar}>
-        {enviando ? "Enviando…" : "Enviar aporte sin cuenta"}
+        {enviando ? "Enviando…" : espera > 0 ? `Podrás enviar otro en ${espera} s` : "Enviar aporte sin cuenta"}
       </Button>
       <p className="mt-2 text-center text-[11.5px] text-ink-3">
         Se registra como anónimo y queda pendiente de revisión. Te quedan {restantes} de {cuota} desde este dispositivo.

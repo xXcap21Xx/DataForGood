@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { respuestasValidas, seccionesDesdeFila } from "@/lib/campanas/checklist";
+import { bloqueoEnCampanaDelAporte, marcarInapropiado, quitarMarcaInapropiado } from "@/lib/aportes/sanciones-anonimas";
 
 const ALLOWED_STATUS = new Set(["pendiente", "espera_final", "aceptado", "rechazado"]);
 
@@ -24,6 +25,8 @@ function mapAporte(row: Record<string, unknown>) {
     rejectionReason: row.rejection_reason ? String(row.rejection_reason) : undefined,
     firstPassBy: row.first_pass_by ? String(row.first_pass_by) : undefined,
     firstPassByUserId: row.first_pass_by_user_id != null ? String(row.first_pass_by_user_id) : undefined,
+    inapropiado: row.inapropiado === true,
+    archivoBorrado: row.archivo_borrado_en != null,
   };
 }
 
@@ -60,7 +63,16 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "No tienes permiso para ver este aporte" }, { status: 403 });
     }
 
-    return NextResponse.json({ data: mapAporte(row) });
+    // Al creador, si el dispositivo de un aporte anónimo ya está bloqueado en su campaña.
+    const bloqueoId =
+      isCampaignCreator && row.user_id == null && row.anonimo_id ? await bloqueoEnCampanaDelAporte(Number(row.id)) : null;
+
+    return NextResponse.json({
+      data: {
+        ...mapAporte(row),
+        ...(isCampaignCreator ? { dispositivoBloqueadoId: bloqueoId != null ? String(bloqueoId) : null } : {}),
+      },
+    });
   } catch (error) {
     console.error("Error obteniendo aporte", error);
     return NextResponse.json({ error: "No se pudo obtener el aporte" }, { status: 500 });
@@ -100,6 +112,11 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     if (status === "rechazado" && !String(rejectionReason ?? "").trim()) {
       return NextResponse.json({ error: "rejectionReason es obligatorio al rechazar" }, { status: 400 });
     }
+    // Casilla "Contenido inapropiado" al rechazar: solo para aportes sin cuenta.
+    const inapropiado = body.inapropiado === true;
+    if (inapropiado && (status !== "rechazado" || row.user_id != null)) {
+      return NextResponse.json({ error: "Solo un aporte anónimo rechazado se puede marcar como inapropiado" }, { status: 400 });
+    }
 
     const firstPassBy = isReviewer
       ? `${user.nombre} ${user.apellidos}`.trim()
@@ -125,6 +142,10 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       ]
     );
 
+    // El creador decide al final: si acepta, se quita la marca que pudo poner un revisor.
+    if (status === "aceptado" && isCampaignCreator) await quitarMarcaInapropiado(Number(id));
+    const bloqueoGlobal = inapropiado ? (await marcarInapropiado(Number(id), Number(user.id))).bloqueoGlobal : false;
+
     const wasPending = previousStatus === "pendiente" || previousStatus === "espera_final";
     if (wasPending && status === "aceptado") {
       await pool.query(
@@ -138,7 +159,14 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
       );
     }
 
-    return NextResponse.json({ message: "Aporte actualizado", data: mapAporte(result.rows[0]) });
+    // Se relee: la marca de inapropiado pudo cambiar después del UPDATE.
+    const final = inapropiado || status === "aceptado" ? (await loadAporteWithCampaign(id)) ?? result.rows[0] : result.rows[0];
+    return NextResponse.json({
+      message: bloqueoGlobal
+        ? "Aporte actualizado. Ese dispositivo juntó varios aportes inapropiados y quedó bloqueado en toda la plataforma."
+        : "Aporte actualizado",
+      data: mapAporte(final),
+    });
   } catch (error) {
     console.error("Error revisando aporte", error);
     return NextResponse.json({ error: "No se pudo actualizar el aporte" }, { status: 500 });

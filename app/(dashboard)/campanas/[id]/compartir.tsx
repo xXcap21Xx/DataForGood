@@ -5,7 +5,8 @@
 // copiar el enlace y descargar el QR; solo el creador lo regenera y ve sus visitas
 // y aportes. El enlace se genera solo cuando la campaña queda activa.
 // Datos: GET /api/campanas/[id]/enlace al abrir. QR: GET /api/campanas/[id]/qr.
-// Regenerar: regenerar.tsx (POST /api/campanas/[id]/enlace).
+// Regenerar: regenerar.tsx (POST /api/campanas/[id]/enlace). Aportes sin cuenta:
+// permitir-anonimos.tsx (PATCH /api/campanas/[id]/enlace), solo el creador.
 
 import { useCallback, useRef, useState } from "react";
 import Button, { buttonClasses } from "@/components/ui/Button";
@@ -13,6 +14,7 @@ import Tag from "@/components/ui/Tag";
 import { BASE_PATH } from "@/lib/base-path";
 import EnlacePublico from "./enlace-publico";
 import BotonRegenerar from "./regenerar";
+import PermitirAnonimos from "./permitir-anonimos";
 
 type Enlace = {
   url: string;
@@ -24,7 +26,7 @@ type Enlace = {
   aportesRecibidos?: number;
 };
 
-type Datos = { enlace: Enlace | null; status: string; esCreador: boolean };
+type Datos = { enlace: Enlace | null; status: string; esCreador: boolean; permiteAnonimos: boolean };
 
 const numero = new Intl.NumberFormat("es-MX");
 const fechaConHora = new Intl.DateTimeFormat("es-MX", {
@@ -47,7 +49,12 @@ export default function CompartirCampana({ campanaId, nombre }: { campanaId: str
       const response = await fetch(`${BASE_PATH}/api/campanas/${campanaId}/enlace`, { cache: "no-store" });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.error ?? "No se pudo cargar el enlace");
-      setDatos({ enlace: payload.data ?? null, status: payload.campana?.status ?? "", esCreador: Boolean(payload.viewer?.esCreador) });
+      setDatos({
+        enlace: payload.data ?? null,
+        status: payload.campana?.status ?? "",
+        esCreador: Boolean(payload.viewer?.esCreador),
+        permiteAnonimos: payload.campana?.permiteAnonimos !== false,
+      });
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "No se pudo cargar el enlace");
     }
@@ -134,8 +141,9 @@ export default function CompartirCampana({ campanaId, nombre }: { campanaId: str
 
                   {!caducado ? (
                     <p className="mb-4 rounded-lg bg-sunken p-3.5 text-[12.5px] text-ink-2">
-                      Quien abra el enlace ve la campaña y puede aportar al iniciar sesión o crear una cuenta, mientras
-                      el token siga vigente.
+                      {datos.permiteAnonimos
+                        ? "Quien abra el enlace ve la campaña y puede aportar sin cuenta o con la suya, mientras el token siga vigente."
+                        : "Quien abra el enlace ve la campaña y puede aportar al iniciar sesión o crear una cuenta, mientras el token siga vigente."}
                     </p>
                   ) : datos.esCreador ? (
                     <p className="mb-4 rounded-lg bg-warn-tint p-3.5 text-[12.5px] text-warn">
@@ -149,7 +157,14 @@ export default function CompartirCampana({ campanaId, nombre }: { campanaId: str
                   )}
 
                   {datos.esCreador && (
-                    <BotonRegenerar campanaId={campanaId} modo={caducado ? "vencido" : "regenerar"} onListo={cargar} />
+                    <>
+                      <PermitirAnonimos
+                        campanaId={campanaId}
+                        inicial={datos.permiteAnonimos}
+                        onCambio={(permitir) => setDatos((actual) => (actual ? { ...actual, permiteAnonimos: permitir } : actual))}
+                      />
+                      <BotonRegenerar campanaId={campanaId} modo={caducado ? "vencido" : "regenerar"} onListo={cargar} />
+                    </>
                   )}
                 </div>
 

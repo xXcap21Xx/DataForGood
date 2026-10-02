@@ -119,7 +119,7 @@ Las pantallas del panel usan solo ese kit, y las de usuario solo `components/ui/
 </label>
 ```
 
-- **Validación en el cliente:** mantén la que ya existe (formato y 10 MB) para avisar pronto; el servidor vuelve a validar (`ALLOWED_FILE_TYPES` y `MAX_FILE_SIZE` en `app/api/aportes/route.ts`).
+- **Validación en el cliente:** mantén la que ya existe (formato y 10 MB) para avisar pronto; el servidor vuelve a validar con `errorDeArchivo()` (`lib/aportes/archivo.ts`, la misma que puede usar el cliente) y con la firma real del archivo (`lib/aportes/imagen.ts`).
 - **Vista previa:** `URL.createObjectURL(file)`, liberando la URL después.
 - **Audio en vivo:** `MediaRecorder` (Chrome graba `audio/webm`, Safari `audio/mp4`). Requiere HTTPS o `localhost`; como respaldo, ofrece `<input type="file" accept="audio/*">`.
 - **Subida:** `FormData` con `fetch` a `POST /api/aportes` (ver `almacenamiento.md`). Si falla, conserva lo que la persona escribió.

@@ -1,4 +1,5 @@
-// Tarjeta de aporte con su estado (Tag). Recibe un Contribution de types/index.ts.
+// Tarjeta de aporte con su estado (Tag) y, si fue rechazado, el motivo que escribió quien revisó.
+// Recibe un Contribution de types/index.ts.
 
 import Tag from "@/components/ui/Tag";
 import Card from "@/components/ui/Card";
@@ -36,6 +37,11 @@ export default function ContributionCard({ contribution }: { contribution: Contr
           <span>{contribution.fileType}</span>
           <span>{formatSize(contribution.fileSizeBytes)}</span>
         </div>
+        {contribution.status === "rechazado" && contribution.rejectionReason && (
+          <p className="mt-2 rounded border border-danger bg-danger-tint px-3 py-2 text-[12px] text-ink">
+            <span className="font-semibold">Motivo del rechazo:</span> {contribution.rejectionReason}
+          </p>
+        )}
       </div>
       <Tag tone={status.tone}>{status.label}</Tag>
     </Card>

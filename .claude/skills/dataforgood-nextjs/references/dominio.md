@@ -102,7 +102,8 @@ Fuentes: `mis-campanas/[id]/aportes` y `[aporteId]`.
 - **Sin revisor asignado:** todo llega sin filtro y quien administra la campaña decide en **una sola instancia** (`pendiente` → `aceptado` o `rechazado`).
 - **Con revisor asignado:** el revisor valida en primera instancia (`pendiente` → `espera_final`, guardando quién lo validó), y quien administra da la aprobación final (`espera_final` → `aceptado` o `rechazado`).
   - **Estado real del código (2026-10-01):** no se cumple. En `PATCH /api/aportes/[id]` el revisor solo puede mandar `status: "aceptado"` sobre un aporte `pendiente`, y el servidor lo guarda tal cual como `aceptado` (con `first_pass_by`); nunca asigna `espera_final`. La interfaz (`/revisiones/[aporteId]`, bandeja del creador) sí muestra ese estado. Arreglo pendiente: si quien acepta es revisor y no creador, guardar `espera_final` y no sumar a `approved_contributions` hasta la decisión del creador.
-- **Rechazar exige un motivo:** uno de la lista ("Contenido borroso o ilegible", "No corresponde a la campaña", "Datos incompletos", "Contenido duplicado") o uno redactado. **El participante recibe el motivo por notificación.**
+- **Rechazar exige un motivo:** uno de la lista ("Contenido borroso o ilegible", "No corresponde a la campaña", "Datos incompletos", "Contenido duplicado") o uno redactado. Se guarda en `aportes.rejection_reason`.
+  - **Dónde lo ve el participante:** en `/mis-aportes/[campanaId]`, bajo el aporte rechazado (`ContributionCard`). **No se notifica:** `PATCH /api/aportes/[id]` no crea notificación al rechazar. En un aporte anónimo nadie lo recibe.
 - **Desde el detalle de un aporte se puede "Banear de la campaña"** al participante. El baneo es por campaña, no global.
 
 ## 6. Enlace público y aportes anónimos
@@ -125,8 +126,15 @@ Fuente: pantalla de compartir del prototipo; hoy es el cuadro "Compartir" de `/c
     - **La persona anónima solo participa si le comparten la campaña.** No ve ni toca nada más del sistema: ni sus aportes después, ni archivos, ni la app. Solo ve lo que muestra `/c/[token]`.
     - El aporte se guarda sin datos personales: `user_id` NULL, "Anónimo", sin correo y sin nombre de archivo. Lleva `enlace_id` y `anonimo_id`, que es el sha256 de la cookie del dispositivo.
     - Con sesión iniciada, el endpoint responde 409: se aporta con la cuenta.
-    - El creador lo revisa como cualquier aporte, pero no puede banearlo y nadie recibe el motivo del rechazo.
+    - El creador lo revisa como cualquier aporte; nadie recibe el motivo del rechazo. En vez de "Banear" tiene las sanciones de abajo.
     - En las métricas, un dispositivo cuenta como participante.
+    - **Espera entre aportes** (2026-10-01): 60 segundos entre dos aportes sin cuenta del mismo dispositivo, en cualquier campaña (`ESPERA_ENTRE_APORTES_SEGUNDOS`, `TODO(dominio)`: valor elegido sin consulta). Responde 429 con `esperaSegundos` y `Retry-After`; el formulario muestra la cuenta regresiva. Se comprueba dentro del candado, así que envíos simultáneos tampoco la saltan.
+    - La foto se guarda sin metadatos (EXIF con GPS, etc.) y solo si es de verdad JPG o PNG (`lib/aportes/imagen.ts`). Lo mismo aplica a los aportes con cuenta.
+  - **Sanciones para anónimos (implementado el 2026-10-01, `lib/aportes/sanciones-anonimas.ts`):**
+    1. **Aporte:** casilla "Contenido inapropiado" al rechazar (creador) o botón "Marcar como inapropiado" (revisor; no cambia el estado). Si el creador acepta después, la marca se quita. Solo los marcados cuentan para el nivel 4. El creador puede **borrar el archivo** de MinIO.
+    2. **Campaña:** el creador bloquea el dispositivo en su campaña ("Bloquear este dispositivo", misma API que el baneo). Solo por dispositivo, sin vencimiento; se quita desde "Participantes baneados".
+    3. **Enlace:** regenerar el token y el interruptor "Permitir aportes sin cuenta" del cuadro Compartir (`campanas.permite_anonimos`). Apagado, `/c/[token]` solo invita a entrar o registrarse.
+    4. **Plataforma:** 3 aportes inapropiados del mismo dispositivo en 30 días lo bloquean 30 días en todas las campañas, **junto con su red** (`ip_hmac`). El SuperUsuario lo ve y lo quita en `/usuarios/sanciones`. Todo queda en `audit_log`.
   - Las columnas viejas `campanas.share_token`/`share_token_expires_at` ya no se usan.
 
 ## 7. Experiencia (XP) y campañas especiales
@@ -188,7 +196,7 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
 15. **Topes de checklists** (2026-09-30): 50 checklists de 50 opciones y 120 caracteres por texto (`lib/campanas/checklist.ts`). Son técnicos, elegidos sin consulta: ¿el equipo quiere otros?
 16. **Motivo visible al sancionado** (2026-09-30): `/cuenta-bloqueada` muestra tal cual el `detalle` que escribe el SuperUsuario. ¿Se redacta pensando en la persona o conviene un campo aparte para el mensaje?
 17. **Motivo del baneo por campaña:** hoy el participante solo ve que no puede aportar, no el motivo que escribió el creador. ¿Se le muestra?
-18. **Sanciones para aportes anónimos** (2026-10-01, pendiente para otra sesión).
+18. ~~**Sanciones para aportes anónimos**~~ *Implementado el 2026-10-01 (ver § 6). Decisiones: marcan "inapropiado" el creador y el revisor; bloquear, borrar el archivo y apagar los anónimos, solo el creador; nivel 4 con 3 inapropiados en 30 días → 30 días de bloqueo (números provisionales, `TODO(dominio)` en `lib/aportes/sanciones-anonimas.ts`); se guarda el HMAC de la IP (`ANONIMO_IP_SECRETO`) y el bloqueo global alcanza a la red. Abajo, la propuesta original.*
     - **Situación actual:** si una persona sin cuenta sube algo indebido, solo se puede **rechazar** el aporte. Nadie recibe el motivo, no hay "Banear" y la persona sigue aportando hasta su cuota.
     - **Identificador disponible:** solo `aportes.anonimo_id`, el hash de la cookie del dispositivo; la IP no se guarda. Borrar las cookies o usar modo incógnito da un dispositivo nuevo, así que la meta es volver tedioso el abuso, no imposible.
     - **Propuesta aceptada:**

@@ -119,9 +119,13 @@ Puede participar **solo si le comparten una campaña** (enlace o QR `/c/[token]`
 - **Ve:** únicamente `/c/[token]`, con la ficha de la campaña y el formulario. Todo lo demás de la app le pide iniciar sesión, y la API le responde 401.
 - **Puede:** enviar aportes con `POST /api/c/[token]/aportes`, solo con un enlace vigente de una campaña activa.
 - **No puede:** ver sus aportes después, consultar archivos, ver el enlace o el QR desde la app, ni modificar nada.
-- **Límites:** la cuota por persona de la campaña, contada por dispositivo (cookie `anonimo_id`), y 20 aportes por IP por hora (`lib/campanas/aportes-anonimos.ts`).
-- **Privacidad:** el aporte se guarda como "Anónimo", sin correo ni nombre de archivo. De la cookie solo se guarda su hash, y la IP no se guarda.
-- **Revisión:** el creador lo acepta o rechaza como cualquier aporte, pero no puede banearlo (no hay cuenta) y nadie recibe el motivo del rechazo.
+- **Límites:** la cuota por persona de la campaña, contada por dispositivo (cookie `anonimo_id`), 60 segundos de espera entre dos aportes del mismo dispositivo, y 20 aportes por IP por hora (`lib/campanas/aportes-anonimos.ts`). No puede aportar si el creador apagó "Permitir aportes sin cuenta" o si su dispositivo (o su red, en el bloqueo global) está bloqueado.
+- **Privacidad:** el aporte se guarda como "Anónimo", sin correo ni nombre de archivo, y la foto sin metadatos. De la cookie solo se guarda su hash; de la IP, un HMAC con `ANONIMO_IP_SECRETO`. La bitácora no guarda su IP.
+- **Revisión:** el creador lo acepta o rechaza como cualquier aporte; nadie recibe el motivo del rechazo.
+- **Sanciones** (`lib/aportes/sanciones-anonimas.ts`):
+  - Creador y revisor marcan un aporte como "Contenido inapropiado" (el creador al rechazar; el revisor con un botón que no cambia el estado).
+  - Solo el creador bloquea el dispositivo en su campaña (se quita en "Participantes baneados"), borra el archivo y apaga los aportes sin cuenta.
+  - 3 aportes inapropiados del mismo dispositivo en 30 días lo bloquean 30 días en toda la plataforma, junto con su red. Solo el SuperUsuario lo quita antes (`/usuarios/sanciones`).
 
 ## 7. Sanciones y baneos
 

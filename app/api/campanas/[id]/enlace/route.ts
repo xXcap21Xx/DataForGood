@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { registrarAuditoria } from "@/lib/auditoria";
 import {
+  cambiarPermiteAnonimos,
   estaVigente,
   obtenerCampanaDelCreador,
   obtenerCampanaParaCompartir,
@@ -41,7 +42,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
             ...(esCreador ? { visitas: enlace.visitas, aportesRecibidos: enlace.aportesRecibidos } : {}),
           }
         : null,
-      campana: { nombre: campana.nombre, status: campana.status },
+      campana: { nombre: campana.nombre, status: campana.status, permiteAnonimos: campana.permiteAnonimos },
       viewer: { esCreador },
     });
   } catch (error) {
@@ -82,5 +83,38 @@ export async function POST(_request: Request, context: { params: Promise<{ id: s
   } catch (error) {
     console.error("Error regenerando el enlace de la campaña", error);
     return NextResponse.json({ error: "No se pudo generar el enlace" }, { status: 500 });
+  }
+}
+
+// PATCH { permiteAnonimos: boolean }: el creador permite o corta los aportes sin cuenta desde
+// el enlace. Apagarlo no toca los aportes anónimos ya recibidos.
+export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await context.params;
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: "Debes iniciar sesión" }, { status: 401 });
+
+    const body = await request.json().catch(() => ({}));
+    if (typeof body.permiteAnonimos !== "boolean") {
+      return NextResponse.json({ error: "permiteAnonimos debe ser true o false" }, { status: 400 });
+    }
+
+    const campana = await obtenerCampanaDelCreador(id, user.id);
+    if (!campana) {
+      return NextResponse.json({ error: "Solo quien creó la campaña puede cambiar esto" }, { status: 403 });
+    }
+
+    await cambiarPermiteAnonimos(campana.id, body.permiteAnonimos);
+    await registrarAuditoria({
+      actor: { tipo: "usuario", id: Number(user.id) },
+      accion: "campana.anonimos_cambiar",
+      objetivo: { tipo: "campana", id: campana.id },
+      detalle: { permiteAnonimos: body.permiteAnonimos },
+    });
+
+    return NextResponse.json({ data: { permiteAnonimos: body.permiteAnonimos } });
+  } catch (error) {
+    console.error("Error cambiando los aportes sin cuenta", error);
+    return NextResponse.json({ error: "No se pudo guardar el cambio" }, { status: 500 });
   }
 }

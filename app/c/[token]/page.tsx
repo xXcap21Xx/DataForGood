@@ -5,6 +5,8 @@
 //   - con sesión: botón a /campanas/[id]/aportar?enlace=<token> (aporta con su cuenta);
 //   - sin sesión: formulario anónimo (aporte-anonimo.tsx → POST /api/c/[token]/aportes),
 //     con la cuota por dispositivo, y la opción de entrar o registrarse con ?next=.
+//     Sin formulario (solo el aviso) si el creador apagó los aportes sin cuenta o si el
+//     dispositivo o su red están bloqueados (lib/aportes/sanciones-anonimas.ts).
 // Es TODO lo que ve una persona anónima: la campaña compartida y su formulario.
 
 import type { Metadata } from "next";
@@ -16,10 +18,17 @@ import Card from "@/components/ui/Card";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
 import { buscarEnlacePorToken, registrarVisita, type CampanaDelEnlace } from "@/lib/campanas/enlaces";
-import { COOKIE_ANONIMO, aportesDelDispositivo, dispositivoValido } from "@/lib/campanas/aportes-anonimos";
+import { COOKIE_ANONIMO, dispositivoValido } from "@/lib/aportes/anonimato";
+import {
+  MENSAJE_BLOQUEADO,
+  aportesDelDispositivo,
+  bloqueoParaLaPagina,
+  esperaDelDispositivo,
+} from "@/lib/campanas/aportes-anonimos";
+import { ipDelCliente } from "@/lib/ip";
 import { conDestino } from "@/lib/redireccion";
 import { getSessionUser } from "@/lib/session";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import AporteAnonimo from "./aporte-anonimo";
 
 export const metadata: Metadata = {
@@ -69,12 +78,16 @@ export default async function EnlacePublicoPage({ params }: { params: Promise<{ 
     // Sin sesión: cuántos aportes le quedan a este dispositivo (cookie anónima).
     const dispositivo = dispositivoValido((await cookies()).get(COOKIE_ANONIMO)?.value);
     const usados = usuario ? 0 : await aportesDelDispositivo(resultado.campana.id, dispositivo);
+    // Si recarga justo después de aportar, el formulario arranca con la cuenta regresiva.
+    const espera = usuario ? 0 : await esperaDelDispositivo(dispositivo);
     contenido = (
       <Invitacion
         campana={resultado.campana}
         token={resultado.enlace.token}
         conSesion={usuario !== null}
         restantes={Math.max(0, resultado.campana.cuotaPorPersona - usados)}
+        espera={espera}
+        sinFormulario={usuario ? null : await motivoSinFormulario(resultado.campana, dispositivo)}
       />
     );
   }
@@ -88,16 +101,33 @@ export default async function EnlacePublicoPage({ params }: { params: Promise<{ 
   );
 }
 
+/** Por qué no se muestra el formulario anónimo, o null si se muestra. El servidor vuelve a comprobarlo al enviar. */
+async function motivoSinFormulario(campana: CampanaDelEnlace, dispositivo: string | null): Promise<string | null> {
+  if (!campana.permiteAnonimos) return "Esta campaña solo recibe aportes con cuenta.";
+  try {
+    const ip = ipDelCliente(await headers());
+    return (await bloqueoParaLaPagina(campana.id, dispositivo, ip)) ? MENSAJE_BLOQUEADO : null;
+  } catch (error) {
+    // Sin ANONIMO_IP_SECRETO no se puede comprobar: se muestra el formulario y el envío lo reporta.
+    console.error("No se pudo comprobar el bloqueo del dispositivo", error);
+    return null;
+  }
+}
+
 function Invitacion({
   campana,
   token,
   conSesion,
   restantes,
+  espera,
+  sinFormulario,
 }: {
   campana: CampanaDelEnlace;
   token: string;
   conSesion: boolean;
   restantes: number;
+  espera: number;
+  sinFormulario: string | null;
 }) {
   const pct = campana.meta ? Math.min(100, Math.round((campana.aportesActuales / campana.meta) * 100)) : 0;
   const lugar = [campana.ciudad, campana.estado].filter(Boolean).join(", ");
@@ -139,20 +169,28 @@ function Invitacion({
         </div>
       ) : (
         <>
-          <Card className="mt-5">
-            <h2 className="mb-1 text-[15px] font-bold text-ink">Aporta sin crear una cuenta</h2>
-            <p className="mb-4 text-[12.5px] text-ink-2">
-              No pedimos tu nombre ni tu correo: el aporte se registra como anónimo.
-            </p>
-            <AporteAnonimo
-              token={token}
-              secciones={campana.secciones}
-              cuota={campana.cuotaPorPersona}
-              restantesIniciales={restantes}
-            />
-          </Card>
+          {sinFormulario ? (
+            <p className="mt-5 rounded-lg bg-sunken p-3.5 text-[12.5px] text-ink-2">{sinFormulario}</p>
+          ) : (
+            <Card className="mt-5">
+              <h2 className="mb-1 text-[15px] font-bold text-ink">Aporta sin crear una cuenta</h2>
+              <p className="mb-4 text-[12.5px] text-ink-2">
+                No pedimos tu nombre ni tu correo: el aporte se registra como anónimo y la foto se guarda sin sus
+                metadatos (ubicación, fecha, modelo del teléfono).
+              </p>
+              <AporteAnonimo
+                token={token}
+                secciones={campana.secciones}
+                cuota={campana.cuotaPorPersona}
+                restantesIniciales={restantes}
+                esperaInicial={espera}
+              />
+            </Card>
+          )}
           <div className="mt-5 flex flex-col gap-2.5">
-            <p className="text-center text-[12px] text-ink-3">¿Prefieres que tus aportes queden en tu historial?</p>
+            <p className="text-center text-[12px] text-ink-3">
+              {sinFormulario ? "Puedes aportar con una cuenta." : "¿Prefieres que tus aportes queden en tu historial?"}
+            </p>
             <div className="flex gap-2.5 max-md:flex-col">
               <ButtonLink href={conDestino("/entrar", aportar)} className="flex-1">
                 Iniciar sesión
