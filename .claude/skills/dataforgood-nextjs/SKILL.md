@@ -16,17 +16,26 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 - **Ya no existe `data/screensData.ts`:** ninguna pantalla usa datos simulados.
 - **No hay pruebas automatizadas** (no hay Vitest ni otro runner).
 - **2026-09-30:** `/explorar` público, regreso a la pantalla pedida tras iniciar sesión (`?next=`), `/cuenta-bloqueada`, baneos por campaña reversibles, checklists con título, 23 temáticas compartidas (commit `c9fb7b7`).
-- **Último avance (2026-10-01, commits `de9a367` a `3e18424`):**
+- **2026-10-01 (commits `de9a367` a `3e18424`):**
   - **Aporte anónimo** desde `/c/[token]` con cuota por dispositivo, espera de 60 s y tope por IP en memoria. **La IP de una persona sin cuenta no se guarda en ningún lado** (hubo un HMAC de la IP y se quitó a pedido del usuario: no volver a proponerlo).
   - **Sanciones para anónimos** en 4 niveles (inapropiado, bloqueo del dispositivo en la campaña, interruptor "Permitir aportes sin cuenta", bloqueo global por dispositivo).
   - **Fotos:** firma real JPG/PNG, máximo 50 MP y re-codificación con `sharp` sin EXIF/GPS (`lib/aportes/imagen.ts`).
   - **Contadores** recalculados desde `aportes`, **revisión en dos instancias** real (`espera_final`), cuota sin carrera (candados de Postgres).
   - **Seguridad:** registro solo con rol `usuario`, `GET /api/usuarios/[id]` solo la cuenta propia, `POST /api/campanas` con sesión y solo `borrador`/`en_revision`, ids validados en `proxy.ts`, cabeceras de seguridad en `next.config.ts`, login sin enumerar correos.
   - Prueba de punta a punta y revisión en Chrome: hallazgos y estado en la memoria del proyecto.
+- **Último avance (2026-10-02, commit `288921e`):**
+  - **Contraseñas:** `ui/PasswordInput` (botón de ojo) en todo campo de contraseña de la zona de usuario. Reglas en `lib/reglas-contrasena.ts` (8+ caracteres, mayúscula, número, carácter especial, máx. 72 bytes), exigidas en la pantalla y en el servidor (registro y cambio). **Cambio de contraseña** en `/cuenta` (`PATCH /api/usuarios/[id]/contrasena`): la actual equivocada suma al mismo contador de bloqueo que el login (`MAX_FAILED_ATTEMPTS`/`LOCK_DURATION_MS` en `lib/password.ts`), **no cierra sesiones** (decisión del usuario) y se registra como `usuario.contrasena_cambiar`.
+  - **`/cuenta`:** campos deshabilitados hasta "Editar perfil"; "Guardar cambios" solo en edición y aviso centrado al guardar. Arriba "Editar perfil" y "Cerrar sesión"; "Eliminar cuenta" hasta abajo; "Preferencias" es una fila de Seguridad que abre un `<dialog>`.
+  - **Filtros de campañas:** `components/campanas/BarraDeFiltros` (la de `/sistema/campanas`) también en `/supervision`, `/supervisar` y `/revisiones`, que filtran en el navegador con `lib/campanas/filtro-local.ts` (mismos criterios que `buscarCampanas()`).
+  - **Buscador de la barra superior** (`layout/BuscadorDeLaBarra`): solo en `/campanas` y `/mis-aportes`.
+  - **Logo:** `layout/Logo`, con el ícono y la palabra de `public/logo.svg` y `public/Texto.svg`. Con el cursor encima pasa a "DFG"; en `max-md`, siempre "DFG".
 - **Pendiente:**
   - **Antes del próximo despliegue:** correr una vez `scripts/limpiar-metadatos.mjs` en el servidor (lista; luego `--aplicar`) y que el puerto de la app solo sea accesible desde el proxy (el tope y la espera por IP confían en `X-Forwarded-For`; lo está consultando el usuario con el encargado).
-  - Revisar las pantallas a 360 px.
+  - **Pantallas a 360 px: las hace Gerard** (otro colaborador). No tocar el responsivo móvil ni los estilos de `globals.css` por iniciativa propia; si un cambio afecta el móvil, avisar.
   - Números provisionales (`TODO(dominio)`): 3 inapropiados en 30 días → 30 días de bloqueo, 60 s de espera, 20 aportes anónimos por IP por hora, 50 MP.
+  - **Botones sin función:** "Eliminar cuenta", los indicadores de "Preferencias" y el interruptor de "Privacidad" en `/cuenta`, y el buscador de la barra superior (no busca nada).
+  - **El buscador del panel del SuperUsuario** (`components/sistema/Topbar.tsx`) manda a `/campanas?q=`, que es la zona de usuario: al SuperUsuario no le sirve.
+  - Favicon: sigue el de Next; se puede usar el ícono de `public/logo.svg`.
 
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
@@ -167,6 +176,9 @@ No hay suite de pruebas. Prueba a mano en el navegador los flujos que tocaste, c
 - Crea tus propios datos con un prefijo reconocible (usuarios `qa-prueba-*@example.test`, campañas `QA-PRUEBA ...`) y bórralos al terminar, incluida su carpeta `campanas/<id>/` en MinIO. Nunca uses aportes o campañas existentes para probar acciones destructivas: MinIO no tiene versionado y un archivo borrado no se recupera.
 - Las sesiones de prueba se crean insertando el sha256 del token en `sessions` (o `root_sessions`); bórralas al final.
 - En Chrome, el usuario tiene su sesión real en `localhost:3000`: entrar con una cuenta de prueba la cierra. Avísale antes.
+- Para probar sin cerrar la sesión del usuario, abre una pestaña nueva y pon la cookie de prueba con `document.cookie = 'session_token=<token>; path=/'` (o `root_session_token` con una fila en `root_sessions`); bórrala al terminar.
+- La pestaña de pruebas queda oculta para Chrome (`document.visibilityState === "hidden"`): los temporizadores y las transiciones se frenan. Espera 2–3 s tras teclear en una búsqueda con pausa antes de leer el resultado, y cambia los `<select>` con la herramienta de formularios, no con un evento simulado.
+- La ventana de Chrome suele estar maximizada y no cambia de tamaño, y `X-Frame-Options: DENY` impide cargar la app en un `<iframe>`: el móvil no se puede ver así. Revisa en las hojas de estilo compiladas que existan las reglas `max-md:` y pide al usuario que lo vea en su teléfono.
 - **Si tocas candados o transacciones, prueba envíos simultáneos.** El recálculo de contadores bloquea la campaña con `FOR NO KEY UPDATE`: con `FOR UPDATE` choca con el candado de la llave foránea que toma cada `INSERT` en `aportes` y Postgres aborta transacciones con deadlock.
 
 ## Al entregar el trabajo

@@ -42,13 +42,16 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 | `ui/Button` | `variant`: primary (verde) · secondary · danger · ghost; `size`: sm · md | Forma de píldora. Para navegar usa `ui/ButtonLink` (nunca `<Link>` envolviendo `<Button>`) |
 | `ui/Card` | `highlighted` | `rounded-lg border bg-surface p-4 shadow-sm` |
 | `ui/Input` | `Field` (label, hint, required), `Input`, `Textarea` | Asterisco rojo en obligatorios; la pista va en `text-ink-3` |
+| `ui/PasswordInput` | Las de `Input`, sin `type` | Cliente. `Input` con botón de ojo para mostrar u ocultar la contraseña. Úsalo en todo campo de contraseña de la zona de usuario (`/entrar`, `/registro`, la ventana de contraseña de `/cuenta`) |
 | `ui/Tag` | `tone`: default · ok · warn · danger · on | Estados y temáticas |
 | `ui/ProgressBar` | `pct`, `tone`: accent · ok | Limita el valor entre 0 y 100 |
 | `ui/MetricCard` | `label`, `value` | Métricas del panel |
 | `cards/CampaignCard` | `campaign` | Tarjeta vertical del catálogo |
 | `cards/ContributionCard` | `contribution` | Estado con `Tag` |
 | `layout/PublicHeader`, `PublicFooter` | — | Landing |
-| `layout/TopBar` | `usuario: SessionUser` | Búsqueda, `NotificationsBell`, avatar |
+| `layout/Logo` (+ `IconoDelLogo`) | `alto`, `tamanoIcono`, `acronimoEnMovil` | Ícono y palabra de `public/logo.svg` y `public/Texto.svg` dibujados en línea (colores `accent`/`ink`). Con el cursor encima se vuelve "DFG"; en `max-md` muestra siempre "DFG". Solo CSS. Úsalo en vez de escribir "DataForGood" con un cuadro: está en `PublicHeader`, `(auth)/layout`, `CuentaBloqueada` y `sistema/Topbar` |
+| `campanas/BarraDeFiltros` | `valores`, `tematicas`, `onCambiar`, `conVigencia` | Cliente. Búsqueda, temática, tipo de dato, vigencia (opcional) y orden de campañas. Solo dibuja: `/sistema/campanas` escribe los cambios en la URL y `/supervision`, `/supervisar` y `/revisiones` filtran en el navegador con `lib/campanas/filtro-local.ts` |
+| `layout/TopBar` | `usuario: SessionUser` | Búsqueda (`layout/BuscadorDeLaBarra`: solo en las rutas de `RUTAS_CON_BUSCADOR`: `/campanas` y `/mis-aportes`; aún no busca nada), `NotificationsBell`, avatar |
 | `ui/SelectorDeTemas` | `opciones`, `seleccionados`, `onAceptar`, `quitables` | Muestra las temáticas elegidas y abre un `<dialog>` nativo con buscador; aplica solo al dar Aceptar. En `/bienvenida` y `/cuenta` (con `quitables`: × en cada una) |
 | `layout/CuentaBloqueada` | `nombre`, `bloqueo`, `historial` | Pantalla de `/cuenta-bloqueada`: motivo y contador de sanciones |
 | `layout/VigilanteDeSesion` | — | En el layout de `(dashboard)`: revisa la sesión en cada navegación y recarga si ya no vale |
