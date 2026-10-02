@@ -73,7 +73,7 @@ export async function insertarAporteConCuota<T>(entrada: {
       return { ok: false, motivo: "cuota" };
     }
     const fila = await entrada.insertar(client);
-    await sumarAporteALaCampana(entrada.campaignId, yaEnviados === 0, client);
+    await recalcularContadores(entrada.campaignId, client);
     await client.query("COMMIT");
     insertado = true;
     return { ok: true, fila, yaEnviados };
@@ -91,22 +91,37 @@ export async function insertarAporteConCuota<T>(entrada: {
 }
 
 /**
- * Suma un aporte nuevo a los contadores desnormalizados de la campaña.
- * `esPrimeroDeLaPersona`: era su primer aporte en la campaña (cuenta o dispositivo),
- * así que suma un participante.
+ * Recalcula desde la tabla `aportes` los contadores desnormalizados de la campaña
+ * (total, pendientes, aceptados, rechazados y participantes). Se usa después de cualquier
+ * cambio: enviar, revisar o borrar un aporte. Antes se sumaba y restaba según el estado
+ * anterior, y un cambio de decisión (aceptado → rechazado) dejaba los números mal.
+ *
+ * Participante = una cuenta, un correo o un dispositivo anónimo distinto.
+ * Bloquea la fila de la campaña primero: dos transacciones simultáneas se forman y la
+ * segunda cuenta ya con lo que guardó la primera.
  */
-export async function sumarAporteALaCampana(
+export async function recalcularContadores(
   campaignId: string | number,
-  esPrimeroDeLaPersona: boolean,
   client: Pick<PoolClient, "query"> = pool
 ): Promise<void> {
+  await client.query(`SELECT 1 FROM campanas WHERE id = $1 FOR NO KEY UPDATE`, [campaignId]);
   await client.query(
-    `UPDATE campanas SET
-      current_contributions = current_contributions + 1,
-      pending_contributions = pending_contributions + 1,
-      participants = participants + $2,
+    `UPDATE campanas c SET
+      current_contributions = a.total,
+      pending_contributions = a.pendientes,
+      approved_contributions = a.aceptados,
+      rejected_contributions = a.rechazados,
+      participants = a.participantes,
       updated_at = NOW()
-    WHERE id = $1`,
-    [campaignId, esPrimeroDeLaPersona ? 1 : 0]
+    FROM (
+      SELECT COUNT(*)::int AS total,
+             COUNT(*) FILTER (WHERE status IN ('pendiente', 'espera_final'))::int AS pendientes,
+             COUNT(*) FILTER (WHERE status = 'aceptado')::int AS aceptados,
+             COUNT(*) FILTER (WHERE status = 'rechazado')::int AS rechazados,
+             COUNT(DISTINCT COALESCE(user_id::text, participant_email, anonimo_id))::int AS participantes
+      FROM aportes WHERE campaign_id = $1
+    ) a
+    WHERE c.id = $1`,
+    [campaignId]
   );
 }

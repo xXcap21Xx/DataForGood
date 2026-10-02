@@ -52,7 +52,7 @@
 | Archivo | Qué hace | Lo usa |
 | --- | --- | --- |
 | `archivo.ts` 🟢 | Tipos y tamaño de archivo permitidos, largo de la descripción y `errorDeArchivo()` | Los dos endpoints de aportes y el formulario anónimo |
-| `comun.ts` | `guardarFotoDelAporte()` (valida, limpia y sube a MinIO), `insertarAporteConCuota()` (cuenta e inserta con candado: sin carrera de cuota), `sumarAporteALaCampana()` y reexporta `archivo.ts` | `POST /api/aportes`, `aportes-anonimos.ts` |
+| `comun.ts` | `guardarFotoDelAporte()` (valida, limpia y sube a MinIO), `insertarAporteConCuota()` (cuenta e inserta con candado: sin carrera de cuota), `recalcularContadores()` (contadores de la campaña desde `aportes`, con la campaña bloqueada) y reexporta `archivo.ts` | `POST /api/aportes`, `aportes-anonimos.ts` |
 | `imagen.ts` | `limpiarImagen()`: comprueba la firma JPG/PNG y vuelve a codificar con `sharp`, quitando EXIF (GPS), ICC y XMP | `comun.ts` |
 | `anonimato.ts` | Cookie `anonimo_id`, `hashDeDispositivo()` y `hmacDeIp()` (necesita `ANONIMO_IP_SECRETO`) | Aporte anónimo, `/c/[token]`, sanciones |
 | `sanciones-anonimas.ts` | Sanciones a personas sin cuenta: marcar inapropiado, bloqueo por campaña, bloqueo global automático (3 inapropiados en 30 días → 30 días), borrar archivo, listar y quitar bloqueos | API de aportes y de baneos, `/usuarios/sanciones` |

@@ -89,7 +89,7 @@ borrador ──► en_revision ──(supervisor acepta)──► aceptada ─�
 | Estado | Significado |
 | --- | --- |
 | `pendiente` | Recién enviado, sin revisar |
-| `espera_final` | Validado por un revisor, esperando al creador. **Hoy el servidor no lo asigna:** el revisor que acepta deja el aporte directamente en `aceptado` (ver problemas conocidos en [README.md](README.md)) |
+| `espera_final` | Validado por un revisor, esperando la decisión final del creador |
 | `aceptado` | Aprobado; cuenta para la meta y para los datos abiertos |
 | `rechazado` | Rechazado con `rejection_reason`; **sigue contando para la cuota** de la persona |
 

@@ -127,7 +127,7 @@ async function crearEnlace(
   try {
     await client.query("BEGIN");
     // Bloquea la campaña: dos regeneraciones o activaciones simultáneas se hacen una tras otra.
-    await client.query(`SELECT id FROM campanas WHERE id = $1 FOR UPDATE`, [campanaId]);
+    await client.query(`SELECT id FROM campanas WHERE id = $1 FOR NO KEY UPDATE`, [campanaId]);
     if (soloSiNoHayVigente) {
       const vigente = await client.query(
         `SELECT 1 FROM campana_enlaces

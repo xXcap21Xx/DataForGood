@@ -4,7 +4,7 @@
 // Componente cliente. Datos: GET /api/aportes/[id]. Acción: PATCH /api/aportes/[id] { status: "aceptado" }.
 // Aporte anónimo: "Marcar como inapropiado" con POST /api/aportes/[id]/inapropiado (no cambia
 // el estado; decide el creador).
-// Ojo: hoy el servidor lo deja en "aceptado", no en "espera_final" (docs/README.md § 8).
+// El servidor lo deja en "espera_final": la aprobación final es del creador.
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -164,7 +164,7 @@ export default function RevisionAportePage() {
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
         <p className="max-w-xl text-[12.5px] text-ink-2">
-          Al aceptar, el aporte queda aprobado y el dueño de la campaña podrá consultarlo en su historial.
+          Al aceptar, el aporte queda validado y pasa a la aprobación final de quien creó la campaña.
         </p>
         <div className="flex flex-wrap gap-2">
           {item.userId === null && !item.inapropiado && (

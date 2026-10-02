@@ -537,7 +537,7 @@ paths:
     get:
       tags: [Campañas]
       summary: Aportes aprobados por día y por tipo
-      description: "Pendiente conocido: solo pide sesión, no revisa que seas creador o supervisor."
+      description: Solo el creador de la campaña.
       responses:
         "200":
           description: Serie diaria y reparto por tipo
@@ -875,6 +875,7 @@ paths:
     delete:
       tags: [Aportes]
       summary: Eliminar mi aporte (si no está aceptado)
+      description: Borra también su archivo de MinIO y recalcula los contadores de la campaña.
       responses:
         "200": { $ref: "#/components/responses/Message" }
         "400": { $ref: "#/components/responses/BadRequest" }

@@ -1,5 +1,5 @@
 // GET /api/campanas/[id]/recoleccion-diaria — aportes por día y por tipo para las gráficas del panel.
-// Ojo: pide sesión pero no comprueba que seas el creador (docs/README.md § 8).
+// Solo el creador de la campaña (es su panel: /mis-campanas/[id]/panel).
 
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
@@ -38,6 +38,14 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const { id } = await context.params;
     const user = await getSessionUser();
     if (!user) return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+    if (!/^\d+$/.test(id)) return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
+
+    // Antes solo pedía sesión: cualquiera veía la actividad diaria de cualquier campaña.
+    const dueno = await pool.query<{ creator_id: number }>(`SELECT creator_id FROM campanas WHERE id = $1`, [id]);
+    if (dueno.rowCount === 0) return NextResponse.json({ error: "Campaña no encontrada" }, { status: 404 });
+    if (Number(dueno.rows[0].creator_id) !== Number(user.id)) {
+      return NextResponse.json({ error: "Solo quien creó la campaña ve sus estadísticas" }, { status: 403 });
+    }
 
     const dias = diasRecientes(DIAS);
     const desde = dias[0]?.clave ?? "1970-01-01";

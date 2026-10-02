@@ -83,7 +83,11 @@ export async function GET(request: Request) {
           [campaignId]
         );
 
-    return NextResponse.json({ data: result.rows.map(mapAporte) });
+    // El revisor solo necesita el contenido: el correo del participante no le corresponde.
+    const aportes = result.rows.map(mapAporte);
+    return NextResponse.json({
+      data: reviewer && !mine ? aportes.map((aporte) => ({ ...aporte, participantEmail: undefined })) : aportes,
+    });
   } catch (error) {
     console.error("Error listando aportes", error);
     return NextResponse.json({ error: "No se pudieron listar los aportes" }, { status: 500 });
