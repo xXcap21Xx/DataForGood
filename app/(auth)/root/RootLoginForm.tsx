@@ -68,7 +68,7 @@ export default function RootLoginForm() {
           type="text"
           value={identificador}
           onChange={(e) => setIdentificador(e.target.value)}
-          placeholder="superusuario"
+          placeholder="Tu identificador"
           autoComplete="off"
           autoCapitalize="none"
           spellCheck={false}

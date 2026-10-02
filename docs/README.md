@@ -103,9 +103,10 @@ DataForGood/
 ├── components/
 │   ├── ui/                 # botones, inputs, tags, tarjetas de la zona de usuario
 │   ├── cards/              # CampaignCard, ContributionCard
-│   ├── layout/             # TopBar, SidebarNav, NotificationsBell, Public{Header,Footer}...
+│   ├── layout/             # TopBar, SidebarNav, NotificationsBell, Logo (animado), Public{Header,Footer}...
 │   ├── sistema/            # kit visual del panel del SuperUsuario
 │   ├── supervision/        # piezas compartidas entre /supervision y /supervisar
+│   ├── campanas/           # BarraDeFiltros: filtros de campañas (/sistema/campanas, /supervision, /supervisar, /revisiones)
 │   └── auth/               # LogoutButton
 ├── lib/                    # LÓGICA DE SERVIDOR: BD, sesiones, reglas, consultas, server actions (ver lib.md)
 ├── types/index.ts          # tipos que devuelve la API a la zona de usuario

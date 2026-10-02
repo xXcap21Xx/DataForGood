@@ -280,6 +280,47 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+  /api/usuarios/{id}/contrasena:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [Usuarios]
+      summary: Cambiar la propia contraseña
+      description: |
+        Solo la cuenta propia (403 con otro id) y solo si tiene contraseña (400 si es de Google).
+        `nueva` debe tener 8 caracteres o más (y como máximo 72 bytes), una mayúscula, un número y
+        un carácter especial, y ser distinta de `actual`. Una `actual` equivocada suma un intento
+        fallido al mismo contador del login: con 5 la cuenta queda bloqueada 15 minutos (423).
+        Las sesiones abiertas se conservan. Se registra en audit_log como `usuario.contrasena_cambiar`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actual, nueva]
+              properties:
+                actual: { type: string, format: password }
+                nueva: { type: string, format: password }
+      responses:
+        "200":
+          description: Contraseña cambiada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { ok: { type: boolean } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "423":
+          description: Demasiados intentos fallidos; la cuenta está bloqueada temporalmente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   # ---------------------------------------------------------------- Campañas
   /api/campanas:
     get:
@@ -946,6 +987,7 @@ paths:
     get:
       tags: [Revisiones y notificaciones]
       summary: Campañas en las que soy revisor
+      description: Ordenadas por la fecha en que aceptaste ser revisor, de la más reciente a la más vieja.
       responses:
         "200":
           description: Campañas
@@ -965,8 +1007,12 @@ paths:
                         status: { $ref: "#/components/schemas/CampaignStatus" }
                         tag: { type: string }
                         goalContributions: { type: integer }
-                        pendingContributions: { type: integer }
+                        pendingContributions: { type: integer, description: Aportes en estado pendiente (los que le tocan al revisor) }
                         participants: { type: integer }
+                        currentContributions: { type: integer }
+                        creatorName: { type: string }
+                        dataTypes: { type: array, items: { type: string, enum: [foto, video, audio, documento, texto] } }
+                        endDate: { type: string, format: date, nullable: true }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/notificaciones:
@@ -1133,7 +1179,7 @@ components:
         nombre: { type: string }
         apellidos: { type: string }
         email: { type: string, format: email }
-        password: { type: string, format: password }
+        password: { type: string, format: password, description: "Al menos 8 caracteres (máximo 72 bytes), una mayúscula, un número y un carácter especial" }
         state: { type: string }
         city: { type: string }
         specialty: { type: string }
@@ -1142,7 +1188,7 @@ components:
         nombre: Ana
         apellidos: Pérez López
         email: ana@correo.com
-        password: Contraseña123
+        password: Contraseña123!
         state: Nayarit
         city: Tepic
         specialty: ""

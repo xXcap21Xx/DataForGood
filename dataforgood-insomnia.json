@@ -125,7 +125,7 @@
       "parameters": [],
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"nombre\": \"Ana\",\n  \"apellidos\": \"Pérez López\",\n  \"email\": \"ana@correo.com\",\n  \"password\": \"Contraseña123\",\n  \"state\": \"Nayarit\",\n  \"city\": \"Tepic\",\n  \"specialty\": \"\",\n  \"intereses\": [\n    \"medio ambiente\"\n  ]\n}"
+        "text": "{\n  \"nombre\": \"Ana\",\n  \"apellidos\": \"Pérez López\",\n  \"email\": \"ana@correo.com\",\n  \"password\": \"Contraseña123!\",\n  \"state\": \"Nayarit\",\n  \"city\": \"Tepic\",\n  \"specialty\": \"\",\n  \"intereses\": [\n    \"medio ambiente\"\n  ]\n}"
       },
       "description": "Guarda la cookie pending_verification_id para verificar.",
       "metaSortKey": 4
@@ -870,6 +870,27 @@
       },
       "description": "",
       "metaSortKey": 34
+    },
+    {
+      "_id": "req_contrasena",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Cambiar mi contraseña",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/usuarios/{{ _.usuarioId }}/contrasena",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"actual\": \"ContraseñaActual1!\",\n  \"nueva\": \"ContraseñaNueva1!\"\n}"
+      },
+      "description": "Solo la cuenta propia. Una contraseña actual equivocada cuenta para el bloqueo del login. No cierra sesiones.",
+      "metaSortKey": 34.5
     },
     {
       "_id": "req_40",

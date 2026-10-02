@@ -153,6 +153,6 @@ Hay dos cosas distintas con nombres parecidos:
 Las acciones sensibles se registran con `registrarAuditoria()` (`lib/auditoria.ts`) **después** de completarse. Si el registro falla, solo se escribe en consola: no revierte la acción.
 
 - **Guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`), detalle JSONB e IP (`lib/ip.ts`, último valor de `X-Forwarded-For`).
-- **Acciones registradas:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `campana.enlace_regenerar`, `revisor.invitar`, `revisor.aceptar`, `root.acceso`, `root.acceso_fallido`.
+- **Acciones registradas:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `campana.enlace_regenerar`, `revisor.invitar`, `revisor.aceptar`, `root.acceso`, `root.acceso_fallido`, `usuario.contrasena_cambiar` (cambio de contraseña en /cuenta; no guarda ninguna contraseña).
 - **Si agregas una acción sensible**, regístrala y añade su nombre al tipo `AccionAuditada`.
 - **No hay pantalla** para consultarla todavía; se lee con SQL.

@@ -4,12 +4,9 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { createSession } from "@/lib/session";
-import { verifyPassword, hashPassword, wasLegacyHash } from "@/lib/password";
+import { verifyPassword, hashPassword, wasLegacyHash, MAX_FAILED_ATTEMPTS, LOCK_DURATION_MS } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
-
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCK_DURATION_MS = 1000 * 60 * 15; // 15 minutos
 
 // Misma respuesta si el correo no existe, si la cuenta es solo de Google o si la
 // contraseña está mal: antes el mensaje distinto revelaba qué correos tienen cuenta.

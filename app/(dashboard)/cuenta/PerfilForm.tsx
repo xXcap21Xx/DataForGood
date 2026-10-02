@@ -1,13 +1,18 @@
 "use client";
 
-// Formulario de /cuenta. Guarda con PATCH /api/usuarios/[id] (solo la propia cuenta).
+// Perfil de /cuenta: tarjeta superior con "Editar perfil" y "Cerrar sesión", datos
+// personales e intereses. Los campos están deshabilitados; "Editar perfil" los habilita y
+// muestra "Guardar cambios", que guarda con PATCH /api/usuarios/[id] (solo la propia
+// cuenta) y avisa con un mensaje al centro de la pantalla.
 // Catálogos: lib/mexico-geo.ts, lib/intereses.ts, lib/perfil-opciones.ts.
 
 import { useRouter } from "next/navigation";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import SelectorDeTemas from "@/components/ui/SelectorDeTemas";
+import Tag from "@/components/ui/Tag";
+import LogoutButton from "@/components/auth/LogoutButton";
 import { TEMAS_DE_INTERES } from "@/lib/intereses";
 import { ESPECIALIDADES, OTRA_ESPECIALIDAD, opcionesCon } from "@/lib/perfil-opciones";
 import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
@@ -24,8 +29,27 @@ type Usuario = {
   email: string;
 };
 
-export default function PerfilForm({ usuario, children }: { usuario: Usuario; children?: ReactNode }) {
+// Tiempo que se queda en pantalla el aviso de "Cambios guardados".
+const DURACION_DEL_AVISO_MS = 2500;
+
+const CLASE_SELECT =
+  "w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent";
+// Campo deshabilitado (fuera de la edición, o el correo): fondo hundido y sin cursor de texto.
+const CLASE_BLOQUEADO = "disabled:cursor-default disabled:bg-sunken";
+
+export default function PerfilForm({
+  usuario,
+  encabezado,
+  children,
+}: {
+  usuario: Usuario;
+  /** Avatar, nombre y rol: la parte izquierda de la tarjeta superior. */
+  encabezado: ReactNode;
+  /** Tarjeta de seguridad, que va junto a los datos personales. */
+  children?: ReactNode;
+}) {
   const router = useRouter();
+  const [editando, setEditando] = useState(false);
   const [nombre, setNombre] = useState(usuario.nombre);
   const [apellidos, setApellidos] = useState(usuario.apellidos);
   const [state, setState] = useState(usuario.state ?? "");
@@ -36,7 +60,26 @@ export default function PerfilForm({ usuario, children }: { usuario: Usuario; ch
   );
   const [intereses, setIntereses] = useState<string[]>(usuario.intereses);
   const [guardando, setGuardando] = useState(false);
-  const [mensaje, setMensaje] = useState<{ tipo: "ok" | "error"; texto: string } | null>(null);
+  const [error, setError] = useState("");
+  const [avisoVisible, setAvisoVisible] = useState(false);
+  // En edición, un select deshabilitado (municipio sin estado) se ve tenue; fuera de ella, solo bloqueado.
+  const claseSelect = `${CLASE_SELECT} ${CLASE_BLOQUEADO} ${editando ? "disabled:opacity-50" : ""}`;
+
+  // Los valores guardados: a ellos vuelve "Cancelar".
+  const [guardado, setGuardado] = useState({
+    nombre: usuario.nombre,
+    apellidos: usuario.apellidos,
+    state: usuario.state ?? "",
+    city: usuario.city ?? "",
+    specialty: usuario.specialty ?? "",
+    intereses: usuario.intereses,
+  });
+
+  useEffect(() => {
+    if (!avisoVisible) return;
+    const temporizador = setTimeout(() => setAvisoVisible(false), DURACION_DEL_AVISO_MS);
+    return () => clearTimeout(temporizador);
+  }, [avisoVisible]);
 
   function cambiarEstado(nuevoEstado: string) {
     setState(nuevoEstado);
@@ -54,26 +97,39 @@ export default function PerfilForm({ usuario, children }: { usuario: Usuario; ch
     }
   }
 
+  function cancelar() {
+    setNombre(guardado.nombre);
+    setApellidos(guardado.apellidos);
+    setState(guardado.state);
+    setCity(guardado.city);
+    setSpecialty(guardado.specialty);
+    setEspecialidadPersonalizada(guardado.specialty !== "" && !ESPECIALIDADES.includes(guardado.specialty));
+    setIntereses(guardado.intereses);
+    setError("");
+    setEditando(false);
+  }
+
   async function guardar() {
     if (!nombre.trim() || !apellidos.trim()) {
-      setMensaje({ tipo: "error", texto: "El nombre y los apellidos son obligatorios." });
+      setError("El nombre y los apellidos son obligatorios.");
       return;
     }
 
     setGuardando(true);
-    setMensaje(null);
+    setError("");
     try {
+      const cambios = {
+        nombre: nombre.trim(),
+        apellidos: apellidos.trim(),
+        state,
+        city,
+        specialty: specialty.trim(),
+        intereses,
+      };
       const response = await fetch(`${BASE_PATH}/api/usuarios/${usuario.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nombre: nombre.trim(),
-          apellidos: apellidos.trim(),
-          state,
-          city,
-          specialty,
-          intereses,
-        }),
+        body: JSON.stringify(cambios),
       });
 
       if (!response.ok) {
@@ -81,10 +137,15 @@ export default function PerfilForm({ usuario, children }: { usuario: Usuario; ch
         throw new Error(body.error ?? "No se pudo guardar el perfil");
       }
 
-      setMensaje({ tipo: "ok", texto: "Cambios guardados." });
+      setNombre(cambios.nombre);
+      setApellidos(cambios.apellidos);
+      setSpecialty(cambios.specialty);
+      setGuardado(cambios);
+      setEditando(false);
+      setAvisoVisible(true);
       router.refresh();
-    } catch (error) {
-      setMensaje({ tipo: "error", texto: error instanceof Error ? error.message : "No se pudo guardar el perfil" });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo guardar el perfil");
     } finally {
       setGuardando(false);
     }
@@ -93,114 +154,185 @@ export default function PerfilForm({ usuario, children }: { usuario: Usuario; ch
   return (
     <>
       <section className="rounded-lg border border-line bg-surface p-5">
-        <div className="mb-4 flex items-center justify-between">
-          <div>
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          {encabezado}
+          <div className="flex gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={editando ? cancelar : () => setEditando(true)}
+              disabled={guardando}
+            >
+              {editando ? "Cancelar edición" : "Editar perfil"}
+            </Button>
+            <LogoutButton />
+          </div>
+        </div>
+      </section>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        <section className="rounded-lg border border-line bg-surface p-5">
+          <div className="mb-4">
             <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
               Perfil
             </p>
             <h2 className="mt-1 text-lg font-extrabold text-ink">Datos personales</h2>
           </div>
-        </div>
 
-        <div className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Nombre" required>
-              <Input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={120} />
+          {/* Los mismos campos en los dos modos; fuera de la edición quedan deshabilitados. */}
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Nombre" required={editando}>
+                <Input
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  maxLength={120}
+                  disabled={!editando}
+                  className={CLASE_BLOQUEADO}
+                />
+              </Field>
+              <Field label="Apellidos" required={editando}>
+                <Input
+                  value={apellidos}
+                  onChange={(e) => setApellidos(e.target.value)}
+                  maxLength={120}
+                  disabled={!editando}
+                  className={CLASE_BLOQUEADO}
+                />
+              </Field>
+            </div>
+
+            <Field label="Correo electrónico" hint={editando ? "El correo no se puede cambiar." : undefined}>
+              <Input disabled value={usuario.email} className={CLASE_BLOQUEADO} />
             </Field>
-            <Field label="Apellidos" required>
-              <Input value={apellidos} onChange={(e) => setApellidos(e.target.value)} maxLength={120} />
-            </Field>
-          </div>
 
-          <Field label="Correo electrónico">
-            <Input readOnly value={usuario.email} className="opacity-70" />
-          </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Estado">
+                <select
+                  value={state}
+                  onChange={(e) => cambiarEstado(e.target.value)}
+                  disabled={!editando}
+                  className={claseSelect}
+                >
+                  <option value="">{editando ? "Selecciona un estado" : "Sin especificar"}</option>
+                  {opcionesCon(state, NOMBRES_DE_ESTADOS).map((opcion) => (
+                    <option key={opcion}>{opcion}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Municipio">
+                <select
+                  value={city}
+                  onChange={(e) => setCity(e.target.value)}
+                  disabled={!editando || !state}
+                  className={claseSelect}
+                >
+                  <option value="">
+                    {!editando ? "Sin especificar" : state ? "Selecciona un municipio" : "Primero selecciona un estado"}
+                  </option>
+                  {opcionesCon(city, municipiosDe(state)).map((opcion) => (
+                    <option key={opcion}>{opcion}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Estado">
+            <Field label="Especialidad">
               <select
-                value={state}
-                onChange={(e) => cambiarEstado(e.target.value)}
-                className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent"
+                value={especialidadPersonalizada ? OTRA_ESPECIALIDAD : specialty}
+                onChange={(e) => elegirEspecialidad(e.target.value)}
+                disabled={!editando}
+                className={claseSelect}
               >
-                <option value="">Selecciona un estado</option>
-                {opcionesCon(state, NOMBRES_DE_ESTADOS).map((opcion) => (
+                <option value="">{editando ? "Selecciona una especialidad" : "Sin especificar"}</option>
+                {ESPECIALIDADES.map((opcion) => (
                   <option key={opcion}>{opcion}</option>
                 ))}
+                <option value={OTRA_ESPECIALIDAD}>Otra (especifica)</option>
               </select>
-            </Field>
-            <Field label="Municipio">
-              <select
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                disabled={!state}
-                className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent disabled:opacity-50"
-              >
-                <option value="">{state ? "Selecciona un municipio" : "Primero selecciona un estado"}</option>
-                {opcionesCon(city, municipiosDe(state)).map((opcion) => (
-                  <option key={opcion}>{opcion}</option>
-                ))}
-              </select>
+              {especialidadPersonalizada && (
+                <Input
+                  value={specialty}
+                  onChange={(e) => setSpecialty(e.target.value)}
+                  placeholder="Escribe tu especialidad"
+                  maxLength={150}
+                  disabled={!editando}
+                  className={`mt-2 ${CLASE_BLOQUEADO}`}
+                />
+              )}
             </Field>
           </div>
+        </section>
 
-          <Field label="Especialidad">
-            <select
-              value={especialidadPersonalizada ? OTRA_ESPECIALIDAD : specialty}
-              onChange={(e) => elegirEspecialidad(e.target.value)}
-              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none transition-colors focus:border-accent"
-            >
-              <option value="">Selecciona una especialidad</option>
-              {ESPECIALIDADES.map((opcion) => (
-                <option key={opcion}>{opcion}</option>
+        {children}
+
+        <section className="rounded-lg border border-line bg-surface p-5 md:col-span-2">
+          <div className="mb-4">
+            <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
+              Mis intereses
+            </p>
+            <h2 className="mt-1 text-lg font-extrabold text-ink">Temáticas que guían tus aportes</h2>
+          </div>
+
+          {editando ? (
+            // Solo las elegidas; las demás se agregan desde la ventana. Un interés
+            // guardado que ya no esté en la lista se conserva como opción.
+            <SelectorDeTemas
+              opciones={[...TEMAS_DE_INTERES, ...intereses.filter((t) => !TEMAS_DE_INTERES.includes(t))]}
+              seleccionados={intereses}
+              onAceptar={setIntereses}
+              quitables
+            />
+          ) : intereses.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {intereses.map((tema) => (
+                <Tag key={tema}>{tema}</Tag>
               ))}
-              <option value={OTRA_ESPECIALIDAD}>Otra (especifica)</option>
-            </select>
-            {especialidadPersonalizada && (
-              <Input
-                value={specialty}
-                onChange={(e) => setSpecialty(e.target.value)}
-                placeholder="Escribe tu especialidad"
-                maxLength={150}
-                className="mt-2"
-              />
-            )}
-          </Field>
-        </div>
-      </section>
-
-      {children}
-
-      <section className="rounded-lg border border-line bg-surface p-5 md:col-span-2">
-        <div className="mb-4">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-            Mis intereses
+            </div>
+          ) : (
+            <p className="text-[13px] text-ink-3">Aún no eliges temáticas.</p>
+          )}
+          <p className="mt-3 text-[12.5px] text-ink-2">
+            Determinan qué campañas aparecen en “Sugeridas para ti”.
+            {editando && " Los cambios se aplican al dar “Guardar cambios”."}
           </p>
-          <h2 className="mt-1 text-lg font-extrabold text-ink">Temáticas que guían tus aportes</h2>
-        </div>
+        </section>
 
-        {/* Solo las elegidas; las demás se agregan desde la ventana. Un interés
-            guardado que ya no esté en la lista se conserva como opción. */}
-        <SelectorDeTemas
-          opciones={[...TEMAS_DE_INTERES, ...intereses.filter((t) => !TEMAS_DE_INTERES.includes(t))]}
-          seleccionados={intereses}
-          onAceptar={setIntereses}
-          quitables
-        />
-        <p className="mt-3 text-[12.5px] text-ink-2">
-          Determinan qué campañas aparecen en “Sugeridas para ti”. Los cambios se aplican al dar
-          “Guardar cambios”.
-        </p>
-      </section>
-
-      <div className="flex items-center justify-end gap-3 md:col-span-2">
-        {mensaje && (
-          <p className={`text-[12.5px] ${mensaje.tipo === "ok" ? "text-ok" : "text-danger"}`}>{mensaje.texto}</p>
+        {editando && (
+          <div className="flex flex-wrap items-center justify-end gap-3 md:col-span-2">
+            {error && (
+              <p role="alert" className="text-[12.5px] text-danger">
+                {error}
+              </p>
+            )}
+            <Button variant="secondary" size="sm" onClick={cancelar} disabled={guardando}>
+              Cancelar
+            </Button>
+            <Button variant="primary" size="sm" onClick={guardar} disabled={guardando}>
+              {guardando ? "Guardando..." : "Guardar cambios"}
+            </Button>
+          </div>
         )}
-        <Button variant="primary" size="sm" onClick={guardar} disabled={guardando}>
-          {guardando ? "Guardando..." : "Guardar cambios"}
-        </Button>
       </div>
+
+      {avisoVisible && (
+        // Aviso al centro de la pantalla; se va solo o con un clic.
+        <div
+          role="status"
+          aria-live="polite"
+          onClick={() => setAvisoVisible(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/20 p-4"
+        >
+          <div className="flex flex-col items-center gap-3 rounded-lg border border-line bg-surface px-8 py-7 text-center shadow-lg">
+            <span className="flex h-14 w-14 items-center justify-center rounded-full bg-ok-tint text-ok">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M5 12.5l4.5 4.5L19 7.5" />
+              </svg>
+            </span>
+            <p className="text-base font-extrabold text-ink">Cambios Guardados Correctamente</p>
+          </div>
+        </div>
+      )}
     </>
   );
 }

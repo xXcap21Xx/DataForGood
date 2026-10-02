@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { cumpleReglasDeContrasena } from "@/lib/reglas-contrasena";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
 import { getSessionUser } from "@/lib/session";
@@ -26,9 +27,17 @@ export async function POST(request: Request) {
     // Nunca se leen roles del body: antes cualquiera podía registrarse como supervisor.
     const roles = ["usuario"];
 
-    if (!nombre || !apellidos || !email || password.length < 6) {
+    if (!nombre || !apellidos || !email || !password) {
       return NextResponse.json(
-        { error: "nombre, apellidos, email y password (mínimo 6 caracteres) son obligatorios" },
+        { error: "nombre, apellidos, email y password son obligatorios" },
+        { status: 400 }
+      );
+    }
+    // Las mismas reglas que muestra /registro: antes el servidor solo pedía 6 caracteres
+    // y una llamada directa a la API podía crear la cuenta con "123456".
+    if (!cumpleReglasDeContrasena(password)) {
+      return NextResponse.json(
+        { error: "La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un carácter especial" },
         { status: 400 }
       );
     }

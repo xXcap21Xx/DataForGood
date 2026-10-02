@@ -26,7 +26,8 @@
 | --- | --- | --- |
 | `session.ts` | Sesión del usuario: crearla, leerla, cerrarla; detectar si está bloqueado | `getSessionUser`, `exigirUsuario`, `createSession`, `destroySession`, `obtenerBloqueoDeLaSesion`, `SessionUser` |
 | `rootSession.ts` | Sesión del SuperUsuario | `createRootSession`, `hasRootSession`, `destroyRootSession` |
-| `password.ts` | Hash y verificación de contraseñas (bcrypt; migra hashes viejos) | `hashPassword`, `verifyPassword`, `wasLegacyHash` |
+| `password.ts` | Hash y verificación de contraseñas (bcrypt; migra hashes viejos) y límites del bloqueo por intentos fallidos | `hashPassword`, `verifyPassword`, `wasLegacyHash`, `MAX_FAILED_ATTEMPTS`, `LOCK_DURATION_MS` |
+| `reglas-contrasena.ts` 🟢 | Requisitos de una contraseña nueva (registro y `/cuenta`) | `REGLAS_DE_CONTRASENA`, `cumpleReglasDeContrasena`, `LARGO_MAXIMO_DE_CONTRASENA` |
 | `verification.ts` | Código de verificación por correo | `startVerification`, `verifyCode`, `getPendingVerification`, `PENDING_COOKIE` |
 | `google.ts` | OAuth de Google | `getGoogleAuthUrl`, `exchangeCodeForProfile` |
 | `redireccion.ts` 🟢 | Valida el parámetro `?next=` para que solo apunte a rutas internas | `destinoSeguro`, `conDestino`, `DESTINO_POR_DEFECTO` |
@@ -70,7 +71,8 @@
 | `estado-del-creador.ts` | Qué estado puede pedir el creador (`borrador`/`en_revision`), límite de 5 activas, XP fijo | `POST /api/campanas`, `PATCH`/`PUT /api/campanas/[id]` |
 | `checklist.ts` 🟢 | Checklists con título: normalizar, validar respuestas, límites (`MAX_SECCIONES`...) | Formulario de campaña, aportar, API |
 | `sistema.ts` | Consultas del panel del SuperUsuario (listado, conteos, dashboard). Exigen sesión raíz | `/sistema/campanas/**` |
-| `sistema-opciones.ts` 🟢 | Constantes y tipos de esas pantallas (pestañas, etiquetas, órdenes) | `/sistema/campanas/filtros.tsx` |
+| `sistema-opciones.ts` 🟢 | Constantes y tipos de esas pantallas (pestañas, etiquetas, órdenes) | `/sistema/campanas/filtros.tsx`, `components/campanas/BarraDeFiltros.tsx` |
+| `filtro-local.ts` 🟢 | Filtra y ordena en el navegador listas ya cargadas, con los mismos criterios que `buscarCampanas()`; aviso de lista vacía (`avisoSinResultados`) | `/supervision`, `/supervisar`, `/revisiones` |
 
 ### `supervision/`
 

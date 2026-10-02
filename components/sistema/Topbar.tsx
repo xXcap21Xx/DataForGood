@@ -5,7 +5,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { IconoBuscar, IconoCampana, IconoHoja } from "./icons";
+import Logo from "@/components/layout/Logo";
+import { IconoBuscar, IconoCampana } from "./icons";
 
 type TopbarProps = {
   /** Valor configurado en ROOT_USER_ID. La sesión raíz no es una persona con nombre propio. */
@@ -26,15 +27,8 @@ export default function Topbar({ identificador }: TopbarProps) {
 
   return (
     <header className="dashboard-topbar flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
-      <Link href="/sistema" className="flex shrink-0 items-center gap-2.5 text-ink">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-accent text-white">
-          <IconoHoja className="h-4 w-4" />
-        </span>
-        <span className="text-sm font-extrabold leading-[1.15] tracking-tight">
-          Data
-          <br />
-          ForGood
-        </span>
+      <Link href="/sistema" className="flex shrink-0 items-center">
+        <Logo />
       </Link>
 
       <form

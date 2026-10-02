@@ -6,6 +6,11 @@ import bcrypt from "bcryptjs";
 
 const SHA256_HEX_LENGTH = 64;
 
+// Intentos fallidos de contraseña antes de bloquear la cuenta, y por cuánto tiempo. Los usan
+// el login y el cambio de contraseña en /cuenta, que comparten el mismo contador.
+export const MAX_FAILED_ATTEMPTS = 5;
+export const LOCK_DURATION_MS = 1000 * 60 * 15; // 15 minutos
+
 function isLegacySha256Hash(hash: string): boolean {
   return hash.length === SHA256_HEX_LENGTH && /^[0-9a-f]+$/i.test(hash);
 }

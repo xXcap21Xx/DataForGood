@@ -64,7 +64,7 @@ Flujo de alta: `/registro` → `/verificar` → `/bienvenida` → `/campanas` (o
 | `/campanas/[id]/aportar` | `campanas/[id]/aportar/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true` (tus aportes, para la cuota). Envía con `POST /api/aportes` (`multipart/form-data` con el archivo). Checklists con `lib/campanas/checklist.ts`. Si la URL trae `?enlace=<token>` (viene de `/c/[token]`), lo reenvía para atribuir el aporte al enlace |
 | `/mis-aportes` | `mis-aportes/page.tsx` | C | `GET /api/campanas?misAportes=true` (campañas en las que aportaste o que guardaste) |
 | `/mis-aportes/[campanaId]` | `mis-aportes/[campanaId]/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true`. Muestra el motivo de los rechazados. Borrar un aporte no aceptado: `DELETE /api/aportes/[id]` |
-| `/cuenta` | `cuenta/page.tsx` + `PerfilForm.tsx` | S + C | La página lee el usuario con `exigirUsuario()`. El formulario guarda con `PATCH /api/usuarios/[id]` |
+| `/cuenta` | `cuenta/page.tsx` + `PerfilForm.tsx` + `CambiarContrasena.tsx` | S + C | La página lee el usuario con `exigirUsuario()`. Los campos están deshabilitados hasta que "Editar perfil" habilita la edición y "Guardar cambios" guarda con `PATCH /api/usuarios/[id]`; la ventana de contraseña, con `PATCH /api/usuarios/[id]/contrasena` |
 
 ### Administrar campañas propias (creador)
 
@@ -86,7 +86,7 @@ Para revisores que aceptaron una invitación (`campana_revisores.estado = 'acept
 
 | URL | Archivo | Tipo | Datos y acciones |
 | --- | --- | --- | --- |
-| `/revisiones` | `revisiones/page.tsx` → `CampaignList.tsx` | S → C | `GET /api/revisiones` (campañas donde eres revisor), pestaña "en curso" |
+| `/revisiones` | `revisiones/page.tsx` → `CampaignList.tsx` | S → C | `GET /api/revisiones` (campañas donde eres revisor), pestaña "en curso". Barra de filtros de `components/campanas/BarraDeFiltros.tsx`, aplicada en el navegador (también en `/revisiones/finalizadas`) |
 | `/revisiones/finalizadas` | `revisiones/finalizadas/page.tsx` → `CampaignList.tsx` | S → C | Lo mismo, pestaña "finalizadas" |
 | `/revisiones/campanas/[campaignId]` | `revisiones/campanas/[campaignId]/page.tsx` | C | `GET /api/campanas/[id]`, `GET /api/aportes?campaignId=&reviewer=true` |
 | `/revisiones/[aporteId]` | `revisiones/[aporteId]/page.tsx` | C | `GET /api/aportes/[id]`; aceptar: `PATCH /api/aportes/[id]` con `{ status: "aceptado" }`. Aporte anónimo: "Marcar como inapropiado" con `POST /api/aportes/[id]/inapropiado` |
@@ -98,7 +98,7 @@ Para revisores que aceptaron una invitación (`campana_revisores.estado = 'acept
 
 | URL | Archivo | Tipo | Datos y acciones |
 | --- | --- | --- | --- |
-| `/supervision` | `supervision/page.tsx` | C | `GET /api/campanas` (las `en_revision` que puedes tomar), `GET /api/campanas?supervised=true` (las tuyas), `GET /api/auth/sesion` |
+| `/supervision` | `supervision/page.tsx` | C | `GET /api/campanas` (las `en_revision` que puedes tomar), `GET /api/campanas?supervised=true` (las tuyas), `GET /api/auth/sesion`. Barra de filtros de `components/campanas/BarraDeFiltros.tsx` (búsqueda, temática, tipo de dato, orden), aplicada en el navegador |
 | `/supervision/campanas` | `supervision/campanas/page.tsx` | C | `GET /api/campanas?supervised=true` |
 | `/supervision/[campaignId]` | `supervision/[campaignId]/page.tsx` | C | `GET /api/campanas?id=`. Tomar: `PATCH /api/campanas/[id]` con `{ action: "tomar" }`. Dictaminar: `PATCH` con `{ action: "aceptada" \| "rechazada" \| "reportada", motivo }` |
 | `/supervision/[campaignId]/panel` | `supervision/[campaignId]/panel/page.tsx` | S | `lib/campanas/panel.ts` (`obtenerPanelDeCampana`) → `components/supervision/PanelDeCampanaSupervisor` |
@@ -130,7 +130,7 @@ Patrón: página de servidor que lee de `lib/` + componente cliente hermano que 
 | `/usuarios/supervisores` | `usuarios/supervisores/page.tsx` + `buscador.tsx` | `lib/usuarios/supervisores.ts` | — |
 | `/usuarios/supervisores/[id]` | `usuarios/supervisores/[id]/page.tsx` | `obtenerActividad` | — |
 | `/usuarios/supervisores/[id]/revertir/[accionId]` | `.../revertir/[accionId]/page.tsx` + `formulario.tsx` | `obtenerAccion` | `revertirAccion` (**sin lógica todavía**) |
-| `/supervisar` | `supervisar/page.tsx` + `pestanas.tsx` | `lib/supervision/root.ts` (`listarCampanasParaRoot`) | — |
+| `/supervisar` | `supervisar/page.tsx` + `pestanas.tsx` | `lib/supervision/root.ts` (`listarCampanasParaRoot`); filtros con `components/campanas/BarraDeFiltros.tsx` en el navegador | — |
 | `/supervisar/campanas` | `supervisar/campanas/page.tsx` | `listarCampanasParaRoot` | — |
 | `/supervisar/[campaignId]` | `supervisar/[campaignId]/page.tsx` + `acciones.tsx` | `obtenerCampanaParaRoot` | `tomarComoSuperUsuario`, `decidirComoSuperUsuario` |
 | `/supervisar/[campaignId]/panel` | `supervisar/[campaignId]/panel/page.tsx` | `obtenerCampanaSupervisadaPorRoot`, `lib/campanas/panel.ts` | — |
@@ -165,6 +165,7 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 | `GET /api/usuarios?campanaId=&q=` | Sesión + creador de esa campaña | Busca personas para invitar como revisor (máx. 10, correo oculto) | `agregar-revisor` |
 | `GET /api/usuarios/[id]` | Sesión + la cuenta propia | Tu perfil | — |
 | `PATCH /api/usuarios/[id]` | Sesión, solo tu propio id | Actualiza perfil (estado, ciudad, especialidad, intereses...) | `/bienvenida`, `/cuenta` |
+| `PATCH /api/usuarios/[id]/contrasena` | Sesión, solo tu propio id, cuenta con contraseña | Cambia la contraseña tras revisar la actual (los fallos cuentan para el bloqueo del login). No cierra sesiones | `/cuenta` |
 
 ### Campañas
 

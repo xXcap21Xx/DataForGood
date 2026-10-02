@@ -29,6 +29,7 @@ export type AccionAuditada =
   | "revisor.aceptar"
   | "root.acceso"
   | "root.acceso_fallido"
+  | "usuario.contrasena_cambiar"
   // Aportes sin cuenta y sus sanciones (lib/aportes/sanciones-anonimas.ts).
   | "aporte.anonimo_enviar"
   | "aporte.inapropiado"

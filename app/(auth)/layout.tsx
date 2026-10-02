@@ -2,6 +2,7 @@
 // No pide sesión. El grupo no aparece en la URL (/entrar, no /auth/entrar).
 
 import Link from "next/link";
+import Logo from "@/components/layout/Logo";
 
 export default function AuthLayout({
   children,
@@ -13,10 +14,9 @@ export default function AuthLayout({
       <div className="w-full max-w-md">
         <Link
           href="/"
-          className="mb-8 flex items-center justify-center gap-2 font-extrabold text-ink"
+          className="mb-8 flex items-center justify-center"
         >
-          <span className="h-6 w-6 rounded-md bg-accent" aria-hidden />
-          DataForGood
+          <Logo />
         </Link>
         {children}
       </div>

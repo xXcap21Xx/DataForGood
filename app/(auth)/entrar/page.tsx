@@ -9,6 +9,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import PasswordInput from "@/components/ui/PasswordInput";
 import { BASE_PATH } from "@/lib/base-path";
 import { conDestino, destinoSeguro } from "@/lib/redireccion";
 
@@ -93,8 +94,7 @@ function EntrarForm() {
           />
         </Field>
         <Field label="Contraseña" required>
-          <Input
-            type="password"
+          <PasswordInput
             name="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}

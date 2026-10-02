@@ -1,11 +1,14 @@
 // Pantalla /cuenta: perfil del usuario. Server Component.
-// Datos: exigirUsuario(). El formulario (PerfilForm.tsx) guarda con PATCH /api/usuarios/[id].
+// Datos: exigirUsuario(). PerfilForm.tsx pinta la tarjeta superior ("Editar perfil",
+// "Cerrar sesión"), los datos personales y los intereses, y guarda con PATCH /api/usuarios/[id].
+// La contraseña se cambia en CambiarContrasena.tsx con PATCH /api/usuarios/[id]/contrasena.
+// "Eliminar cuenta" (hasta abajo) aún no hace nada.
 
-import Link from "next/link";
 import Button from "@/components/ui/Button";
-import LogoutButton from "@/components/auth/LogoutButton";
 import { exigirUsuario } from "@/lib/session";
 import PerfilForm from "./PerfilForm";
+import CambiarContrasena from "./CambiarContrasena";
+import PreferenciasDeComunicacion from "./PreferenciasDeComunicacion";
 
 const ROLE_LABELS: Record<string, string> = {
   usuario: "Usuario común",
@@ -36,10 +39,20 @@ export default async function CuentaPage() {
         </div>
       </div>
 
-      <section className="rounded-lg border border-line bg-surface p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
+      <PerfilForm
+        usuario={{
+          id: currentUser.id,
+          nombre: currentUser.nombre ?? "",
+          apellidos: currentUser.apellidos ?? "",
+          email: currentUser.email,
+          state: currentUser.state,
+          city: currentUser.city,
+          specialty: currentUser.specialty,
+          intereses: currentUser.intereses,
+        }}
+        encabezado={
           <div className="flex items-center gap-4">
-            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-accent text-lg font-extrabold text-white">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-accent text-lg font-extrabold text-white">
               {(currentUser.nombre ?? "")
                 .split(" ")
                 .map((p) => p[0])
@@ -59,30 +72,8 @@ export default async function CuentaPage() {
               </div>
             </div>
           </div>
-          <div className="flex gap-2">
-            <Button variant="secondary" size="sm">
-              Cambiar foto
-            </Button>
-            <Button variant="danger" size="sm">
-              Eliminar cuenta
-            </Button>
-          </div>
-        </div>
-      </section>
-
-      <div className="grid gap-4 md:grid-cols-2">
-        <PerfilForm
-          usuario={{
-            id: currentUser.id,
-            nombre: currentUser.nombre ?? "",
-            apellidos: currentUser.apellidos ?? "",
-            email: currentUser.email,
-            state: currentUser.state,
-            city: currentUser.city,
-            specialty: currentUser.specialty,
-            intereses: currentUser.intereses,
-          }}
-        >
+        }
+      >
         <section className="rounded-lg border border-line bg-surface p-5">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -106,9 +97,7 @@ export default async function CuentaPage() {
                       : "Esta cuenta inicia sesión con Google"}
                   </p>
                 </div>
-                <Button variant="secondary" size="sm" disabled={!currentUser.tiene_contrasena}>
-                  Cambiar
-                </Button>
+                <CambiarContrasena usuarioId={Number(currentUser.id)} tieneContrasena={Boolean(currentUser.tiene_contrasena)} />
               </div>
             </div>
 
@@ -146,19 +135,10 @@ export default async function CuentaPage() {
               </div>
             </div>
 
-            <div className="rounded border border-line bg-sunken p-4">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="text-sm font-bold text-ink">Sesión</p>
-                  <p className="text-[12.5px] text-ink-2">Cierra tu sesión en este dispositivo</p>
-                </div>
-                <LogoutButton />
-              </div>
-            </div>
+            <PreferenciasDeComunicacion />
           </div>
         </section>
-        </PerfilForm>
-      </div>
+      </PerfilForm>
 
       <section className="rounded-lg border border-line bg-surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">
@@ -184,54 +164,10 @@ export default async function CuentaPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-line bg-surface p-5">
-        <div className="mb-4">
-          <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-ink-3">
-            Preferencias
-          </p>
-          <h2 className="mt-1 text-lg font-extrabold text-ink">
-            Comunicación y notificaciones
-          </h2>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="rounded border border-line-2 bg-surface p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-ink">Campañas nuevas</span>
-              <span className="h-4 w-4 rounded-full bg-ok" />
-            </div>
-            <p className="mt-2 text-[12px] text-ink-2">Recibir alertas</p>
-          </div>
-          <div className="rounded border border-line-2 bg-surface p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-ink">Aportes</span>
-              <span className="h-4 w-4 rounded-full bg-ok" />
-            </div>
-            <p className="mt-2 text-[12px] text-ink-2">Estado actualizado</p>
-          </div>
-          <div className="rounded border border-line-2 bg-surface p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-ink">Recordatorios</span>
-              <span className="h-4 w-4 rounded-full bg-line-2" />
-            </div>
-            <p className="mt-2 text-[12px] text-ink-2">Semanal</p>
-          </div>
-          <div className="rounded border border-line-2 bg-surface p-4">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-semibold text-ink">Newsletter</span>
-              <span className="h-4 w-4 rounded-full bg-ok" />
-            </div>
-            <p className="mt-2 text-[12px] text-ink-2">Resumen mensual</p>
-          </div>
-        </div>
-      </section>
-
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        <Link href="/mis-aportes">
-          <Button variant="ghost" size="sm">
-            Volver a aportes
-          </Button>
-        </Link>
+      <div className="flex justify-end">
+        <Button variant="danger" size="sm">
+          Eliminar cuenta
+        </Button>
       </div>
     </div>
   );

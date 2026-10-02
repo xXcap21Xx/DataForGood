@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import LogoutButton from "@/components/auth/LogoutButton";
+import Logo from "@/components/layout/Logo";
 import { formatearFinDeSuspension, type Bloqueo, type HistorialDeSanciones } from "@/lib/sanciones";
 
 /**
@@ -28,10 +29,7 @@ export default function CuentaBloqueada({
   return (
     <div className="min-h-screen bg-paper">
       <header className="flex items-center justify-between border-b border-line px-6 py-4">
-        <span className="flex items-center gap-2 font-extrabold text-ink">
-          <span className="h-6 w-6 rounded-md bg-accent" aria-hidden />
-          DataForGood
-        </span>
+        <Logo />
         <LogoutButton />
       </header>
 
