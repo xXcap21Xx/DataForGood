@@ -9,13 +9,24 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 
 **El repositorio es la referencia.** Si esta skill y el código no coinciden, manda el código, y hay que actualizar la skill en el mismo commit. Si el código tiene un error evidente (algo que falla, es inválido o inseguro), señálalo y propón la corrección.
 
-## Estado del proyecto (rama `migracion-github`, septiembre 2026)
+## Estado del proyecto (rama `migracion-github`, octubre 2026)
 
 - **Repositorio:** `gitlab.com/cicese-tepic-dev-1/dataforgood`. `main` está protegida; se trabaja en `migracion-github`.
 - **Funciona de punta a punta con datos reales:** registro con verificación por correo, inicio de sesión (correo/contraseña y Google), campañas, aportes con archivo en MinIO, revisión en dos instancias, supervisión, notificaciones, catálogo de datos abiertos y panel del SuperUsuario.
 - **Ya no existe `data/screensData.ts`:** ninguna pantalla usa datos simulados.
 - **No hay pruebas automatizadas** (no hay Vitest ni otro runner).
-- **Último avance (2026-09-30):** `/explorar` público, regreso a la pantalla pedida tras iniciar sesión (`?next=`), pantalla `/cuenta-bloqueada` para cuentas sancionadas, baneos por campaña reversibles y visibles, checklists con título en campañas, 23 temáticas compartidas con selector en ventana. Ver el mensaje del commit `c9fb7b7` para el detalle.
+- **2026-09-30:** `/explorar` público, regreso a la pantalla pedida tras iniciar sesión (`?next=`), `/cuenta-bloqueada`, baneos por campaña reversibles, checklists con título, 23 temáticas compartidas (commit `c9fb7b7`).
+- **Último avance (2026-10-01, commits `de9a367` a `3e18424`):**
+  - **Aporte anónimo** desde `/c/[token]` con cuota por dispositivo, espera de 60 s y tope por IP en memoria. **La IP de una persona sin cuenta no se guarda en ningún lado** (hubo un HMAC de la IP y se quitó a pedido del usuario: no volver a proponerlo).
+  - **Sanciones para anónimos** en 4 niveles (inapropiado, bloqueo del dispositivo en la campaña, interruptor "Permitir aportes sin cuenta", bloqueo global por dispositivo).
+  - **Fotos:** firma real JPG/PNG, máximo 50 MP y re-codificación con `sharp` sin EXIF/GPS (`lib/aportes/imagen.ts`).
+  - **Contadores** recalculados desde `aportes`, **revisión en dos instancias** real (`espera_final`), cuota sin carrera (candados de Postgres).
+  - **Seguridad:** registro solo con rol `usuario`, `GET /api/usuarios/[id]` solo la cuenta propia, `POST /api/campanas` con sesión y solo `borrador`/`en_revision`, ids validados en `proxy.ts`, cabeceras de seguridad en `next.config.ts`, login sin enumerar correos.
+  - Prueba de punta a punta y revisión en Chrome: hallazgos y estado en la memoria del proyecto.
+- **Pendiente:**
+  - **Antes del próximo despliegue:** correr una vez `scripts/limpiar-metadatos.mjs` en el servidor (lista; luego `--aplicar`) y que el puerto de la app solo sea accesible desde el proxy (el tope y la espera por IP confían en `X-Forwarded-For`; lo está consultando el usuario con el encargado).
+  - Revisar las pantallas a 360 px.
+  - Números provisionales (`TODO(dominio)`): 3 inapropiados en 30 días → 30 días de bloqueo, 60 s de espera, 20 aportes anónimos por IP por hora, 50 MP.
 
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
@@ -40,7 +51,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 | Base de datos | PostgreSQL con **`pg` y SQL a mano** (`lib/db.ts`). **Sin ORM**: no hay Drizzle, Prisma ni migraciones versionadas; el DDL vive en `lib/db-schema.ts` |
 | Validación | A mano (`lib/validation.ts`, regex, `Set` de valores permitidos). No hay Zod |
 | Archivos | MinIO con el SDK `minio` (`lib/minio.ts`). El archivo pasa por el servidor (`putObject`), no hay URLs firmadas |
-| Otros | `bcryptjs` (contraseñas), `nodemailer` + Gmail (códigos de verificación), `google-auth-library` (OAuth), `archiver` (ZIP de datos abiertos) |
+| Otros | `bcryptjs` (contraseñas), `nodemailer` + Gmail (códigos de verificación), `google-auth-library` (OAuth), `archiver` (ZIP de datos abiertos), `sharp` (valida y limpia las fotos de los aportes), `qrcode` (QR del enlace público) |
 | Infraestructura | Docker Compose con `postgres:16-alpine`, `quay.io/minio/minio` (solo la copia en caché: ya no se puede descargar), `minio-init` (usuario limitado) y la app (Dockerfile multi-stage, `node:24-alpine`). Secretos en `.env` (plantilla `.env.example`); Postgres y MinIO sin puertos publicados |
 
 ## Qué leer según la tarea
@@ -151,6 +162,12 @@ docker compose logs -f app
 Si `docker compose up --build` falla con `Can't resolve '@vercel/turbopack-next/internal/font/google/font'`, es la descarga de Google Fonts (`next/font/google` en `app/layout.tsx`) durante el build: reintenta. Pasó dos veces el 2026-09-30; la solución de fondo es `next/font/local` (pendiente).
 
 No hay suite de pruebas. Prueba a mano en el navegador los flujos que tocaste, con los roles involucrados: usuario común, creador, revisor, supervisor y SuperUsuario. Revisa también 360, 768 y 1280 px.
+
+**Cómo probar sin dañar datos reales** (lecciones del 2026-10-01):
+- Crea tus propios datos con un prefijo reconocible (usuarios `qa-prueba-*@example.test`, campañas `QA-PRUEBA ...`) y bórralos al terminar, incluida su carpeta `campanas/<id>/` en MinIO. Nunca uses aportes o campañas existentes para probar acciones destructivas: MinIO no tiene versionado y un archivo borrado no se recupera.
+- Las sesiones de prueba se crean insertando el sha256 del token en `sessions` (o `root_sessions`); bórralas al final.
+- En Chrome, el usuario tiene su sesión real en `localhost:3000`: entrar con una cuenta de prueba la cierra. Avísale antes.
+- **Si tocas candados o transacciones, prueba envíos simultáneos.** El recálculo de contadores bloquea la campaña con `FOR NO KEY UPDATE`: con `FOR UPDATE` choca con el candado de la llave foránea que toma cada `INSERT` en `aportes` y Postgres aborta transacciones con deadlock.
 
 ## Al entregar el trabajo
 
