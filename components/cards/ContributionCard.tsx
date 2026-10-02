@@ -4,11 +4,13 @@
 import Tag from "@/components/ui/Tag";
 import Card from "@/components/ui/Card";
 import type { Contribution } from "@/types";
+import { formatearTamano } from "@/lib/aportes/archivo";
 
 const STATUS_TONE: Record<Contribution["status"], { label: string; tone: "ok" | "warn" | "danger" | "default" }> = {
   aceptado: { label: "Aceptado", tone: "ok" },
   pendiente: { label: "Pendiente", tone: "warn" },
-  espera_final: { label: "Espera final", tone: "warn" },
+  // "espera_final" es un estado interno (ya lo validó el revisor): para quien aportó sigue en revisión.
+  espera_final: { label: "En revisión", tone: "warn" },
   rechazado: { label: "Rechazado", tone: "danger" },
 };
 
@@ -17,11 +19,6 @@ function formatDateTime(iso: string) {
   const date = d.toLocaleDateString("es-MX", { day: "numeric", month: "short" });
   const time = d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
   return `${date} · ${time}`;
-}
-
-function formatSize(bytes?: number) {
-  if (!bytes) return "—";
-  return `${(bytes / 1_000_000).toFixed(1)} MB`;
 }
 
 export default function ContributionCard({ contribution }: { contribution: Contribution }) {
@@ -35,7 +32,7 @@ export default function ContributionCard({ contribution }: { contribution: Contr
         <div className="mt-2 flex gap-4 text-[11.5px] text-ink-3">
           <span>{formatDateTime(contribution.submittedAt)}</span>
           <span>{contribution.fileType}</span>
-          <span>{formatSize(contribution.fileSizeBytes)}</span>
+          <span>{formatearTamano(contribution.fileSizeBytes)}</span>
         </div>
         {contribution.status === "rechazado" && contribution.rejectionReason && (
           <p className="mt-2 rounded border border-danger bg-danger-tint px-3 py-2 text-[12px] text-ink">

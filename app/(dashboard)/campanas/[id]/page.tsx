@@ -13,6 +13,7 @@ import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
 import type { Campaign } from "@/types";
 import { BASE_PATH } from "@/lib/base-path";
+import { TIPO_DE_DATO } from "@/lib/aportes/archivo";
 import CompartirCampana from "./compartir";
 
 export default function CampaignDetailPage() {
@@ -126,19 +127,29 @@ export default function CampaignDetailPage() {
         <p className="mb-3 text-[13px] text-ink-2">
           Comparte la información que tengas. Cada aporte es valioso.
         </p>
+        {/* Sale de la campaña: sus tipos de dato, la descripción (siempre obligatoria) y sus
+            checklists. Antes eran dos tarjetas fijas del prototipo (árboles). */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {campaign.dataTypes
+            .filter((tipo) => tipo !== "texto")
+            .map((tipo) => (
+              <div key={tipo} className="rounded-lg border border-line bg-surface p-4">
+                <p className="text-[14px] font-bold text-ink">{TIPO_DE_DATO[tipo]?.titulo ?? tipo}</p>
+                <p className="mt-1 text-[12px] text-ink-3">{TIPO_DE_DATO[tipo]?.detalle}</p>
+              </div>
+            ))}
           <div className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-[14px] font-bold text-ink">Imágenes</p>
+            <p className="text-[14px] font-bold text-ink">Descripción</p>
             <p className="mt-1 text-[12px] text-ink-3">
-              Fotos del ejemplar completo y de sus hojas.
+              Qué observaste y dónde, con tus palabras. Es obligatoria.
             </p>
           </div>
-          <div className="rounded-lg border border-line bg-surface p-4">
-            <p className="text-[14px] font-bold text-ink">Textos</p>
-            <p className="mt-1 text-[12px] text-ink-3">
-              Especie, estado de salud y notas de campo.
-            </p>
-          </div>
+          {(campaign.checklistSecciones ?? []).map((seccion, i) => (
+            <div key={seccion.titulo || i} className="rounded-lg border border-line bg-surface p-4">
+              <p className="text-[14px] font-bold text-ink">{seccion.titulo || "Marca lo que aplique"}</p>
+              <p className="mt-1 text-[12px] text-ink-3">{seccion.opciones.join(" · ")}</p>
+            </div>
+          ))}
         </div>
       </div>
 

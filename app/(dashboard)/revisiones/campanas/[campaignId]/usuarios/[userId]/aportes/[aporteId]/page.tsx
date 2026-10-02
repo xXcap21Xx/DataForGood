@@ -7,6 +7,7 @@ import Tag from "@/components/ui/Tag";
 import { pool } from "@/lib/db";
 import { exigirUsuario } from "@/lib/session";
 import { BASE_PATH } from "@/lib/base-path";
+import { formatearTamano } from "@/lib/aportes/archivo";
 
 export default async function ReviewerContributionDetailPage({ params }: { params: Promise<{ campaignId: string; userId: string; aporteId: string }> }) {
   const { campaignId, userId, aporteId } = await params;
@@ -29,7 +30,7 @@ export default async function ReviewerContributionDetailPage({ params }: { param
 
   const contribution = result.rows[0];
   const features = Array.isArray(contribution.caracteristicas) ? contribution.caracteristicas : [];
-  const fileSize = contribution.file_size_bytes ? ` · ${(Number(contribution.file_size_bytes) / 1_000_000).toFixed(1)} MB` : "";
+  const fileSize = contribution.file_size_bytes ? ` · ${formatearTamano(Number(contribution.file_size_bytes))}` : "";
 
   return (
     <div className="mx-auto max-w-4xl">

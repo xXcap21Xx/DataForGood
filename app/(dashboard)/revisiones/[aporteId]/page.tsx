@@ -13,6 +13,7 @@ import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Contribution } from "@/types";
 import { BASE_PATH } from "@/lib/base-path";
+import { formatearTamano } from "@/lib/aportes/archivo";
 
 const STATUS_LABELS: Record<string, string> = {
   pendiente: "Sin revisar",
@@ -131,7 +132,7 @@ export default function RevisionAportePage() {
             </div>
           )}
           <p className="mt-3 font-mono text-[11.5px] text-ink-3">
-            {item.fileType} {item.fileSizeBytes ? `· ${(item.fileSizeBytes / 1_000_000).toFixed(1)} MB` : ""}
+            {item.fileType} {item.fileSizeBytes ? `· ${formatearTamano(item.fileSizeBytes)}` : ""}
           </p>
         </section>
 

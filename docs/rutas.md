@@ -74,7 +74,7 @@ Cualquier usuario puede crear campañas. Todas estas rutas comprueban en el serv
 | --- | --- | --- | --- |
 | `/mis-campanas` | `mis-campanas/page.tsx` | C | `GET /api/campanas?mine=true`. Botón "Finalizar": `PATCH /api/campanas/[id]` con `{ status: "finalizada" }` |
 | `/mis-campanas/nueva` (`?edit=<id>` para editar) | `mis-campanas/nueva/page.tsx` + `NuevaCampanaForm.tsx` | S + C | Crear: `POST /api/campanas`. Editar: `GET /api/campanas/[id]` y `PATCH /api/campanas/[id]`. Lo que se puede editar depende del estado (ver [datos.md](datos.md) § 3) |
-| `/mis-campanas/[id]/aportes` | `mis-campanas/[id]/aportes/page.tsx` | C | Bandeja de aportes: `GET /api/campanas/[id]`, `GET /api/aportes?campaignId=` (todos, solo el creador). La sección de baneados (`baneados.tsx`) usa `GET`/`DELETE /api/campanas/[id]/baneos` |
+| `/mis-campanas/[id]/aportes` | `mis-campanas/[id]/aportes/page.tsx` | C | Bandeja de aportes: `GET /api/campanas/[id]`, `GET /api/aportes?campaignId=` (todos, solo el creador), con filtros por estado en el cliente. La sección de baneados (`baneados.tsx`) usa `GET`/`DELETE /api/campanas/[id]/baneos` |
 | `/mis-campanas/[id]/aportes/[aporteId]` | `.../aportes/[aporteId]/page.tsx` | C | `GET /api/aportes/[id]`; aceptar o rechazar: `PATCH /api/aportes/[id]` con `{ status, rejectionReason, inapropiado? }`. Banear al participante: `POST`/`DELETE /api/campanas/[id]/baneos`; en un aporte anónimo, el mismo `POST` bloquea su dispositivo en la campaña y `DELETE { bloqueoId }` lo desbloquea. Borrar el archivo de un aporte anónimo: `DELETE /api/aportes/[id]/archivo`. La imagen se carga de `GET /api/aportes/[id]/archivo` |
 | `/mis-campanas/[id]/aportes/agregar-revisor` | `.../agregar-revisor/page.tsx` | C | Buscar personas: `GET /api/usuarios?campanaId=&q=`. Listar e invitar revisores: `GET`/`POST /api/campanas/[id]/revisores` |
 | `/mis-campanas/[id]/panel` | `mis-campanas/[id]/panel/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/campanas/[id]/recoleccion-diaria` (gráficas) |
@@ -210,7 +210,7 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 
 | Método y ruta | Acceso | Qué hace | La llama |
 | --- | --- | --- | --- |
-| `GET /api/revisiones` | Sesión | Campañas donde eres revisor aceptado, con conteos | `/revisiones` |
+| `GET /api/revisiones` | Sesión | Campañas donde eres revisor aceptado, con conteos (`pendingContributions` = aportes `pendiente`, los que le tocan al revisor) | `/revisiones` |
 | `GET /api/notificaciones` | Sesión | Tus notificaciones | `NotificationsBell` |
 | `POST /api/notificaciones/[id]/aceptar` | Sesión, dueño de la notificación | Acepta una invitación de revisor | `NotificationsBell` |
 | `GET /api/datos/[id]/descarga` | Libre | ZIP con los archivos de los aportes aceptados de una campaña `finalizada` (sin datos personales). Suma 1 a `downloads_count` | `/datos/[id]` |

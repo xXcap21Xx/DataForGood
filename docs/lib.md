@@ -51,7 +51,7 @@
 
 | Archivo | Qué hace | Lo usa |
 | --- | --- | --- |
-| `archivo.ts` 🟢 | Tipos y tamaño de archivo permitidos, largo de la descripción y `errorDeArchivo()` | Los dos endpoints de aportes y el formulario anónimo |
+| `archivo.ts` 🟢 | Tipos y tamaño de archivo permitidos, largo de la descripción, `errorDeArchivo()`, `formatearTamano()` (KB/MB) y `TIPO_DE_DATO` (cómo se describe cada tipo a quien aporta) | Endpoints de aportes, formulario anónimo, pantallas de aportes y `/campanas/[id]` |
 | `comun.ts` | `guardarFotoDelAporte()` (valida, limpia y sube a MinIO), `insertarAporteConCuota()` (cuenta e inserta con candado: sin carrera de cuota), `recalcularContadores()` (contadores de la campaña desde `aportes`, con la campaña bloqueada) y reexporta `archivo.ts` | `POST /api/aportes`, `aportes-anonimos.ts` |
 | `imagen.ts` | `limpiarImagen()`: comprueba la firma JPG/PNG y vuelve a codificar con `sharp`, quitando EXIF (GPS), ICC y XMP | `comun.ts` |
 | `anonimato.ts` | Cookie `anonimo_id`, `hashDeDispositivo()` y `hmacDeIp()` (necesita `ANONIMO_IP_SECRETO`) | Aporte anónimo, `/c/[token]`, sanciones |

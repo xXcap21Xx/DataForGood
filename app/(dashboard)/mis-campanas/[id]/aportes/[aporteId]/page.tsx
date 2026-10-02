@@ -15,6 +15,7 @@ import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Contribution } from "@/types";
 import { BASE_PATH } from "@/lib/base-path";
+import { formatearTamano } from "@/lib/aportes/archivo";
 
 const REJECTION_REASONS = [
   "Contenido borroso o ilegible",
@@ -22,6 +23,15 @@ const REJECTION_REASONS = [
   "Datos incompletos",
   "Contenido duplicado",
 ];
+
+/**
+ * Los formularios de rechazo y de bloqueo aparecen en la columna derecha, lejos de los
+ * botones del final: al abrirse, se llevan a la vista. Función fuera del componente para
+ * que React la llame solo al montar el formulario (no en cada tecla).
+ */
+function llevarALaVista(formulario: HTMLFormElement | null) {
+  formulario?.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 
 export default function RevisionAportePage() {
   const params = useParams<{ id: string; aporteId: string }>();
@@ -239,7 +249,7 @@ export default function RevisionAportePage() {
         ) : (
           <div className="flex h-44 items-center justify-center rounded-lg border border-dashed border-line-2 bg-sunken text-[12.5px] text-ink-3">
             Vista previa del archivo · {item.fileType}
-            {item.fileSizeBytes && ` · ${(item.fileSizeBytes / 1_000_000).toFixed(1)} MB`}
+            {item.fileSizeBytes && ` · ${formatearTamano(item.fileSizeBytes)}`}
           </div>
         )}
 
@@ -298,7 +308,7 @@ export default function RevisionAportePage() {
           )}
 
           {showRejectForm && (
-            <form onSubmit={confirmReject} className="mb-4 rounded-lg border border-danger p-4">
+            <form ref={llevarALaVista} onSubmit={confirmReject} className="mb-4 rounded-lg border border-danger p-4">
               <p className="mb-2 text-[13px] font-medium text-ink">
                 Motivo del rechazo <span className="text-danger">*</span>
               </p>
@@ -351,7 +361,7 @@ export default function RevisionAportePage() {
           )}
 
           {showBanForm && (
-            <form onSubmit={banUser} className="mb-4 rounded-lg border border-danger p-4">
+            <form ref={llevarALaVista} onSubmit={banUser} className="mb-4 rounded-lg border border-danger p-4">
               <p className="mb-2 text-[13px] font-medium text-ink">
                 {esAnonimo ? "Bloquear este dispositivo en la campaña" : "Banear usuario de la campaña"}
               </p>
