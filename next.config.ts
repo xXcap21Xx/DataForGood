@@ -16,6 +16,26 @@ const nextConfig: NextConfig = {
     "/api/docs/spec": ["./openapi.yaml"],
   },
   basePath,
+  // Sin "X-Powered-By: Next.js": no anunciar la tecnología.
+  poweredByHeader: false,
+  // Cabeceras de seguridad para todo (páginas y API). Sin CSP global: la ruta del
+  // archivo de un aporte manda la suya, y una CSP completa necesita probar Google OAuth.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          // Nadie puede incrustar la app en un iframe (clickjacking sobre /c/[token], paneles...).
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          // Las URLs con token (/c/[token]) no se filtran completas a otros sitios.
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          // La app no usa GPS ni cámara/micrófono del navegador (las fotos van por <input type="file">).
+          { key: "Permissions-Policy", value: "geolocation=(), camera=(), microphone=()" },
+        ],
+      },
+    ];
+  },
   // Con basePath, la raíz del dominio queda en 404. Al abrir
   // http://localhost:3000/ se manda a la app. En producción el proxy solo
   // reenvía /dataforgood/..., así que esto no interfiere con otros sitios.

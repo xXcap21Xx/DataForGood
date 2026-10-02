@@ -66,7 +66,7 @@ paths:
                   data: { $ref: "#/components/schemas/User" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401":
-          description: Correo o contraseña incorrectos
+          description: Correo o contraseña incorrectos, correo inexistente o cuenta solo de Google (misma respuesta para no revelar qué correos existen)
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "403":
           description: Cuenta suspendida, baneada o sin verificar (en ese caso guarda `pending_verification_id`)

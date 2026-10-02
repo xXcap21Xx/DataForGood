@@ -33,8 +33,10 @@ El aporte anónimo (`POST /api/c/[token]/aportes`, `lib/campanas/aportes-anonimo
 ## 3. Mostrar y descargar
 
 - **Archivo de un aporte:** `GET /api/aportes/[id]/archivo`. Verifica el permiso (ver `roles-y-sesiones.md` § 4), lee de MinIO y responde con el `Content-Type` guardado (solo `image/jpeg` o `image/png`; cualquier otro, como binario), `X-Content-Type-Options: nosniff`, una CSP `sandbox` y `Cache-Control: private`. Responde `410` si el creador borró el archivo (`aportes.archivo_borrado_en`). En las pantallas se usa esa URL como `src`.
+- **Borrar el aporte** (`DELETE /api/aportes/[id]`, quien aportó) borra también su archivo.
+- **No se guarda el nombre original** del archivo (`file_original_name` va NULL desde el 2026-10-01): el del teléfono puede traer nombres o fechas.
 - **Borrar el archivo:** `DELETE /api/aportes/[id]/archivo`, solo el creador y solo en aportes anónimos. La fila se conserva.
-- **Datos abiertos:** `GET /api/datos/[id]/descarga` solo para campañas `finalizada`. Arma un ZIP con `archiver` con los archivos de los aportes aceptados, renombrados `aporte-001.ext`... (sin nombre ni correo del participante), e incrementa `downloads_count`. Omite los archivos borrados. Las fotos subidas **antes del 2026-10-01** no pasaron por la limpieza y pueden conservar su EXIF.
+- **Datos abiertos:** `GET /api/datos/[id]/descarga` solo para campañas `finalizada`. Arma un ZIP con `archiver` con los archivos de los aportes aceptados, renombrados `aporte-001.ext`... (sin nombre ni correo del participante), e incrementa `downloads_count`. Omite los archivos borrados. Las fotos subidas **antes del 2026-10-01** no pasaron por la limpieza: `scripts/limpiar-metadatos.mjs` las re-codifica una vez (lista por defecto; `--aplicar` escribe). En local ya se corrió; en el servidor falta. El comando está en la cabecera del script.
 - **El bucket no se expone.** Nunca construyas URLs directas a MinIO para el navegador.
 
 ## 4. Configuración

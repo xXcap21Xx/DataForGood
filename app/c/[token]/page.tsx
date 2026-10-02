@@ -1,6 +1,6 @@
 // Pantalla /c/[token] (pública): a donde lleva el enlace o el QR que comparte el creador.
 // Server Component. Datos: buscarEnlacePorToken() de lib/campanas/enlaces.ts; cada
-// apertura de un enlace vigente suma una visita (registrarVisita).
+// apertura de un enlace vigente suma una visita (registrarVisita: una por IP cada 30 min).
 // Si el enlace sirve y la campaña está activa, invita a aportar:
 //   - con sesión: botón a /campanas/[id]/aportar?enlace=<token> (aporta con su cuenta);
 //   - sin sesión: formulario anónimo (aporte-anonimo.tsx → POST /api/c/[token]/aportes),
@@ -73,7 +73,7 @@ export default async function EnlacePublicoPage({ params }: { params: Promise<{ 
       />
     );
   } else {
-    await registrarVisita(resultado.enlace.id);
+    await registrarVisita(resultado.enlace.id, ipDelCliente(await headers()));
     const usuario = await getSessionUser();
     // Sin sesión: cuántos aportes le quedan a este dispositivo (cookie anónima).
     const dispositivo = dispositivoValido((await cookies()).get(COOKIE_ANONIMO)?.value);

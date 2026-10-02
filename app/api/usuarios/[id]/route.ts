@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
+import { errorDeLargo, interesesValidos } from "@/lib/usuarios/perfil";
 
 // GET: tu propio perfil (401 sin sesión, 403 si el id no es el tuyo).
 export async function GET(
@@ -117,9 +118,10 @@ export async function PATCH(
     const state = body.state !== undefined ? String(body.state).trim() || null : undefined;
     const city = body.city !== undefined ? String(body.city).trim() || null : undefined;
     const specialty = body.specialty !== undefined ? String(body.specialty).trim() || null : undefined;
-    const intereses = Array.isArray(body.intereses)
-      ? JSON.stringify(body.intereses.map(String))
-      : null;
+    // Solo intereses de la lista oficial (antes se guardaba cualquier arreglo, sin tope).
+    const intereses = Array.isArray(body.intereses) ? JSON.stringify(interesesValidos(body.intereses)) : null;
+    const errorLargo = errorDeLargo({ nombre, apellidos, state, city, specialty });
+    if (errorLargo) return NextResponse.json({ error: errorLargo }, { status: 400 });
 
     const result = await pool.query(
       `UPDATE usuarios

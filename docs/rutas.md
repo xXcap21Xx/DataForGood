@@ -29,7 +29,7 @@ No piden sesión. Archivos en `app/` (fuera de los grupos).
 | `/datos` | `app/datos/page.tsx` | S | `lib/open-data.ts` (`buscarConjuntosAbiertos`, facetas). Catálogo de campañas `finalizada` |
 | `/datos/[id]` | `app/datos/[id]/page.tsx` | S | `lib/open-data.ts` (`obtenerConjuntoAbierto`). El botón de descarga apunta a `GET /api/datos/[id]/descarga` |
 | `/contacto`, `/privacidad`, `/sobre-nosotros` | `app/<nombre>/page.tsx` | S | Texto fijo |
-| `/c/[token]` | `app/c/[token]/page.tsx` | S | Enlace público de una campaña (se comparte como enlace o QR desde `/campanas/[id]`). `lib/campanas/enlaces.ts`: `buscarEnlacePorToken` y `registrarVisita` (suma una visita por apertura). Si el token es vigente y la campaña está activa, invita a aportar: con sesión → `/campanas/[id]/aportar?enlace=<token>`; **sin sesión → formulario anónimo** (`aporte-anonimo.tsx` → `POST /api/c/[token]/aportes`; cuántos le quedan con `aportesDelDispositivo` de `lib/campanas/aportes-anonimos.ts`) y opción de `/entrar` o `/registro` con `?next=`. Si no, muestra "no válido", "ya no funciona" (revocado) o "caducó". Sin formulario si el creador apagó los aportes sin cuenta o si el dispositivo o su red están bloqueados (`bloqueoParaLaPagina`). Es lo único que ve una persona anónima. No indexable |
+| `/c/[token]` | `app/c/[token]/page.tsx` | S | Enlace público de una campaña (se comparte como enlace o QR desde `/campanas/[id]`). `lib/campanas/enlaces.ts`: `buscarEnlacePorToken` y `registrarVisita` (una visita por IP cada 30 min, en memoria). Si el token es vigente y la campaña está activa, invita a aportar: con sesión → `/campanas/[id]/aportar?enlace=<token>`; **sin sesión → formulario anónimo** (`aporte-anonimo.tsx` → `POST /api/c/[token]/aportes`; cuántos le quedan con `aportesDelDispositivo` de `lib/campanas/aportes-anonimos.ts`) y opción de `/entrar` o `/registro` con `?next=`. Si no, muestra "no válido", "ya no funciona" (revocado) o "caducó". Sin formulario si el creador apagó los aportes sin cuenta o si el dispositivo o su red están bloqueados (`bloqueoParaLaPagina`). Es lo único que ve una persona anónima. No indexable |
 | `/cuenta-bloqueada` | `app/cuenta-bloqueada/page.tsx` | S | `obtenerBloqueoDeLaSesion()` de `lib/session.ts`; dibuja `components/layout/CuentaBloqueada.tsx`. Si la cuenta no está bloqueada, redirige a `/campanas` o a `/entrar` |
 | `/api/docs` | `app/api/docs/route.ts` | — | Swagger UI de `openapi.yaml`. Abierta en `next dev`; en producción pide sesión raíz (`lib/api-docs.ts`) |
 
@@ -148,7 +148,7 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 
 | Método y ruta | Acceso | Qué hace | La llama |
 | --- | --- | --- | --- |
-| `POST /api/auth/login` | Libre | Correo + contraseña. 5 fallos → bloqueo de 15 min. Rechaza cuentas sin verificar. Crea la cookie `session_token` | `/entrar` |
+| `POST /api/auth/login` | Libre | Correo + contraseña. 5 fallos → bloqueo de 15 min. Rechaza cuentas sin verificar. Mismo 401 si el correo no existe, si la cuenta es de Google o si la contraseña está mal (y tarda lo mismo). Crea la cookie `session_token` | `/entrar` |
 | `POST /api/auth/logout` | Libre | Borra la sesión y la cookie | `LogoutButton` |
 | `GET /api/auth/sesion` | Libre | Devuelve el usuario de la sesión o `null` | `/bienvenida`, `/campanas`, `/supervision`, `VigilanteDeSesion` |
 | `GET /api/auth/google` | Libre | Redirige a Google (guarda `state` y `next` en cookies) | `/entrar`, `/registro` |

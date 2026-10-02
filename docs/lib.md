@@ -67,6 +67,7 @@
 | `baneos.ts` | Baneos por campaña: consultar, listar, quitar | API de baneos, `/api/aportes`, `/usuarios/[id]` |
 | `aportes-anonimos.ts` | Aporte **sin cuenta** desde `/c/[token]`: valida enlace, campaña e interruptor `permite_anonimos`, bloqueos del dispositivo o su red, cuota por dispositivo (se guarda el hash de la cookie), espera entre aportes del dispositivo (`ESPERA_ENTRE_APORTES_SEGUNDOS`), tope por IP en memoria (`TOPE_POR_IP_POR_HORA`, se poda cada minuto) y guarda el aporte sin datos personales, con el HMAC de la IP. Bitácora `aporte.anonimo_enviar` sin IP | `POST /api/c/[token]/aportes`, `/c/[token]` |
 | `enlaces.ts` | Enlace público `/c/[token]`: `asegurarEnlaceVigente` (se genera solo al quedar activa la campaña), `regenerarEnlace` (creador), buscar por token, contar visitas, atribuir aportes y generar el QR (SVG/PNG con `qrcode`). Todo en transacción con la campaña bloqueada. No autoriza: el llamador comprueba antes | `/api/campanas/[id]/{enlace,qr}`, `/c/[token]`, `POST /api/aportes`, `lib/supervision/decision.ts`, `lib/campaign-date.ts`, `PATCH`/`PUT /api/campanas/[id]` |
+| `estado-del-creador.ts` | Qué estado puede pedir el creador (`borrador`/`en_revision`), límite de 5 activas, XP fijo | `POST /api/campanas`, `PATCH`/`PUT /api/campanas/[id]` |
 | `checklist.ts` 🟢 | Checklists con título: normalizar, validar respuestas, límites (`MAX_SECCIONES`...) | Formulario de campaña, aportar, API |
 | `sistema.ts` | Consultas del panel del SuperUsuario (listado, conteos, dashboard). Exigen sesión raíz | `/sistema/campanas/**` |
 | `sistema-opciones.ts` 🟢 | Constantes y tipos de esas pantallas (pestañas, etiquetas, órdenes) | `/sistema/campanas/filtros.tsx` |
@@ -88,6 +89,7 @@
 | `supervisores.ts` | Lista de supervisores y su actividad | `/usuarios/supervisores/**` |
 | `revisor.ts` | Retirar a alguien como revisor de todas sus campañas | `revocarRol` (al quitar el rol de revisor) |
 | `rol-asignable.ts` 🟢 | Nombres y descripciones de roles para la interfaz | Panel |
+| `perfil.ts` 🟢 | Largos máximos de los campos del perfil (`errorDeLargo`) y `interesesValidos()` contra `lib/intereses.ts` | `POST /api/usuarios`, `PATCH /api/usuarios/[id]` |
 | `acciones-usuarios.ts` ⚡ | `asignarRol`, `revocarRol`, `aplicarSancion`, `restaurarAcceso` | `/usuarios/[id]/{roles,sancion}`, `/usuarios/sanciones` |
 | `acciones-supervisor.ts` ⚡ | `revertirAccion` (**sin implementar**) | `/usuarios/supervisores/[id]/revertir/...` |
 

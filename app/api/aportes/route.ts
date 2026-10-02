@@ -191,7 +191,8 @@ export async function POST(request: Request) {
             description,
             "foto",
             saved.relativePath,
-            file.name,
+            // Sin nombre original: el del teléfono puede traer nombres o fechas, y nadie lo usa.
+            null,
             saved.mimeType,
             saved.sizeBytes,
             JSON.stringify(caracteristicas),

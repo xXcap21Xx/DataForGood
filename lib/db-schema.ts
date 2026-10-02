@@ -324,6 +324,9 @@ export async function ensureAportesTable(): Promise<void> {
     -- Aporte sin cuenta: HMAC-SHA256 de la IP con ANONIMO_IP_SECRETO (lib/aportes/anonimato.ts).
     -- Nunca la IP en claro. Sirve para el bloqueo global por red.
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS ip_hmac CHAR(64);
+    -- Espera entre aportes anónimos: último aporte del dispositivo y de la red, en cualquier campaña.
+    CREATE INDEX IF NOT EXISTS aportes_anonimo_fecha_idx ON aportes (anonimo_id, submitted_at) WHERE anonimo_id IS NOT NULL;
+    CREATE INDEX IF NOT EXISTS aportes_ip_fecha_idx ON aportes (ip_hmac, submitted_at) WHERE ip_hmac IS NOT NULL;
     -- Marca "Contenido inapropiado" (creador o revisor) de un aporte anónimo. Solo
     -- estos cuentan para el bloqueo global del dispositivo (lib/aportes/sanciones-anonimas.ts).
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS inapropiado BOOLEAN NOT NULL DEFAULT false;

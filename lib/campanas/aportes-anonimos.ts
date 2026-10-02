@@ -97,6 +97,21 @@ export async function segundosDeEspera(
   return Math.max(0, Number(rows[0]?.faltan ?? 0));
 }
 
+/**
+ * Igual, pero contando el último aporte anónimo de la red (aportes.ip_hmac). Se aplica
+ * solo a envíos SIN cookie: sin ella cada envío era un "dispositivo nuevo" y se saltaba
+ * la espera. Quien ya tiene cookie no espera por lo que mandan otros en su red.
+ */
+async function segundosDeEsperaDeRed(ipHmac: string | null, client: Pick<PoolClient, "query"> = pool): Promise<number> {
+  if (!ipHmac) return 0;
+  const { rows } = await client.query<{ faltan: number | null }>(
+    `SELECT CEIL(EXTRACT(EPOCH FROM (MAX(submitted_at) + make_interval(secs => $2) - LOCALTIMESTAMP)))::int AS faltan
+     FROM aportes WHERE ip_hmac = $1`,
+    [ipHmac, ESPERA_ENTRE_APORTES_SEGUNDOS]
+  );
+  return Math.max(0, Number(rows[0]?.faltan ?? 0));
+}
+
 function mensajeDeEspera(segundos: number): string {
   return `Espera ${segundos} ${segundos === 1 ? "segundo" : "segundos"} antes de enviar otro aporte.`;
 }
@@ -152,7 +167,7 @@ export async function enviarAporteAnonimo(entrada: {
   }
 
   // Aviso rápido de la espera, antes de subir nada; la comprobación que cuenta va en la transacción.
-  const faltan = await segundosDeEspera(anonimoId);
+  const faltan = Math.max(await segundosDeEspera(anonimoId), dispositivoNuevo ? await segundosDeEsperaDeRed(ipHmac) : 0);
   if (faltan > 0) return { ok: false, status: 429, error: mensajeDeEspera(faltan), esperaSegundos: faltan };
 
   const descripcion = entrada.descripcion.trim();
@@ -185,7 +200,14 @@ export async function enviarAporteAnonimo(entrada: {
       // Candado por dispositivo (el de la cuota es por campaña): dos envíos simultáneos a
       // campañas distintas tampoco se saltan la espera.
       await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [`espera:${anonimoId}`]);
-      const segundos = await segundosDeEspera(anonimoId, client);
+      // Sin cookie, además un candado por red: varios envíos sin cookie a la vez esperan entre sí.
+      if (dispositivoNuevo && ipHmac) {
+        await client.query(`SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`, [`espera-red:${ipHmac}`]);
+      }
+      const segundos = Math.max(
+        await segundosDeEspera(anonimoId, client),
+        dispositivoNuevo ? await segundosDeEsperaDeRed(ipHmac, client) : 0
+      );
       return segundos > 0 ? { error: mensajeDeEspera(segundos), esperaSegundos: segundos } : null;
     },
     contar: async (client) => {

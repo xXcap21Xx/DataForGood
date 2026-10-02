@@ -11,6 +11,17 @@ import { startVerification } from "@/lib/verification";
 const MAX_FAILED_ATTEMPTS = 5;
 const LOCK_DURATION_MS = 1000 * 60 * 15; // 15 minutos
 
+// Misma respuesta si el correo no existe, si la cuenta es solo de Google o si la
+// contraseña está mal: antes el mensaje distinto revelaba qué correos tienen cuenta.
+const CREDENCIALES_INCORRECTAS = "Correo o contraseña incorrectos. Si te registraste con Google, usa el botón de Google.";
+// Hash bcrypt de relleno: se compara aunque no haya contraseña que revisar, para que
+// la respuesta tarde lo mismo exista o no la cuenta.
+const HASH_DE_RELLENO = "$2b$10$KP9PLyK6L22XafVtFtSJGuxFPH4/m6urZ9MWGa1p7GGKY1i/DyKMm";
+
+function credencialesIncorrectas() {
+  return NextResponse.json({ error: CREDENCIALES_INCORRECTAS }, { status: 401 });
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -41,10 +52,8 @@ export async function POST(request: Request) {
     );
 
     if (result.rowCount === 0) {
-      return NextResponse.json(
-        { error: "Correo o contraseña incorrectos" },
-        { status: 401 }
-      );
+      await verifyPassword(password, HASH_DE_RELLENO);
+      return credencialesIncorrectas();
     }
 
     const usuario = result.rows[0];
@@ -60,10 +69,8 @@ export async function POST(request: Request) {
     }
 
     if (!usuario.password_hash) {
-      return NextResponse.json(
-        { error: "Esta cuenta usa Google para iniciar sesión. Usa el botón de Google." },
-        { status: 400 }
-      );
+      await verifyPassword(password, HASH_DE_RELLENO);
+      return credencialesIncorrectas();
     }
 
     const passwordMatches = await verifyPassword(password, usuario.password_hash);
@@ -77,10 +84,7 @@ export async function POST(request: Request) {
         [usuario.id, attempts, lockUntil]
       );
 
-      return NextResponse.json(
-        { error: "Correo o contraseña incorrectos" },
-        { status: 401 }
-      );
+      return credencialesIncorrectas();
     }
 
     if (wasLegacyHash(usuario.password_hash)) {
@@ -127,11 +131,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ message: "Sesión iniciada", data: usuario }, { status: 200 });
   } catch (error) {
+    // El detalle se queda en el log: mandarlo al navegador exponía errores internos.
     console.error("POST /api/auth/login:", error);
-    const detail = error instanceof Error ? error.message : String(error);
-    return NextResponse.json(
-      { error: "No se pudo iniciar sesión", detail },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "No se pudo iniciar sesión" }, { status: 500 });
   }
 }

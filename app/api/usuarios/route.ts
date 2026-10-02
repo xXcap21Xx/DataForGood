@@ -8,6 +8,7 @@ import { hashPassword } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
 import { getSessionUser } from "@/lib/session";
+import { errorDeLargo, interesesValidos } from "@/lib/usuarios/perfil";
 
 // POST: registro. Crea la cuenta sin verificar y envía el código por correo.
 export async function POST(request: Request) {
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const state = String(body.state ?? "").trim();
     const city = String(body.city ?? "").trim();
     const specialty = String(body.specialty ?? "").trim();
-    const intereses = Array.isArray(body.intereses) ? body.intereses : [];
+    const intereses = interesesValidos(body.intereses);
     // Nunca se leen roles del body: antes cualquiera podía registrarse como supervisor.
     const roles = ["usuario"];
 
@@ -30,6 +31,10 @@ export async function POST(request: Request) {
         { error: "nombre, apellidos, email y password (mínimo 6 caracteres) son obligatorios" },
         { status: 400 }
       );
+    }
+    const errorLargo = errorDeLargo({ nombre, apellidos, state, city, specialty });
+    if (errorLargo || email.length > 255) {
+      return NextResponse.json({ error: errorLargo ?? "El correo es demasiado largo" }, { status: 400 });
     }
 
     if (!isValidEmail(email)) {

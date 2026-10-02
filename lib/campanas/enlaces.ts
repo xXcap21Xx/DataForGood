@@ -243,8 +243,33 @@ export async function buscarEnlacePorToken(token: string): Promise<ResultadoDeTo
   return { tipo: "valido", enlace, campana };
 }
 
-/** Suma una visita a un enlace vigente. Cuenta cada apertura de /c/[token], no personas distintas. */
-export async function registrarVisita(enlaceId: number): Promise<void> {
+/**
+ * Visitas ya contadas, por enlace y visitante, en memoria (se reinicia con cada despliegue,
+ * como el tope por IP). Antes cada recarga sumaba una visita y la métrica se inflaba.
+ */
+const VENTANA_DE_VISITA_MS = 30 * 60 * 1000;
+const visitasRecientes = new Map<string, number>();
+let ultimaPodaDeVisitas = 0;
+
+function yaContada(enlaceId: number, visitante: string): boolean {
+  const ahora = Date.now();
+  if (ahora - ultimaPodaDeVisitas > 60_000) {
+    ultimaPodaDeVisitas = ahora;
+    for (const [clave, desde] of visitasRecientes) if (ahora - desde > VENTANA_DE_VISITA_MS) visitasRecientes.delete(clave);
+  }
+  const clave = `${enlaceId}:${visitante}`;
+  const desde = visitasRecientes.get(clave);
+  if (desde !== undefined && ahora - desde <= VENTANA_DE_VISITA_MS) return true;
+  visitasRecientes.set(clave, ahora);
+  return false;
+}
+
+/**
+ * Suma una visita a un enlace vigente. El mismo visitante (IP) cuenta una vez cada
+ * 30 minutos por enlace: son aperturas aproximadas, no personas exactas.
+ */
+export async function registrarVisita(enlaceId: number, visitante: string): Promise<void> {
+  if (yaContada(enlaceId, visitante)) return;
   await pool.query(
     `UPDATE campana_enlaces SET visitas = visitas + 1
      WHERE id = $1 AND revocado_en IS NULL AND expira_en > NOW()`,
