@@ -23,7 +23,9 @@
         "aporteId": 1,
         "usuarioId": 1,
         "notificacionId": 1,
-        "datosId": 1
+        "datosId": 1,
+        "enlaceToken": "",
+        "bloqueoId": 1
       }
     },
     {
@@ -438,7 +440,7 @@
         "mimeType": "application/json",
         "text": "{\n  \"contributionId\": \"{{ _.aporteId }}\",\n  \"reason\": \"Motivo del baneo\"\n}"
       },
-      "description": "Solo el creador. Se banea a quien envió ese aporte.",
+      "description": "Solo el creador. Se banea a quien envió ese aporte; si el aporte es anónimo, se bloquea su dispositivo en la campaña.",
       "metaSortKey": 21
     },
     {
@@ -476,6 +478,27 @@
       "metaSortKey": 21.2
     },
     {
+      "_id": "req_26c",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Desbloquear dispositivo anónimo",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/baneos",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"bloqueoId\": {{ _.bloqueoId }}\n}"
+      },
+      "description": "Solo el creador. bloqueoId sale de \"dispositivos\" en el GET de baneos o de dispositivoBloqueadoId en el detalle del aporte.",
+      "metaSortKey": 21.3
+    },
+    {
       "_id": "req_27",
       "_type": "request",
       "parentId": "fld_campanas",
@@ -487,6 +510,71 @@
       "body": {},
       "description": "Ojo: solo pide sesión, no revisa permisos (pendiente conocido).",
       "metaSortKey": 22
+    },
+    {
+      "_id": "req_27a",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Enlace público de la campaña",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/enlace",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Cualquiera con sesión. Visitas, aportes recibidos y permiteAnonimos completos solo para el creador. Copia data.token a enlaceToken del entorno.",
+      "metaSortKey": 22.1
+    },
+    {
+      "_id": "req_27b",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Generar o regenerar enlace público",
+      "method": "POST",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/enlace",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Solo el creador, con la campaña activa. Revoca el enlace anterior.",
+      "metaSortKey": 22.2
+    },
+    {
+      "_id": "req_27c",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Permitir o cortar aportes sin cuenta",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/enlace",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"permiteAnonimos\": false\n}"
+      },
+      "description": "Solo el creador. No toca los aportes anónimos ya recibidos.",
+      "metaSortKey": 22.3
+    },
+    {
+      "_id": "req_27d",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "QR del enlace público",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/qr",
+      "headers": [],
+      "parameters": [
+        {
+          "name": "formato",
+          "value": "png"
+        }
+      ],
+      "body": {},
+      "description": "Cualquiera con sesión. formato png o svg. 410 si el enlace caducó.",
+      "metaSortKey": 22.4
     },
     {
       "_id": "fld_aportes",
@@ -560,6 +648,37 @@
       "metaSortKey": 25
     },
     {
+      "_id": "req_30a",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Aporte anónimo desde enlace (multipart)",
+      "method": "POST",
+      "url": "{{ _.base }}/api/c/{{ _.enlaceToken }}/aportes",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "multipart/form-data"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "description",
+            "value": "Foto tomada sin cuenta"
+          },
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          }
+        ]
+      },
+      "description": "SIN sesión: cierra sesión antes o responde 409. Crea la cookie anonimo_id en la primera respuesta. 403 si la campaña no permite anónimos o el dispositivo está bloqueado; 429 por la espera de 60 s o el tope por IP.",
+      "metaSortKey": 25.1
+    },
+    {
       "_id": "req_31",
       "_type": "request",
       "parentId": "fld_aportes",
@@ -615,6 +734,27 @@
       "metaSortKey": 28
     },
     {
+      "_id": "req_33a",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Rechazar aporte anónimo como inapropiado",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"status\": \"rechazado\",\n  \"rejectionReason\": \"Contenido ofensivo\",\n  \"inapropiado\": true\n}"
+      },
+      "description": "Solo aportes anónimos. Con 3 inapropiados del mismo dispositivo en 30 días, se bloquea 30 días junto con su red.",
+      "metaSortKey": 28.1
+    },
+    {
       "_id": "req_34",
       "_type": "request",
       "parentId": "fld_aportes",
@@ -639,6 +779,32 @@
       "body": {},
       "description": "",
       "metaSortKey": 30
+    },
+    {
+      "_id": "req_35a",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Borrar archivo de aporte anónimo",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}/archivo",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Solo el creador y solo aportes anónimos. Borra el archivo de MinIO; la fila se conserva y el GET responde 410.",
+      "metaSortKey": 30.1
+    },
+    {
+      "_id": "req_35b",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Marcar aporte anónimo como inapropiado",
+      "method": "POST",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}/inapropiado",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Creador o revisor aceptado. No cambia el estado del aporte.",
+      "metaSortKey": 30.2
     },
     {
       "_id": "fld_otros",
