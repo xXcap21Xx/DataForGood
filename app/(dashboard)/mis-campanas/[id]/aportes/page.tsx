@@ -117,7 +117,41 @@ export default function BandejaAportesPage() {
           {inbox.length === 0 ? "Aún no llegan aportes a esta campaña." : "No hay aportes en este estado."}
         </p>
       ) : (
-        <div className="overflow-hidden rounded-lg border border-line">
+        <>
+          <div className="space-y-3 md:hidden">
+            {visibles.map((item) => (
+              <article key={item.id} className="rounded-lg border border-line bg-surface p-3.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-sm font-semibold text-ink">{item.participantName}</p>
+                    <p className="mt-1 font-mono text-[11.5px] text-ink-3">
+                      {new Date(item.submittedAt).toLocaleDateString("es-MX", {
+                        day: "numeric",
+                        month: "short",
+                      })} · {new Date(item.submittedAt).toLocaleTimeString("es-MX", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </p>
+                  </div>
+                  <Tag tone={item.status === "espera_final" ? "warn" : "default"}>
+                    {STAGE_LABEL[item.status]}
+                  </Tag>
+                </div>
+                <p className="mt-3 break-words text-[13px] text-ink-2">{item.description}</p>
+                <p className="mt-2 text-[12px] text-ink-2">Tipo: {item.fileType}</p>
+                <ButtonLink
+                  href={`/mis-campanas/${campaign.id}/aportes/${item.id}`}
+                  size="sm"
+                  className="mt-3 w-full justify-center"
+                >
+                  Abrir
+                </ButtonLink>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-hidden rounded-lg border border-line md:block">
           <table className="w-full text-left text-[13px]">
             <thead className="bg-sunken text-[11px] uppercase tracking-wide text-ink-3">
               <tr>
@@ -161,7 +195,8 @@ export default function BandejaAportesPage() {
               ))}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
 
       {!campaign.hasReviewerAssigned && (

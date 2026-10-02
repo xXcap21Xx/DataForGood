@@ -50,7 +50,7 @@ export default function ReviewerCampaignPage() {
         <Tag tone={campaign.status === "finalizada" ? "default" : "on"}>{campaign.status === "finalizada" ? "Finalizada" : "En curso"}</Tag>
       </div>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-2">
+      <div className="mb-6 grid grid-cols-2 gap-4">
         <section className="rounded-lg border border-warn-tint bg-warn-tint p-5"><p className="text-[12px] font-bold uppercase tracking-wide text-warn">Por aceptar</p><p className="mt-2 text-3xl font-extrabold text-ink">{pending.length}</p><p className="mt-1 text-[13px] text-ink-2">Aportes que requieren tu revisión.</p></section>
         <Link href={`/revisiones/campanas/${campaignId}/usuarios`} className="rounded-lg border border-line bg-surface p-5 shadow-sm transition-colors hover:border-accent"><p className="text-[12px] font-bold uppercase tracking-wide text-ok">Aceptados por ti</p><p className="mt-2 text-3xl font-extrabold text-ink">{accepted.length}</p><p className="mt-1 text-[13px] text-ink-2">Explora usuarios y sus aportes aceptados.</p><p className="mt-4 text-[13px] font-bold text-accent">Ver usuarios →</p></Link>
       </div>
