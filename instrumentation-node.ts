@@ -2,6 +2,25 @@
 // su propio archivo porque Next también analiza instrumentation.ts para el
 // runtime Edge, donde process.exit y `pg` no existen.
 import { ensureCoreSchema } from "@/lib/db-schema";
+import { ejecutarBajasVencidas } from "@/lib/usuarios/baja";
+
+const UNA_HORA_MS = 60 * 60 * 1000;
+
+/**
+ * Borrado definitivo de las cuentas cuyo plazo de baja venció (lib/usuarios/baja.ts).
+ * No hay cron en el servidor: corre al arrancar y luego cada hora en este mismo proceso.
+ * La marca en globalThis evita dos temporizadores si Next recarga el módulo en desarrollo.
+ */
+function programarBajasVencidas(): void {
+  const marca = globalThis as typeof globalThis & { __bajasProgramadas?: boolean };
+  if (marca.__bajasProgramadas) return;
+  marca.__bajasProgramadas = true;
+
+  const correr = () =>
+    ejecutarBajasVencidas().catch((error) => console.error("Error al ejecutar las bajas de cuenta vencidas", error));
+  void correr();
+  setInterval(correr, UNA_HORA_MS).unref();
+}
 
 export async function crearEsquemaAlArrancar(): Promise<void> {
   // Falta de configuración: reintentar no sirve de nada, así que se avisa
@@ -20,6 +39,7 @@ export async function crearEsquemaAlArrancar(): Promise<void> {
   for (let intento = 1; ; intento++) {
     try {
       await ensureCoreSchema();
+      programarBajasVencidas();
       return;
     } catch (error) {
       if (intento >= INTENTOS) {

@@ -49,21 +49,22 @@ DataForGood conecta organizaciones con personas que aportan información en camp
   - **`/api/docs` en producción sigue pidiendo sesión raíz:** abrirlo sin sesión lo bloqueó el control de permisos; queda a decisión del usuario.
   - **Temática de campaña:** `ui/SelectorDeTemas` con `unica` (una sola temática) en `NuevaCampanaForm`, en vez de mostrar todas.
   - **Registro en 4 pasos:** `/bienvenida` tiene paso 3 (estado y municipio, se guardan al dar "Siguiente") y paso 4 (especialidad e intereses); `/registro` y `/verificar` dicen "de 4".
+  - **Eliminar cuenta** (SCR-WEB-31): `/cuenta/eliminar` → `DELETE /api/usuarios/[id]` → `/baja-solicitada`. Reglas en `references/dominio.md` § 1 (baja voluntaria); lógica en `lib/usuarios/baja.ts`. El borrado definitivo lo corre `instrumentation-node.ts` al arrancar y cada hora (no hay cron). La contraseña actual se comprueba con `lib/usuarios/contrasena-actual.ts` (también en el cambio de contraseña).
   - `docker-compose.override.yml` (en `.gitignore`) publica la consola de MinIO en `127.0.0.1:9001` solo en local.
   - **Producción:** subir varios aportes tumbó el servidor (sharp + mozjpeg a resolución completa, sin fila ni tope de memoria; plan en la memoria del proyecto) y después `POST /api/aportes` da 500 con Postgres funcionando: probablemente MinIO. Falta el log del servidor. Aparte: un cuerpo de más de 10 MB llega cortado por `proxy.ts` (`proxyClientMaxBodySize`) y da 500 en lugar de 413 (la app lo evita en el navegador; pasa con Swagger o curl).
 - **Pendiente:**
   - **Antes del próximo despliegue:** correr una vez `scripts/limpiar-metadatos.mjs` en el servidor (lista; luego `--aplicar`) y que el puerto de la app solo sea accesible desde el proxy (el tope y la espera por IP confían en `X-Forwarded-For`; lo está consultando el usuario con el encargado).
   - **Pantallas a 360 px: las hace Gerard** (otro colaborador). No tocar el responsivo móvil ni los estilos de `globals.css` por iniciativa propia; si un cambio afecta el móvil, avisar.
   - Números provisionales (`TODO(dominio)`): 3 inapropiados en 30 días → 30 días de bloqueo, 60 s de espera, 20 aportes anónimos por IP por hora, 50 MP.
-  - **Botones sin función:** "Eliminar cuenta", los indicadores de "Preferencias" y el interruptor de "Privacidad" en `/cuenta`, y el buscador de la barra superior (no busca nada).
+  - **Botones sin función:** los indicadores de "Preferencias" y el interruptor de "Privacidad" en `/cuenta`, y el buscador de la barra superior (no busca nada).
   - Favicon: sigue el de Next; se puede usar el ícono de `public/logo.svg`.
 
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
 | Documentación de la API | `/api/docs` (Swagger UI de `openapi.yaml`) | Abierta en `next dev`; sesión raíz en producción. Para probar como SuperUsuario: `POST /api/auth/root/token` → **Authorize** (`rootBearer`) |
 | Pública | `/`, `/explorar` (campañas activas), `/datos`, `/datos/[id]`, `/c/[token]` (enlace público de una campaña), `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
-| Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario); `/cuenta-bloqueada` (fuera del grupo: cuenta suspendida o baneada) | Libre |
-| Participar, `(dashboard)` | `/campanas`, `/campanas/[id]`, `/campanas/[id]/aportar`, `/mis-aportes`, `/mis-aportes/[campanaId]`, `/cuenta` | Sesión de usuario |
+| Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario); `/cuenta-bloqueada` (fuera del grupo: cuenta suspendida o baneada); `/baja-solicitada` (fuera del grupo: confirmación de la baja) | Libre |
+| Participar, `(dashboard)` | `/campanas`, `/campanas/[id]`, `/campanas/[id]/aportar`, `/mis-aportes`, `/mis-aportes/[campanaId]`, `/cuenta`, `/cuenta/eliminar` | Sesión de usuario |
 | Administrar campañas propias | `/mis-campanas`, `/mis-campanas/nueva` (`?edit=id`), `/mis-campanas/[id]/{panel, aportes, aportes/[aporteId], aportes/agregar-revisor, especial}` (compartir es un cuadro en `/campanas/[id]`) | Creador |
 | Revisión de aportes | `/revisiones`, `/revisiones/finalizadas`, `/revisiones/[aporteId]`, `/revisiones/campanas/[campaignId]/usuarios/...` | Revisor aceptado de la campaña |
 | Supervisión (usuario promovido) | `/supervision`, `/supervision/campanas`, `/supervision/[campaignId]/{panel, usuarios/...}` | Rol `supervisor` |

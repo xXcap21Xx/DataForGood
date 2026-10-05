@@ -70,6 +70,7 @@ paths:
                 properties:
                   message: { type: string }
                   data: { $ref: "#/components/schemas/User" }
+                  bajaCancelada: { type: boolean, description: "true si la cuenta tenía una baja en curso: iniciar sesión la canceló" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401":
           description: Correo o contraseña incorrectos, correo inexistente o cuenta solo de Google (misma respuesta para no revelar qué correos existen)
@@ -362,6 +363,51 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+    delete:
+      tags: [Usuarios]
+      summary: Pedir la baja de la propia cuenta
+      description: |
+        Solo la cuenta propia. Exige `confirmacion: "ELIMINAR"` y, si la cuenta tiene contraseña,
+        `contrasena` (una equivocada suma al bloqueo del login, 423 al llegar a 5). Las cuentas de
+        Google no la mandan. Efectos inmediatos: se cierran todas las sesiones, las campañas propias
+        activas o pausadas se finalizan y las que no tienen aportes (y no están finalizadas) se borran.
+        A los 30 días se aplica `destino` a los aportes y la cuenta se vacía de datos personales;
+        iniciar sesión antes lo cancela. Los aportes aceptados en campañas finalizadas nunca se borran
+        (con `eliminar` se anonimizan). Bitácora: `usuario.baja_solicitar`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [destino, confirmacion]
+              properties:
+                destino: { type: string, enum: [eliminar, anonimizar, autoria] }
+                confirmacion: { type: string, enum: [ELIMINAR] }
+                contrasena: { type: string, format: password, description: Obligatoria si la cuenta tiene contraseña }
+            example: { destino: anonimizar, confirmacion: ELIMINAR, contrasena: "Contraseña123!" }
+      responses:
+        "200":
+          description: Baja registrada; la cookie de sesión se borra
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      efectivaEn: { type: string, format: date-time }
+                      campanasFinalizadas: { type: integer }
+                      campanasBorradas: { type: integer }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "423":
+          description: Demasiados intentos fallidos; la cuenta está bloqueada temporalmente
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
 
   /api/usuarios/{id}/contrasena:
     parameters:

@@ -30,6 +30,7 @@ No piden sesión. Archivos en `app/` (fuera de los grupos).
 | `/datos/[id]` | `app/datos/[id]/page.tsx` | S | `lib/open-data.ts` (`obtenerConjuntoAbierto`). El botón de descarga apunta a `GET /api/datos/[id]/descarga` |
 | `/contacto`, `/privacidad`, `/sobre-nosotros` | `app/<nombre>/page.tsx` | S | Texto fijo |
 | `/c/[token]` | `app/c/[token]/page.tsx` | S | Enlace público de una campaña (se comparte como enlace o QR desde `/campanas/[id]`). `lib/campanas/enlaces.ts`: `buscarEnlacePorToken` y `registrarVisita` (una visita por IP cada 30 min, en memoria). Si el token es vigente y la campaña está activa, invita a aportar: con sesión → `/campanas/[id]/aportar?enlace=<token>`; **sin sesión → formulario anónimo** (`aporte-anonimo.tsx` → `POST /api/c/[token]/aportes`; cuántos le quedan con `aportesDelDispositivo` de `lib/campanas/aportes-anonimos.ts`) y opción de `/entrar` o `/registro` con `?next=`. Si no, muestra "no válido", "ya no funciona" (revocado) o "caducó". Sin formulario si el creador apagó los aportes sin cuenta o si el dispositivo está bloqueado (`bloqueoParaLaPagina`). Es lo único que ve una persona anónima. No indexable |
+| `/baja-solicitada` | `app/baja-solicitada/page.tsx` | S | Pública (la sesión ya se cerró). Confirma la baja con lo que llega en la URL (fecha, campañas finalizadas, aportes, XP, destino); no lee la BD. "Cancelar la baja" lleva a `/entrar` |
 | `/cuenta-bloqueada` | `app/cuenta-bloqueada/page.tsx` | S | `obtenerBloqueoDeLaSesion()` de `lib/session.ts`; dibuja `components/layout/CuentaBloqueada.tsx`. Si la cuenta no está bloqueada, redirige a `/campanas` o a `/entrar` |
 | `/api/docs` | `app/api/docs/route.ts` | — | Swagger UI de `openapi.yaml`. Abierta en `next dev`; en producción pide sesión raíz (`lib/api-docs.ts`) |
 
@@ -64,7 +65,8 @@ Flujo de alta: `/registro` → `/verificar` → `/bienvenida` → `/campanas` (o
 | `/campanas/[id]/aportar` | `campanas/[id]/aportar/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true` (tus aportes, para la cuota). Envía con `POST /api/aportes` (`multipart/form-data` con el archivo). Checklists con `lib/campanas/checklist.ts`. Si la URL trae `?enlace=<token>` (viene de `/c/[token]`), lo reenvía para atribuir el aporte al enlace |
 | `/mis-aportes` | `mis-aportes/page.tsx` | C | `GET /api/campanas?misAportes=true` (campañas en las que aportaste o que guardaste) |
 | `/mis-aportes/[campanaId]` | `mis-aportes/[campanaId]/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true`. Muestra el motivo de los rechazados. Borrar un aporte no aceptado: `DELETE /api/aportes/[id]` |
-| `/cuenta` | `cuenta/page.tsx` + `PerfilForm.tsx` + `CambiarContrasena.tsx` | S + C | La página lee el usuario con `exigirUsuario()`. Los campos están deshabilitados hasta que "Editar perfil" habilita la edición y "Guardar cambios" guarda con `PATCH /api/usuarios/[id]`; la ventana de contraseña, con `PATCH /api/usuarios/[id]/contrasena` |
+| `/cuenta` | `cuenta/page.tsx` + `PerfilForm.tsx` + `CambiarContrasena.tsx` | S + C | La página lee el usuario con `exigirUsuario()`. Los campos están deshabilitados hasta que "Editar perfil" habilita la edición y "Guardar cambios" guarda con `PATCH /api/usuarios/[id]`; la ventana de contraseña, con `PATCH /api/usuarios/[id]/contrasena`. "Eliminar cuenta" lleva a `/cuenta/eliminar` |
+| `/cuenta/eliminar` | `cuenta/eliminar/page.tsx` + `EliminarCuentaForm.tsx` | S + C | Baja voluntaria (SCR-WEB-31). Resumen con `obtenerResumenDeBaja()` (`lib/usuarios/baja.ts`); el formulario elige el destino de los aportes, confirma con contraseña y ELIMINAR y manda `DELETE /api/usuarios/[id]`. Al terminar va a `/baja-solicitada` |
 
 ### Administrar campañas propias (creador)
 
@@ -172,6 +174,7 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 | `GET /api/usuarios?campanaId=&q=` | Sesión + creador de esa campaña | Busca personas para invitar como revisor (máx. 10, correo oculto) | `agregar-revisor` |
 | `GET /api/usuarios/[id]` | Sesión + la cuenta propia, o sesión raíz (cualquier id) | Perfil | Swagger |
 | `PATCH /api/usuarios/[id]` | Sesión, solo tu propio id | Actualiza perfil (estado, ciudad, especialidad, intereses...) | `/bienvenida`, `/cuenta` |
+| `DELETE /api/usuarios/[id]` | Sesión, solo tu propio id | Pide la baja: `{ destino, confirmacion: "ELIMINAR", contrasena }` (sin contraseña en cuentas de Google). Cierra las sesiones, finaliza o borra campañas propias y fija el borrado definitivo a 30 días | `/cuenta/eliminar` |
 | `PATCH /api/usuarios/[id]/contrasena` | Sesión, solo tu propio id, cuenta con contraseña | Cambia la contraseña tras revisar la actual (los fallos cuentan para el bloqueo del login). No cierra sesiones | `/cuenta` |
 
 ### Campañas

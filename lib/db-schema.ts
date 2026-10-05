@@ -35,6 +35,13 @@ export async function ensureUsuariosTable(): Promise<void> {
       verification_code_hash VARCHAR(64),
       verification_code_expires_at TIMESTAMPTZ,
       verification_attempts INTEGER NOT NULL DEFAULT 0,
+      -- Baja voluntaria (lib/usuarios/baja.ts): se pide, corre un plazo de gracia y al
+      -- vencer la fila se vacía de datos personales (eliminada_en). Nunca se borra la fila:
+      -- campanas.creator_id es ON DELETE CASCADE y se llevaría aportes de otras personas.
+      baja_solicitada_en TIMESTAMPTZ,
+      baja_efectiva_en TIMESTAMPTZ,
+      baja_destino_aportes VARCHAR(20),
+      eliminada_en TIMESTAMPTZ,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
@@ -57,6 +64,10 @@ export async function ensureUsuariosTable(): Promise<void> {
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS verification_code_expires_at TIMESTAMPTZ;
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS verification_attempts INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE usuarios ALTER COLUMN password_hash DROP NOT NULL;
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS baja_solicitada_en TIMESTAMPTZ;
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS baja_efectiva_en TIMESTAMPTZ;
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS baja_destino_aportes VARCHAR(20);
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eliminada_en TIMESTAMPTZ;
   `);
 }
 

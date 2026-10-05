@@ -915,6 +915,27 @@
       "metaSortKey": 34.5
     },
     {
+      "_id": "req_usuario_baja",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Pedir la baja de mi cuenta",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/usuarios/{{ _.usuarioId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"destino\": \"anonimizar\",\n  \"confirmacion\": \"ELIMINAR\",\n  \"contrasena\": \"Contraseña123!\"\n}"
+      },
+      "description": "Baja voluntaria con 30 días de gracia; iniciar sesión la cancela. destino: eliminar | anonimizar | autoria. Cierra la sesión.",
+      "metaSortKey": 35
+    },
+    {
       "_id": "req_40",
       "_type": "request",
       "parentId": "fld_otros",

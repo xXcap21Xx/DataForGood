@@ -200,6 +200,7 @@ export async function GET(request: Request) {
       `SELECT id, nombre, apellidos, email, role
        FROM usuarios
        WHERE email_verificado
+         AND baja_solicitada_en IS NULL
          AND id <> $1
          AND ${porCorreo ? "LOWER(email) = LOWER($2)" : "(nombre || ' ' || apellidos) ILIKE $2"}
        ORDER BY nombre, apellidos

@@ -2,9 +2,9 @@
 // Datos: exigirUsuario(). PerfilForm.tsx pinta la tarjeta superior ("Editar perfil",
 // "Cerrar sesión"), los datos personales y los intereses, y guarda con PATCH /api/usuarios/[id].
 // La contraseña se cambia en CambiarContrasena.tsx con PATCH /api/usuarios/[id]/contrasena.
-// "Eliminar cuenta" (hasta abajo) aún no hace nada.
+// "Eliminar cuenta" (hasta abajo) lleva a /cuenta/eliminar (baja voluntaria, SCR-WEB-31).
 
-import Button from "@/components/ui/Button";
+import ButtonLink from "@/components/ui/ButtonLink";
 import { exigirUsuario } from "@/lib/session";
 import PerfilForm from "./PerfilForm";
 import CambiarContrasena from "./CambiarContrasena";
@@ -165,9 +165,9 @@ export default async function CuentaPage() {
       </section>
 
       <div className="flex justify-end">
-        <Button variant="danger" size="sm">
+        <ButtonLink href="/cuenta/eliminar" variant="danger" size="sm">
           Eliminar cuenta
-        </Button>
+        </ButtonLink>
       </div>
     </div>
   );

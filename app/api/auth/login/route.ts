@@ -4,6 +4,7 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { createSession } from "@/lib/session";
+import { cancelarBajaSiPendiente } from "@/lib/usuarios/baja";
 import { verifyPassword, hashPassword, wasLegacyHash, MAX_FAILED_ATTEMPTS, LOCK_DURATION_MS } from "@/lib/password";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
@@ -124,9 +125,14 @@ export async function POST(request: Request) {
     delete usuario.failed_login_attempts;
     delete usuario.locked_until;
 
+    // Entrar dentro del plazo de gracia cancela la baja de cuenta (lib/usuarios/baja.ts).
+    const bajaCancelada = await cancelarBajaSiPendiente(usuario.id);
     await createSession(usuario.id);
 
-    return NextResponse.json({ message: "Sesión iniciada", data: usuario }, { status: 200 });
+    return NextResponse.json(
+      { message: bajaCancelada ? "Sesión iniciada. Cancelamos la baja de tu cuenta." : "Sesión iniciada", data: usuario, bajaCancelada },
+      { status: 200 }
+    );
   } catch (error) {
     // El detalle se queda en el log: mandarlo al navegador exponía errores internos.
     console.error("POST /api/auth/login:", error);

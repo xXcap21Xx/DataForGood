@@ -24,6 +24,13 @@ Fuentes: `(auth)/registro`, `verificar`, `bienvenida` y `entrar`.
 - **Perfil inicial (se puede omitir):** estado, ciudad, especialidad opcional (solo es un título informativo: **no** influye en qué campañas supervisa alguien) y temas de interés. Si se omite, se asignan etiquetas por defecto según las campañas más populares de la zona.
 - **Inicio de sesión:** correo y contraseña; hay botón "Continuar con Google" y enlace "¿Olvidaste tu contraseña?", ambos sin flujo definido todavía.
 - **Datos del usuario** (`User`): alias, email, avatar, estado, ciudad, especialidad, `xpTotal`, `level` y `streakDays`.
+- **Baja voluntaria** (SCR-WEB-31 del prototipo `DataForGood_Acceso_v2`; decisiones del usuario del 2026-10-05). Implementada en `lib/usuarios/baja.ts`:
+  - Se confirma con la contraseña (las cuentas de Google, solo escribiendo ELIMINAR) **y** escribiendo ELIMINAR. Una contraseña equivocada suma al bloqueo del login.
+  - **30 días de gracia.** Se cierran todas las sesiones; **iniciar sesión dentro del plazo cancela la baja** (contraseña o Google).
+  - Al pedirla: las campañas propias **activas o pausadas se finalizan**; las que **no tienen ningún aporte** (borrador, en revisión, aceptada) **se borran**; las finalizadas no se tocan. Esto no se revierte si la persona cancela.
+  - Destino de los aportes, a elegir: **eliminarlos**, **conservarlos anónimos** o **conservarlos con su nombre** (nombre y apellidos; el correo se borra siempre).
+  - **Aporte "ya utilizado"** = aceptado en una campaña **finalizada** (es parte de los datos abiertos). Nunca se borra: con "eliminar" se anonimiza igual. Los aceptados de campañas en curso, pendientes y rechazados sí se borran.
+  - Al vencer el plazo: se aplica el destino, sus campañas muestran "Cuenta eliminada", se borran notificaciones y guardadas, deja de ser revisor y suelta las campañas que supervisaba sin dictamen. La fila de `usuarios` **no se borra** (se vacía: `eliminada_en`), porque `campanas.creator_id` es `ON DELETE CASCADE`. El correo queda libre para un registro nuevo y se pierden XP y nivel.
 
 ## 2. Roles
 

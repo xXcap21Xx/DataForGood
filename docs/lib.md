@@ -93,7 +93,10 @@
 | `directorio.ts` | Búsqueda de usuarios, ficha, estado de la cuenta, sanciones activas | `/usuarios/**` |
 | `dashboard.ts` | Métricas de usuarios por rango de fechas | `/usuarios/dashboard` |
 | `supervisores.ts` | Lista de supervisores y su actividad | `/usuarios/supervisores/**` |
-| `revisor.ts` | Retirar a alguien como revisor de todas sus campañas | `revocarRol` (al quitar el rol de revisor) |
+| `revisor.ts` | Retirar a alguien como revisor de todas sus campañas | `revocarRol` (al quitar el rol de revisor), borrado definitivo de una cuenta |
+| `baja.ts` | Baja voluntaria: resumen, pedirla, cancelarla al iniciar sesión y borrado definitivo al vencer el plazo | `/cuenta/eliminar`, `DELETE /api/usuarios/[id]`, login y Google, `instrumentation-node.ts` (cada hora) |
+| `baja-opciones.ts` 🟢 | Constantes de la baja: 30 días, ELIMINAR, destinos de los aportes, formato de fecha | `/cuenta/eliminar`, `/baja-solicitada`, `baja.ts` |
+| `contrasena-actual.ts` | Comprueba la contraseña actual; un error suma al bloqueo del login | Cambio de contraseña, baja de cuenta |
 | `rol-asignable.ts` 🟢 | Nombres y descripciones de roles para la interfaz | Panel |
 | `perfil.ts` 🟢 | Largos máximos de los campos del perfil (`errorDeLargo`) y `interesesValidos()` contra `lib/intereses.ts` | `POST /api/usuarios`, `PATCH /api/usuarios/[id]` |
 | `acciones-usuarios.ts` ⚡ | `asignarRol`, `revocarRol`, `aplicarSancion`, `restaurarAcceso` | `/usuarios/[id]/{roles,sancion}`, `/usuarios/sanciones` |

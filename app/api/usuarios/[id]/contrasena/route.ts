@@ -4,7 +4,8 @@
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
-import { hashPassword, verifyPassword, LOCK_DURATION_MS, MAX_FAILED_ATTEMPTS } from "@/lib/password";
+import { hashPassword } from "@/lib/password";
+import { comprobarContrasenaActual } from "@/lib/usuarios/contrasena-actual";
 import { cumpleReglasDeContrasena } from "@/lib/reglas-contrasena";
 import { registrarAuditoria } from "@/lib/auditoria";
 
@@ -52,47 +53,9 @@ export async function PATCH(
       );
     }
 
-    const result = await pool.query<{ password_hash: string | null; locked_until: Date | null }>(
-      `SELECT password_hash, locked_until FROM usuarios WHERE id = $1`,
-      [Number(id)]
-    );
-    const usuario = result.rows[0];
-    if (!usuario) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-    }
-
-    if (usuario.locked_until && new Date(usuario.locked_until) > new Date()) {
-      const minutosRestantes = Math.ceil(
-        (new Date(usuario.locked_until).getTime() - Date.now()) / 60000
-      );
-      return NextResponse.json(
-        { error: `Demasiados intentos fallidos. Intenta de nuevo en ${minutosRestantes} minuto(s)` },
-        { status: 423 }
-      );
-    }
-
-    if (!usuario.password_hash) {
-      return NextResponse.json(
-        { error: "Esta cuenta inicia sesión con Google y no tiene contraseña" },
-        { status: 400 }
-      );
-    }
-
-    if (!(await verifyPassword(actual, usuario.password_hash))) {
-      // Suma y bloquea en una sola sentencia: dos intentos a la vez no se pisan.
-      await pool.query(
-        `UPDATE usuarios
-         SET failed_login_attempts = failed_login_attempts + 1,
-             locked_until = CASE WHEN failed_login_attempts + 1 >= $2
-                                 THEN NOW() + make_interval(secs => $3)
-                                 ELSE locked_until END
-         WHERE id = $1`,
-        [Number(id), MAX_FAILED_ATTEMPTS, LOCK_DURATION_MS / 1000]
-      );
-      return NextResponse.json(
-        { error: "La contraseña actual no es correcta" },
-        { status: 400 }
-      );
+    const comprobacion = await comprobarContrasenaActual(Number(id), actual);
+    if (!comprobacion.ok) {
+      return NextResponse.json({ error: comprobacion.error }, { status: comprobacion.status });
     }
 
     const nuevoHash = await hashPassword(nueva);

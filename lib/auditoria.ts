@@ -31,6 +31,10 @@ export type AccionAuditada =
   | "root.acceso_fallido"
   | "root.token_api"
   | "usuario.contrasena_cambiar"
+  // Baja voluntaria de cuenta (lib/usuarios/baja.ts).
+  | "usuario.baja_solicitar"
+  | "usuario.baja_cancelar"
+  | "usuario.baja_ejecutar"
   // Aportes sin cuenta y sus sanciones (lib/aportes/sanciones-anonimas.ts).
   | "aporte.anonimo_enviar"
   | "aporte.inapropiado"
