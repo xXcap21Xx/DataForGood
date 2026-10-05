@@ -110,12 +110,13 @@ function RegistroForm() {
       <div className="mb-2 text-center">
         <h1 className="text-xl font-extrabold text-ink">Crea tu cuenta</h1>
         <p className="mt-2 font-mono text-[10.5px] uppercase tracking-wider text-accent">
-          Paso 1 de 3 · Tus datos
+          Paso 1 de 4 · Tus datos
         </p>
       </div>
 
       <div className="my-5 flex gap-1.5">
         <div className="h-1 flex-1 rounded-pill bg-accent" />
+        <div className="h-1 flex-1 rounded-pill bg-line" />
         <div className="h-1 flex-1 rounded-pill bg-line" />
         <div className="h-1 flex-1 rounded-pill bg-line" />
       </div>

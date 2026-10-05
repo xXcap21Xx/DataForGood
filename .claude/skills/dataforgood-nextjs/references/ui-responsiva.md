@@ -33,7 +33,7 @@ Definidos en `app/globals.css` como variables en `:root`, expuestas a Tailwind v
 - **JetBrains Mono** (400 y 500) como `font-mono`, para números, contadores, fechas, tokens, límites de caracteres y etiquetas de sección.
 - **Escala en uso:** `text-[11px]`, `[11.5px]`, `[12px]`, `[12.5px]`, `[13px]`, `text-sm`, `[15px]`; títulos `text-xl`, `text-2xl`, `text-[26px]` y `text-[46px]` en la landing, con `font-extrabold`. Mantén esta escala; no agregues tamaños nuevos.
 
-**Animaciones:** todas van dentro de `@media (prefers-reduced-motion: no-preference)` en `globals.css`, para que quien pidió menos movimiento vea la página quieta. Las de las páginas públicas son las clases `.landing-*` con los ayudantes de `lib/animaciones.ts`; no inventes otro sistema.
+**Animaciones:** quien pidió menos movimiento ve la página quieta. Las clases `.landing-*` van dentro de `@media (prefers-reduced-motion: no-preference)` en `globals.css`; `.marca-animada` está fuera y se apaga con `@media (prefers-reduced-motion: reduce)`; la pastilla de los menús usa `motion-reduce:transition-none` y `ui/ContadorAnimado` lo revisa con `matchMedia`. Las tres formas son válidas, no las "corrijas"; en animaciones nuevas de CSS prefiere `no-preference`. Las de las páginas públicas son las clases `.landing-*` con los ayudantes de `lib/animaciones.ts`; no inventes otro sistema.
 
 ## 2. Componentes existentes
 
@@ -54,7 +54,7 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 | `layout/Logo` (+ `IconoDelLogo`) | `alto`, `tamanoIcono`, `acronimoEnMovil` | Ícono y palabra de `public/logo.svg` y `public/Texto.svg` dibujados en línea (colores `accent`/`ink`). Con el cursor encima se vuelve "DFG"; en `max-md` muestra siempre "DFG". Solo CSS. Úsalo en vez de escribir "DataForGood" con un cuadro: está en `PublicHeader`, `(auth)/layout`, `CuentaBloqueada` y `sistema/Topbar` |
 | `campanas/BarraDeFiltros` | `valores`, `tematicas`, `onCambiar`, `conVigencia` | Cliente. Búsqueda, temática, tipo de dato, vigencia (opcional) y orden de campañas. Solo dibuja: `/sistema/campanas` escribe los cambios en la URL y `/supervision`, `/supervisar` y `/revisiones` filtran en el navegador con `lib/campanas/filtro-local.ts` |
 | `layout/TopBar` | `usuario: SessionUser` | Búsqueda (`layout/BuscadorDeLaBarra`: solo en las rutas de `RUTAS_CON_BUSCADOR`: `/campanas` y `/mis-aportes`; aún no busca nada), `NotificationsBell`, avatar |
-| `ui/SelectorDeTemas` | `opciones`, `seleccionados`, `onAceptar`, `quitables` | Muestra las temáticas elegidas y abre un `<dialog>` nativo con buscador; aplica solo al dar Aceptar. En `/bienvenida` y `/cuenta` (con `quitables`: × en cada una) |
+| `ui/SelectorDeTemas` | `opciones`, `seleccionados`, `onAceptar`, `quitables`, `unica`, `deshabilitado`, `titulo`, `descripcion` | Muestra las temáticas elegidas y abre un `<dialog>` nativo con buscador; aplica solo al dar Aceptar. En `/bienvenida`, `/cuenta` (con `quitables`: × en cada una) y la temática del formulario de campaña (con `unica`: exactamente una) |
 | `layout/CuentaBloqueada` | `nombre`, `bloqueo`, `historial` | Pantalla de `/cuenta-bloqueada`: motivo y contador de sanciones |
 | `layout/VigilanteDeSesion` | — | En el layout de `(dashboard)`: revisa la sesión en cada navegación y recarga si ya no vale |
 | `layout/SidebarNav` | `usuario` (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas (tono verde); agrega Supervisión si `role` incluye `supervisor` y Revisor de aportes si incluye `revisor`. Opción activa con pastilla deslizante |
@@ -69,7 +69,7 @@ Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta 
 
 - **Chips de filtro:** `rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold`. Activo: `border-accent bg-accent text-white`. Inactivo: `border-line-2 bg-surface text-ink-2 hover:border-accent`. Si hay contador, va dentro en `font-mono`.
 - **Cajas informativas:** `rounded-lg p-3.5` o `p-4` con `text-[12.5px]`: neutra `bg-sunken text-ink-2`, aviso `bg-warn-tint text-warn`, información `border-l-4 border-accent bg-sunken text-ink-2` (no uses `bg-accent-tint` para avisos: se confundía con un botón), error `bg-danger-tint text-danger`, éxito `border border-ok bg-ok-tint text-ok`.
-- **Etiqueta de sección o de paso:** `font-mono text-[10.5px]` a `[12px] uppercase tracking-wide text-accent` o `text-ink-3` (por ejemplo "Paso 1 de 3 · Tus datos", "1 · Datos básicos").
+- **Etiqueta de sección o de paso:** `font-mono text-[10.5px]` a `[12px] uppercase tracking-wide text-accent` o `text-ink-3` (por ejemplo "Paso 1 de 4 · Tus datos", "1 · Datos básicos").
 - **Enlace de regreso:** `← Volver a …` con `text-[13px] text-ink-2 hover:text-ink`, arriba del título.
 - **Cabecera de página:** título `text-xl` o `text-2xl font-extrabold` + subtítulo `text-[13px] text-ink-2`, con acciones a la derecha.
 - **Listas de datos:** `<dl>` con filas `flex justify-between`, `dt` en `text-ink-2` y `dd` en `font-medium text-ink`.

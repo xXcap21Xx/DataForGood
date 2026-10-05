@@ -17,13 +17,13 @@ Las reglas de negocio y los puntos abiertos están en `dominio.md`, secciones 1,
 | | Usuario | SuperUsuario |
 | --- | --- | --- |
 | Archivo | `lib/session.ts` | `lib/rootSession.ts` |
-| Cookie | `session_token`, httpOnly, `SameSite=Lax`, 30 días | `root_session_token`, httpOnly, `SameSite=Strict`, 2 horas |
+| Cookie | `session_token`, httpOnly, `SameSite=Lax`, 30 días | `root_session_token`, httpOnly, `SameSite=Strict`, 2 horas; o `Authorization: Bearer <token>` |
 | Tabla | `sessions` (`usuario_id`) | `root_sessions` (sin usuario) |
 | Leer | `getSessionUser()` → `SessionUser \| null` (con `cache` de React: una consulta por petición) | `hasRootSession()` → `boolean` |
-| Crear / cerrar | `createSession(id)` / `destroySession()` | `createRootSession()` / `destroyRootSession()` |
+| Crear / cerrar | `createSession(id)` / `destroySession()` | `createRootSession()` (cookie) o `emitirTokenRoot()` (Bearer) / `destroyRootSession()` |
 
 - **Tokens:** 32 bytes aleatorios. En la BD solo se guarda su sha256.
-- **El SuperUsuario no es una fila de `usuarios`.** Su credencial está en `ROOT_USER_ID` + `ROOT_PASSWORD_HASH` (bcrypt) y entra por `/root` → `POST /api/auth/root`. Esa ruta compara sin cortocircuito y limita a 5 intentos por minuto por IP, con un `Map` en memoria.
+- **El SuperUsuario no es una fila de `usuarios`.** Su credencial está en `ROOT_USER_ID` + `ROOT_PASSWORD_HASH` (bcrypt) y entra por `/root` → `POST /api/auth/root`. Para Swagger u otro cliente, `POST /api/auth/root/token` devuelve un token Bearer de 2 horas (otra fila de `root_sessions`, sin cookie; bitácora `root.token_api`); `hasRootSession()` acepta la cookie o ese encabezado. Las dos rutas validan con `verificarCredencialRoot()` (`lib/root-acceso.ts`): sin cortocircuito, 5 intentos por minuto por IP y 30 en total, con un `Map` en memoria. Con el token responden `GET /api/usuarios` (directorio completo, `buscarUsuarios()`) y `GET /api/usuarios/[id]` (cualquier id); el resto de la API es de la cuenta de un usuario.
 - **Las dos sesiones son independientes.** Una persona con rol `supervisor` no entra al panel raíz, y la sesión raíz no sirve en `(dashboard)`.
 
 ## 2. Capas de protección
@@ -106,5 +106,5 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 - ~~**El registro acepta roles del body**~~ *Corregido el 2026-10-01: `POST /api/usuarios` guarda siempre `["usuario"]`.*
 - ~~**`GET /api/usuarios/[id]` sin sesión**~~ *Corregido el 2026-10-01: solo la cuenta propia (401/403), como el `PATCH`. Ninguna pantalla lo usaba.*
 - **`revertirAccion` no hace nada todavía:** ya exige sesión raíz, pero su lógica sigue en `TODO`. Cuando se implemente, debe registrar `supervision.revertir` en la bitácora.
-- **Buscador de revisores** (`GET /api/usuarios?campanaId=&q=`): solo el creador de esa campaña, con al menos 3 letras del nombre o un correo completo exacto. Devuelve 10 usuarios verificados como máximo, con el correo oculto (`an***@gmail.com`).
+- **Buscador de revisores** (`GET /api/usuarios?campanaId=&q=`, sin sesión raíz): solo el creador de esa campaña, con al menos 3 letras del nombre o un correo completo exacto. Devuelve 10 usuarios verificados como máximo, con el correo oculto (`an***@gmail.com`).
 - **El límite de intentos de `/root` vive en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. Hay dos límites: 5 por minuto por IP y 30 por minuto en total. La IP es el **último** valor de `X-Forwarded-For` (el que agrega el proxy), no el primero, que lo puede inventar el cliente.

@@ -26,7 +26,8 @@
 | Archivo | Qué hace | Exporta |
 | --- | --- | --- |
 | `session.ts` | Sesión del usuario: crearla, leerla, cerrarla; detectar si está bloqueado | `getSessionUser`, `exigirUsuario`, `createSession`, `destroySession`, `obtenerBloqueoDeLaSesion`, `SessionUser` |
-| `rootSession.ts` | Sesión del SuperUsuario | `createRootSession`, `hasRootSession`, `destroyRootSession` |
+| `rootSession.ts` | Sesión del SuperUsuario (cookie de `/root` o token Bearer de `POST /api/auth/root/token`) | `emitirTokenRoot`, `createRootSession`, `hasRootSession`, `destroyRootSession` |
+| `root-acceso.ts` | Valida la credencial de SuperUsuario del entorno con límite de intentos; la usan `POST /api/auth/root` y `POST /api/auth/root/token` | `verificarCredencialRoot` |
 | `password.ts` | Hash y verificación de contraseñas (bcrypt; migra hashes viejos) y límites del bloqueo por intentos fallidos | `hashPassword`, `verifyPassword`, `wasLegacyHash`, `MAX_FAILED_ATTEMPTS`, `LOCK_DURATION_MS` |
 | `reglas-contrasena.ts` 🟢 | Requisitos de una contraseña nueva (registro y `/cuenta`) | `REGLAS_DE_CONTRASENA`, `cumpleReglasDeContrasena`, `LARGO_MAXIMO_DE_CONTRASENA` |
 | `verification.ts` | Código de verificación por correo | `startVerification`, `verifyCode`, `getPendingVerification`, `PENDING_COOKIE` |

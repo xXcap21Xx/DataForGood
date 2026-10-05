@@ -1,7 +1,8 @@
 "use client";
 
-// Pantalla /bienvenida: perfil inicial tras verificar (estado, ciudad, especialidad, intereses). Se puede omitir.
-// Datos: GET /api/auth/sesion. Guarda con PATCH /api/usuarios/[id].
+// Pantalla /bienvenida: perfil inicial tras verificar, en dos pasos del registro: paso 3 (estado y
+// municipio) y paso 4 (especialidad e intereses). Se puede omitir.
+// Datos: GET /api/auth/sesion. Guarda con PATCH /api/usuarios/[id] al pasar al paso 4 y al finalizar.
 // Catálogos: lib/mexico-geo.ts, lib/intereses.ts, lib/perfil-opciones.ts.
 
 import { Suspense, useEffect, useState } from "react";
@@ -43,6 +44,8 @@ function BienvenidaForm() {
   const [city, setCity] = useState("");
   const [specialty, setSpecialty] = useState("");
   const [especialidadPersonalizada, setEspecialidadPersonalizada] = useState(false);
+  // Paso 3: ubicación. Paso 4: especialidad y temáticas.
+  const [paso, setPaso] = useState<3 | 4>(3);
 
   useEffect(() => {
     async function loadUser() {
@@ -84,27 +87,27 @@ function BienvenidaForm() {
     }
   }
 
-  async function finish() {
-    if (!user?.id) {
-      router.push(destinoSeguro(next));
-      return;
-    }
-
+  async function guardar(campos: Record<string, unknown>) {
+    if (!user?.id) return;
     try {
       await fetch(`${BASE_PATH}/api/usuarios/${user.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          state,
-          city,
-          specialty,
-          intereses: selected,
-        }),
+        body: JSON.stringify(campos),
       });
     } catch (error) {
       console.error("No se pudo guardar el perfil del usuario", error);
     }
+  }
 
+  // La ubicación se guarda ya al avanzar: si la persona cierra en el paso 4, no la pierde.
+  async function siguiente() {
+    await guardar({ state, city });
+    setPaso(4);
+  }
+
+  async function finish() {
+    await guardar({ state, city, specialty, intereses: selected });
     router.push(destinoSeguro(next));
   }
 
@@ -114,7 +117,7 @@ function BienvenidaForm() {
         <div>
           <h1 className="text-xl font-extrabold text-ink">Cuéntanos de ti</h1>
           <p className="mt-1 font-mono text-[10.5px] uppercase tracking-wider text-accent">
-            Paso 3 de 3 · Tu perfil
+            {paso === 3 ? "Paso 3 de 4 · Tu ubicación" : "Paso 4 de 4 · Tus intereses"}
           </p>
         </div>
         <Button variant="ghost" size="sm" onClick={finish}>
@@ -122,90 +125,111 @@ function BienvenidaForm() {
         </Button>
       </div>
       <p className="mb-4 text-[13px] text-ink-2">
-        Con esto te mostramos campañas relevantes y cercanas.
+        {paso === 3 ? "Con esto te mostramos campañas cercanas." : "Con esto te mostramos campañas relevantes para ti."}
       </p>
 
       <div className="mb-5 flex gap-1.5">
         <div className="h-1 flex-1 rounded-pill bg-accent" />
         <div className="h-1 flex-1 rounded-pill bg-accent" />
         <div className="h-1 flex-1 rounded-pill bg-accent" />
+        <div className={`h-1 flex-1 rounded-pill ${paso === 4 ? "bg-accent" : "bg-line"}`} />
       </div>
 
-      <Field label="Estado">
-        <select
-          value={state}
-          onChange={(e) => cambiarEstado(e.target.value)}
-          className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
-        >
-          <option value="">Selecciona un estado</option>
-          {opcionesCon(state, NOMBRES_DE_ESTADOS).map((opcion) => (
-            <option key={opcion}>{opcion}</option>
-          ))}
-        </select>
-      </Field>
+      {paso === 3 ? (
+        <>
+          <Field label="Estado">
+            <select
+              value={state}
+              onChange={(e) => cambiarEstado(e.target.value)}
+              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
+            >
+              <option value="">Selecciona un estado</option>
+              {opcionesCon(state, NOMBRES_DE_ESTADOS).map((opcion) => (
+                <option key={opcion}>{opcion}</option>
+              ))}
+            </select>
+          </Field>
 
-      <Field label="Municipio">
-        <select
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          disabled={!state}
-          className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent disabled:opacity-50"
-        >
-          <option value="">{state ? "Selecciona un municipio" : "Primero selecciona un estado"}</option>
-          {opcionesCon(city, municipiosDe(state)).map((opcion) => (
-            <option key={opcion}>{opcion}</option>
-          ))}
-        </select>
-      </Field>
+          <Field label="Municipio">
+            <select
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              disabled={!state}
+              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent disabled:opacity-50"
+            >
+              <option value="">{state ? "Selecciona un municipio" : "Primero selecciona un estado"}</option>
+              {opcionesCon(city, municipiosDe(state)).map((opcion) => (
+                <option key={opcion}>{opcion}</option>
+              ))}
+            </select>
+          </Field>
 
-      <Field
-        label="Especialidad (opcional)"
-        hint="Si más adelante te asignan el rol de supervisor, se usará para repartirte campañas de tu área."
-      >
-        <select
-          value={especialidadPersonalizada ? OTRA_ESPECIALIDAD : specialty}
-          onChange={(e) => elegirEspecialidad(e.target.value)}
-          className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
-        >
-          <option value="">Selecciona una especialidad</option>
-          {ESPECIALIDADES.map((opcion) => (
-            <option key={opcion}>{opcion}</option>
-          ))}
-          <option value={OTRA_ESPECIALIDAD}>Otra (especifica)</option>
-        </select>
-        {especialidadPersonalizada && (
-          <Input
-            value={specialty}
-            onChange={(e) => setSpecialty(e.target.value)}
-            placeholder="Escribe tu especialidad"
-            maxLength={150}
-            className="mt-2"
-          />
-        )}
-      </Field>
+          <div className="flex justify-end gap-2.5">
+            <Button variant="secondary" onClick={finish}>
+              Omitir por ahora
+            </Button>
+            <Button variant="primary" onClick={siguiente}>
+              Siguiente
+            </Button>
+          </div>
+        </>
+      ) : (
+        <>
+          <Field
+            label="Especialidad (opcional)"
+            hint="Si más adelante te asignan el rol de supervisor, se usará para repartirte campañas de tu área."
+          >
+            <select
+              value={especialidadPersonalizada ? OTRA_ESPECIALIDAD : specialty}
+              onChange={(e) => elegirEspecialidad(e.target.value)}
+              className="w-full rounded border border-line-2 bg-surface px-3.5 py-3 text-sm text-ink outline-none focus:border-accent"
+            >
+              <option value="">Selecciona una especialidad</option>
+              {ESPECIALIDADES.map((opcion) => (
+                <option key={opcion}>{opcion}</option>
+              ))}
+              <option value={OTRA_ESPECIALIDAD}>Otra (especifica)</option>
+            </select>
+            {especialidadPersonalizada && (
+              <Input
+                value={specialty}
+                onChange={(e) => setSpecialty(e.target.value)}
+                placeholder="Escribe tu especialidad"
+                maxLength={150}
+                className="mt-2"
+              />
+            )}
+          </Field>
 
-      <p className="mb-2 text-[13px] font-medium text-ink">¿Qué temas te interesan?</p>
-      {/* Con 23 temáticas, se eligen en una ventana en vez de mostrarlas todas aquí. */}
-      <div className="mb-3">
-        <SelectorDeTemas opciones={INTERESTS} seleccionados={selected} onAceptar={setSelected} />
-      </div>
-      <p className="mb-5 text-[11.5px] text-ink-3">
-        Podrás agregar o quitar etiquetas en cualquier momento desde tu perfil.
-      </p>
+          <p className="mb-2 text-[13px] font-medium text-ink">¿Qué temas te interesan?</p>
+          {/* Con 23 temáticas, se eligen en una ventana en vez de mostrarlas todas aquí. */}
+          <div className="mb-3">
+            <SelectorDeTemas opciones={INTERESTS} seleccionados={selected} onAceptar={setSelected} />
+          </div>
+          <p className="mb-5 text-[11.5px] text-ink-3">
+            Podrás agregar o quitar etiquetas en cualquier momento desde tu perfil.
+          </p>
 
-      <div className="mb-5 rounded-lg bg-sunken p-4 text-[12.5px] text-ink-2">
-        Si omites este paso te asignamos etiquetas por defecto según las
-        campañas más populares de tu zona.
-      </div>
+          <div className="mb-5 rounded-lg bg-sunken p-4 text-[12.5px] text-ink-2">
+            Si omites este paso te asignamos etiquetas por defecto según las
+            campañas más populares de tu zona.
+          </div>
 
-      <div className="flex justify-end gap-2.5">
-        <Button variant="secondary" onClick={finish}>
-          Omitir por ahora
-        </Button>
-        <Button variant="primary" onClick={finish}>
-          Finalizar y explorar campañas
-        </Button>
-      </div>
+          <div className="flex flex-wrap justify-between gap-2.5">
+            <Button variant="ghost" onClick={() => setPaso(3)}>
+              ← Atrás
+            </Button>
+            <div className="flex gap-2.5">
+              <Button variant="secondary" onClick={finish}>
+                Omitir por ahora
+              </Button>
+              <Button variant="primary" onClick={finish}>
+                Finalizar y explorar campañas
+              </Button>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

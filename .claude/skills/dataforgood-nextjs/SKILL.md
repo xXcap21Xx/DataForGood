@@ -33,16 +33,24 @@ DataForGood conecta organizaciones con personas que aportan información en camp
   - `components/sistema/Topbar` ya **no tiene buscador** (mandaba a `/campanas?q=`, inútil para el SuperUsuario) ni la insignia "SuperUsuario".
   - "Usuarios" en `components/sistema/Sidebar` apunta a `/usuarios?movil=menu`: en móvil muestra un menú (Dashboard, Directorio, Supervisores, Sanciones) y cada sección un enlace "← Menú de usuarios"; en escritorio se ve el directorio con sus pestañas.
   - `Subtabs` acepta `listaEnMovil`, `distribuidasEnMovil`, `volverAlMenuEnMovil` y `menuInicialMovil`; `MetricCard` acepta `centrado`. Directorio, supervisores, sanciones y listas de campañas usan tarjetas en móvil (`md:hidden`) y tabla en escritorio.
-- **Último avance (2026-10-04, commits `e34e979` y `8adb35d`):**
+- **2026-10-04 (commits `e34e979` y `8adb35d`):**
   - **Sección Aportes del SuperUsuario**, con pestañas Dashboard/Bandeja (`PESTANAS_APORTES`). "Aportes" del menú lateral abre `/aportes`.
     - `/aportes/dashboard` (SCR-WEB-34, `lib/aportes/dashboard.ts`): aprobados, pendientes (cola de hoy, sin importar el rango), rechazados, tasa, recolección por día/semana/mes **en hora de Tepic** (`submitted_at` es `TIMESTAMP` en UTC), tipo, temática, motivos de rechazo (texto libre: se agrupan textos idénticos) y campañas que más aportan. Rango `?rango=30d|90d|12m` con el selector de `/usuarios/dashboard`. Sin botones al pie (se quitaron a pedido del usuario).
     - `/aportes` (SCR-WEB-14, `lib/aportes/bandeja.ts`): toda la plataforma, fichas por etapa (`?etapa=pendientes|aceptado|rechazado`), búsqueda, filtro `?campana=`, paginación y aviso de si la campaña tiene revisor. **El SuperUsuario ve el registro, no el contenido:** participante ("Anónimo" sin cuenta), fecha, campaña, resumen de 90 caracteres (nada en anónimos), tipo y etapa; nunca el archivo ni el correo. `/sistema/campanas/[id]` enlaza con "Ver aportes recibidos".
     - El prototipo de origen es `DataForGood_Pantallas_Web_SuperUsuario_v16.html`; las carpetas `.tsx` sueltas que manda el usuario pueden ser de otra pantalla: revisar antes de usarlas.
   - **Ajustes de interfaz:** sin la nota gris al final de `/usuarios/supervisores/[id]`; el recuadro motivacional de los dos menús laterales ya no es azul sólido (parecía botón): fondo `accent-tint` con franja `border-accent`.
-  - **Animaciones** (todas solo con `prefers-reduced-motion: no-preference`):
+  - **Animaciones** (todas se detienen con movimiento reducido; cómo, en `references/ui-responsiva.md`):
     - Landing, `/explorar`, `/datos` y `/entrar`: `.landing-entrada` (escalonada con `retraso()`; `backwards`, no `both`, para no bloquear el hover), `.landing-revelar` (al hacer scroll, `animation-timeline: view()` dentro de `@supports`), `.landing-tarjeta` (elevación con el cursor) y `.landing-brillo` (llamado final). Ayudantes en `lib/animaciones.ts` (`retraso`, `entradaDeTarjeta`: las 6 primeras tarjetas entran al cargar, las demás con el scroll).
     - "DataForGood" del texto de la landing lleva `.marca-animada` (degradado accent/ok). Las cifras cuentan desde 0 con `ui/ContadorAnimado` (escribe en el DOM, sin estado: el lint prohíbe `setState` en efectos; el lector de pantalla oye solo el valor final).
     - Menús laterales (`sistema/Sidebar`, `layout/SidebarNav`): la opción activa la marca una pastilla que se desliza (`ui/useIndicadorDeMenu.tsx`) y se mueve al hacer clic, sin esperar a la navegación. Cada enlace lleva `data-menu-clave` (y `data-menu-tono` "accent"/"ok"); la opción marcada usa `claseDeOpcionMarcada()`, que conserva su fondo hasta que la pastilla está colocada. El separador de "Modo supervisor" es un elemento aparte. **Gerard debe revisar la pastilla en la tira horizontal del móvil.**
+- **Último avance (2026-10-05):**
+  - **Token del SuperUsuario para la API:** `POST /api/auth/root/token` (credencial del entorno → token Bearer de 2 h, bitácora `root.token_api`); `hasRootSession()` acepta la cookie o `Authorization: Bearer`. La validación de la credencial está en `lib/root-acceso.ts` (la comparten `/api/auth/root` y el token). Con el token: `GET /api/usuarios` lista a todos (`buscarUsuarios()`, 20 por página, `q`/`rol`/`estado`/`pagina`) y `GET /api/usuarios/[id]` ve cualquier id. En Swagger: **Authorize → `rootBearer`**.
+  - **`openapi.yaml`** cuadrado con los handlers (faltaba `caracteristicas` en `POST /api/aportes`, sobraba `xpPerContribution`) y sin errores de estructura (Redocly).
+  - **`/api/docs` en producción sigue pidiendo sesión raíz:** abrirlo sin sesión lo bloqueó el control de permisos; queda a decisión del usuario.
+  - **Temática de campaña:** `ui/SelectorDeTemas` con `unica` (una sola temática) en `NuevaCampanaForm`, en vez de mostrar todas.
+  - **Registro en 4 pasos:** `/bienvenida` tiene paso 3 (estado y municipio, se guardan al dar "Siguiente") y paso 4 (especialidad e intereses); `/registro` y `/verificar` dicen "de 4".
+  - `docker-compose.override.yml` (en `.gitignore`) publica la consola de MinIO en `127.0.0.1:9001` solo en local.
+  - **Producción:** subir varios aportes tumbó el servidor (sharp + mozjpeg a resolución completa, sin fila ni tope de memoria; plan en la memoria del proyecto) y después `POST /api/aportes` da 500 con Postgres funcionando: probablemente MinIO. Falta el log del servidor. Aparte: un cuerpo de más de 10 MB llega cortado por `proxy.ts` (`proxyClientMaxBodySize`) y da 500 en lugar de 413 (la app lo evita en el navegador; pasa con Swagger o curl).
 - **Pendiente:**
   - **Antes del próximo despliegue:** correr una vez `scripts/limpiar-metadatos.mjs` en el servidor (lista; luego `--aplicar`) y que el puerto de la app solo sea accesible desde el proxy (el tope y la espera por IP confían en `X-Forwarded-For`; lo está consultando el usuario con el encargado).
   - **Pantallas a 360 px: las hace Gerard** (otro colaborador). No tocar el responsivo móvil ni los estilos de `globals.css` por iniciativa propia; si un cambio afecta el móvil, avisar.
@@ -52,7 +60,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
-| Documentación de la API | `/api/docs` (Swagger UI de `openapi.yaml`) | Abierta en `next dev`; sesión raíz en producción |
+| Documentación de la API | `/api/docs` (Swagger UI de `openapi.yaml`) | Abierta en `next dev`; sesión raíz en producción. Para probar como SuperUsuario: `POST /api/auth/root/token` → **Authorize** (`rootBearer`) |
 | Pública | `/`, `/explorar` (campañas activas), `/datos`, `/datos/[id]`, `/c/[token]` (enlace público de una campaña), `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
 | Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario); `/cuenta-bloqueada` (fuera del grupo: cuenta suspendida o baneada) | Libre |
 | Participar, `(dashboard)` | `/campanas`, `/campanas/[id]`, `/campanas/[id]/aportar`, `/mis-aportes`, `/mis-aportes/[campanaId]`, `/cuenta` | Sesión de usuario |

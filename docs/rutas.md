@@ -42,7 +42,7 @@ No piden sesión. Archivos en `app/` (fuera de los grupos).
 | `/entrar` | `(auth)/entrar/page.tsx` | C | `POST /api/auth/login`. Botón de Google → `GET /api/auth/google?next=...`. Respeta `?next=` para volver a la pantalla pedida (`lib/redireccion.ts`) |
 | `/registro` | `(auth)/registro/page.tsx` | C | `POST /api/usuarios` (crea la cuenta y envía el código) → `/verificar` |
 | `/verificar` | `(auth)/verificar/page.tsx` | C | `GET /api/auth/verificar` (a qué correo se envió), `POST /api/auth/verificar` (código), `POST /api/auth/verificar/reenviar` |
-| `/bienvenida` | `(auth)/bienvenida/page.tsx` | C | `GET /api/auth/sesion`, `PATCH /api/usuarios/[id]` (estado, ciudad, especialidad, intereses). Catálogos en `lib/mexico-geo.ts`, `lib/intereses.ts`, `lib/perfil-opciones.ts` |
+| `/bienvenida` | `(auth)/bienvenida/page.tsx` | C | `GET /api/auth/sesion`. Pasos 3 y 4 del registro: paso 3, estado y municipio (se guardan al dar "Siguiente"); paso 4, especialidad e intereses. Guarda con `PATCH /api/usuarios/[id]`. Catálogos en `lib/mexico-geo.ts`, `lib/intereses.ts`, `lib/perfil-opciones.ts` |
 | `/root` | `(auth)/root/page.tsx` + `RootLoginForm.tsx` | S + C | `POST /api/auth/root` (credencial del SuperUsuario) → `/sistema` |
 
 Flujo de alta: `/registro` → `/verificar` → `/bienvenida` → `/campanas` (o el `?next=` original).
@@ -161,14 +161,16 @@ Todos los archivos están en `app/api/<ruta>/route.ts`. Respuesta: `{ data }` o 
 | `GET`, `POST /api/auth/verificar` | Cookie `pending_verification_id` | GET: correo pendiente. POST: valida el código de 6 dígitos (vence en 15 min, 3 intentos) | `/verificar` |
 | `POST /api/auth/verificar/reenviar` | Cookie pendiente | Genera y envía un código nuevo | `/verificar` |
 | `POST /api/auth/root` | Libre (5 intentos/min por IP) | Valida `ROOT_USER_ID` + `ROOT_PASSWORD_HASH` y crea la cookie `root_session_token` | `/root` |
+| `POST /api/auth/root/token` | Libre (mismo límite) | Misma credencial; devuelve un token Bearer de 2 horas (sin cookie) para usar la API desde Swagger u otro cliente. Bitácora `root.token_api` | Swagger (`/api/docs`) |
 
 ### Usuarios
 
 | Método y ruta | Acceso | Qué hace | La llama |
 | --- | --- | --- | --- |
 | `POST /api/usuarios` | Libre | Registro. Crea la cuenta sin verificar, siempre con el rol `usuario`, y envía el código | `/registro` |
+| `GET /api/usuarios?q=&rol=&estado=&pagina=` | Sesión raíz (cookie o Bearer) | Todos los usuarios del sistema, 20 por página (`buscarUsuarios()` del directorio) | Swagger |
 | `GET /api/usuarios?campanaId=&q=` | Sesión + creador de esa campaña | Busca personas para invitar como revisor (máx. 10, correo oculto) | `agregar-revisor` |
-| `GET /api/usuarios/[id]` | Sesión + la cuenta propia | Tu perfil | — |
+| `GET /api/usuarios/[id]` | Sesión + la cuenta propia, o sesión raíz (cualquier id) | Perfil | Swagger |
 | `PATCH /api/usuarios/[id]` | Sesión, solo tu propio id | Actualiza perfil (estado, ciudad, especialidad, intereses...) | `/bienvenida`, `/cuenta` |
 | `PATCH /api/usuarios/[id]/contrasena` | Sesión, solo tu propio id, cuenta con contraseña | Cambia la contraseña tras revisar la actual (los fallos cuentan para el bloqueo del login). No cierra sesiones | `/cuenta` |
 

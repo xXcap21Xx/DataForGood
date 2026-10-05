@@ -25,7 +25,8 @@
         "notificacionId": 1,
         "datosId": 1,
         "enlaceToken": "",
-        "bloqueoId": 1
+        "bloqueoId": 1,
+        "rootToken": ""
       }
     },
     {
@@ -197,6 +198,27 @@
       },
       "description": "Guarda la cookie root_session_token (2 h). Límite: 5 intentos por minuto por IP.",
       "metaSortKey": 8
+    },
+    {
+      "_id": "req_root_token",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Token SuperUsuario (Bearer)",
+      "method": "POST",
+      "url": "{{ _.base }}/api/auth/root/token",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"identificador\": \"ROOT_USER_ID\",\n  \"credencial\": \"contraseña\"\n}"
+      },
+      "description": "Devuelve data.token (2 h), sin cookie. Ponlo en la variable rootToken del entorno para usar \"Usuarios (SuperUsuario)\".",
+      "metaSortKey": 8.5
     },
     {
       "_id": "fld_campanas",
@@ -943,6 +965,44 @@
       "body": {},
       "description": "",
       "metaSortKey": 38
+    },
+    {
+      "_id": "req_usuarios_root",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Usuarios del sistema (SuperUsuario)",
+      "method": "GET",
+      "url": "{{ _.base }}/api/usuarios",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.rootToken }}"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "pagina",
+          "value": "1"
+        },
+        {
+          "name": "q",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "rol",
+          "value": "supervisor",
+          "disabled": true
+        },
+        {
+          "name": "estado",
+          "value": "ACTIVA",
+          "disabled": true
+        }
+      ],
+      "body": {},
+      "description": "Todos los usuarios, 20 por página. Requiere el token de \"Token SuperUsuario (Bearer)\".",
+      "metaSortKey": 32.5
     }
   ]
 }

@@ -6,9 +6,15 @@ info:
     Route handlers de `app/api`. Las acciones del panel del SuperUsuario
     (`/sistema`, `/usuarios`, `/supervisar`) son server actions y no aparecen aquí.
 
-    **Sesión:** se maneja con la cookie `session_token` (httpOnly). Ejecuta
+    **Sesión de usuario:** se maneja con la cookie `session_token` (httpOnly). Ejecuta
     primero `POST /api/auth/login`; el navegador (o Insomnia) guarda la cookie
     y la manda sola en las siguientes peticiones.
+
+    **SuperUsuario:** ejecuta `POST /api/auth/root/token` con la credencial de
+    SuperUsuario del entorno (`ROOT_USER_ID` y su contraseña), copia `data.token`,
+    pulsa **Authorize** y pégalo en `rootBearer`. Vale 2 horas. Con él responden
+    `GET /api/usuarios` (todos los usuarios) y `GET /api/usuarios/{id}` (cualquier id).
+    El resto de las rutas son de la cuenta de un usuario y piden `session_token`.
 
     **CSRF:** las mutaciones con un header `Origin` de otro sitio responden
     403 `Origen no permitido` (`proxy.ts`).
@@ -165,7 +171,7 @@ paths:
         - { name: code, in: query, required: true, schema: { type: string } }
         - { name: state, in: query, required: true, schema: { type: string } }
       responses:
-        "307": { description: Redirige a la pantalla de `next` (o a `/campanas`), o a `/entrar?error=...` }
+        "307": { description: "Redirige a la pantalla de `next` (o a `/campanas`), o a `/entrar?error=...`" }
 
   /api/auth/root:
     post:
@@ -191,6 +197,44 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { description: Demasiados intentos }
 
+  /api/auth/root/token:
+    post:
+      tags: [Auth]
+      summary: Obtener el token Bearer del SuperUsuario
+      description: |
+        Misma credencial y mismo límite de intentos que `POST /api/auth/root`, pero no guarda
+        cookie: devuelve un token que vale 2 horas. Pégalo en **Authorize** → `rootBearer`
+        (o mándalo como `Authorization: Bearer <token>`). Se registra en `audit_log` como
+        `root.token_api`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identificador, credencial]
+              properties:
+                identificador: { type: string, description: Valor de ROOT_USER_ID }
+                credencial: { type: string, format: password }
+      responses:
+        "201":
+          description: Token emitido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string, example: 64 caracteres hexadecimales }
+                      tipo: { type: string, example: Bearer }
+                      expiraEn: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { description: Demasiados intentos }
+
   # ---------------------------------------------------------------- Usuarios
   /api/usuarios:
     post:
@@ -211,29 +255,61 @@ paths:
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     get:
       tags: [Usuarios]
-      summary: Buscar candidatos a revisor de una campaña
-      description: Solo el creador de la campaña. Busca por nombre o por correo exacto, entre cuentas verificadas.
+      summary: Listar los usuarios del sistema (SuperUsuario) o buscar candidatos a revisor
+      description: |
+        - **SuperUsuario** (token `rootBearer` o cookie de /root): todos los usuarios del sistema,
+          20 por página, del más reciente al más antiguo. Filtros opcionales: `q`, `rol`, `estado`, `pagina`.
+        - **Usuario** (`session_token`): buscador de "agregar revisor". Exige `campanaId` (y ser su
+          creador); busca por nombre (3+ letras) o correo exacto, entre cuentas verificadas, hasta 10
+          resultados con el correo oculto.
+      security:
+        - rootBearer: []
+        - sessionCookie: []
       parameters:
-        - { name: campanaId, in: query, required: true, schema: { type: integer } }
-        - { name: q, in: query, required: false, schema: { type: string }, description: Nombre o correo }
+        - { name: q, in: query, required: false, schema: { type: string }, description: "SuperUsuario: nombre, apellidos, correo o id. Usuario: nombre o correo" }
+        - { name: rol, in: query, required: false, schema: { type: string, enum: [usuario, supervisor, revisor] }, description: Solo SuperUsuario }
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [ACTIVA, CON_STRIKES, SUSPENDIDA, BANEADA] }, description: Solo SuperUsuario }
+        - { name: pagina, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 }, description: Solo SuperUsuario }
+        - { name: campanaId, in: query, required: false, schema: { type: integer }, description: Solo usuario (obligatorio para él) }
       responses:
         "200":
-          description: Candidatos
+          description: Usuarios (SuperUsuario) o candidatos (usuario)
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id: { type: integer }
-                        nombre: { type: string }
-                        apellidos: { type: string }
-                        emailOculto: { type: string, example: "an***@correo.com" }
-                        role: { type: string }
+                oneOf:
+                  - type: object
+                    title: Directorio (SuperUsuario)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            nombre: { type: string, description: Nombre y apellidos }
+                            correo: { type: string }
+                            rol: { type: string, description: "Rol principal, legible" }
+                            roles: { type: array, items: { type: string } }
+                            estado: { type: string, enum: [ACTIVA, CON_STRIKES, SUSPENDIDA, BANEADA] }
+                            strikes: { type: integer }
+                      pagina: { type: integer }
+                      porPagina: { type: integer }
+                      total: { type: integer }
+                      totalPaginas: { type: integer }
+                  - type: object
+                    title: Candidatos a revisor (usuario)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: integer }
+                            nombre: { type: string }
+                            apellidos: { type: string }
+                            emailOculto: { type: string, example: "an***@correo.com" }
+                            role: { type: array, items: { type: string } }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -244,8 +320,13 @@ paths:
       - $ref: "#/components/parameters/Id"
     get:
       tags: [Usuarios]
-      summary: Mi perfil
-      description: Solo la cuenta propia (401 sin sesión, 403 con otro id).
+      summary: Perfil de un usuario
+      description: |
+        Un usuario solo ve su propia cuenta (401 sin sesión, 403 con otro id). El SuperUsuario
+        (`rootBearer`) ve cualquier id; para listarlos todos usa `GET /api/usuarios`.
+      security:
+        - rootBearer: []
+        - sessionCookie: []
       responses:
         "200":
           description: Usuario (columnas de la tabla, en snake_case)
@@ -256,6 +337,8 @@ paths:
                 properties:
                   data: { type: object }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
     patch:
       tags: [Usuarios]
@@ -333,7 +416,7 @@ paths:
         - { name: available, in: query, schema: { type: boolean }, description: Campañas en las que puedo aportar (excluye aquellas de las que el creador me baneó) }
         - { name: mine, in: query, schema: { type: boolean }, description: Campañas que creé (requiere sesión) }
         - { name: supervised, in: query, schema: { type: boolean }, description: Campañas que superviso (requiere sesión) }
-        - { name: misAportes, in: query, schema: { type: boolean }, description: Campañas donde aporté, con `myContributionsCount` }
+        - { name: misAportes, in: query, schema: { type: boolean }, description: "Campañas donde aporté, con `myContributionsCount`" }
       responses:
         "200":
           description: Campañas
@@ -626,8 +709,7 @@ paths:
                 type: object
                 properties:
                   data:
-                    nullable: true
-                    type: object
+                    type: [object, "null"]
                     properties:
                       url: { type: string }
                       token: { type: string }
@@ -762,6 +844,10 @@ paths:
               properties:
                 campaignId: { type: string }
                 description: { type: string, maxLength: 1000 }
+                caracteristicas:
+                  type: array
+                  items: { type: string }
+                  description: 'Respuestas de checklists ("Título: opción"); se descartan las que no existen'
                 file:
                   type: string
                   format: binary
@@ -1012,7 +1098,7 @@ paths:
                         currentContributions: { type: integer }
                         creatorName: { type: string }
                         dataTypes: { type: array, items: { type: string, enum: [foto, video, audio, documento, texto] } }
-                        endDate: { type: string, format: date, nullable: true }
+                        endDate: { type: [string, "null"], format: date }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/notificaciones:
@@ -1072,6 +1158,10 @@ components:
       in: cookie
       name: pending_verification_id
       description: La dejan el registro o un login sin verificar.
+    rootBearer:
+      type: http
+      scheme: bearer
+      description: Token del SuperUsuario. Se obtiene con `POST /api/auth/root/token` y vale 2 horas.
 
   parameters:
     Id:
@@ -1213,7 +1303,6 @@ components:
           items: { $ref: "#/components/schemas/ChecklistSeccion" }
         goalContributions: { type: integer, minimum: 1 }
         quotaPerUser: { type: integer, minimum: 1 }
-        xpPerContribution: { type: integer }
         startDate: { type: string, format: date }
         startTime: { type: string, example: "08:00" }
         endDate: { type: string, format: date }
@@ -1235,7 +1324,6 @@ components:
             opciones: [Para autos, Para peatones]
         goalContributions: 100
         quotaPerUser: 5
-        xpPerContribution: 30
         startDate: "2026-10-01"
         startTime: "08:00"
         endDate: "2026-10-31"
