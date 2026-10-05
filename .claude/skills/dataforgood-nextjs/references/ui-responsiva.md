@@ -33,6 +33,8 @@ Definidos en `app/globals.css` como variables en `:root`, expuestas a Tailwind v
 - **JetBrains Mono** (400 y 500) como `font-mono`, para números, contadores, fechas, tokens, límites de caracteres y etiquetas de sección.
 - **Escala en uso:** `text-[11px]`, `[11.5px]`, `[12px]`, `[12.5px]`, `[13px]`, `text-sm`, `[15px]`; títulos `text-xl`, `text-2xl`, `text-[26px]` y `text-[46px]` en la landing, con `font-extrabold`. Mantén esta escala; no agregues tamaños nuevos.
 
+**Animaciones:** todas van dentro de `@media (prefers-reduced-motion: no-preference)` en `globals.css`, para que quien pidió menos movimiento vea la página quieta. Las de las páginas públicas son las clases `.landing-*` con los ayudantes de `lib/animaciones.ts`; no inventes otro sistema.
+
 ## 2. Componentes existentes
 
 Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `Record` y `className` para extender.
@@ -55,7 +57,9 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 | `ui/SelectorDeTemas` | `opciones`, `seleccionados`, `onAceptar`, `quitables` | Muestra las temáticas elegidas y abre un `<dialog>` nativo con buscador; aplica solo al dar Aceptar. En `/bienvenida` y `/cuenta` (con `quitables`: × en cada una) |
 | `layout/CuentaBloqueada` | `nombre`, `bloqueo`, `historial` | Pantalla de `/cuenta-bloqueada`: motivo y contador de sanciones |
 | `layout/VigilanteDeSesion` | — | En el layout de `(dashboard)`: revisa la sesión en cada navegación y recarga si ya no vale |
-| `layout/SidebarNav` | `usuario` (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas; agrega Supervisión si `role` incluye `supervisor` |
+| `layout/SidebarNav` | `usuario` (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas (tono verde); agrega Supervisión si `role` incluye `supervisor` y Revisor de aportes si incluye `revisor`. Opción activa con pastilla deslizante |
+| `ui/useIndicadorDeMenu` | hook: `activo` → `{ navRef, visual, indicador, alElegir }`; `claseDeOpcionMarcada(tono)` | Cliente. Pastilla que se desliza a la opción activa de un menú (`SidebarNav` y `sistema/Sidebar`). El `<nav>` va `relative` con `navRef` y `{indicador}` dentro; cada enlace lleva `data-menu-clave` (+ `data-menu-tono`), `onClick={alElegir(clave)}` y, si está marcado, `claseDeOpcionMarcada()` |
+| `ui/ContadorAnimado` | `valor`, `className` | Cliente. Cifra que cuenta desde 0 al entrar en pantalla (landing); sin JS o con movimiento reducido se ve el valor final |
 
 Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta uno nuevo (Select, EmptyState), sigue las mismas convenciones. Para ventanas usa `<dialog>` nativo con `showModal()`, como `ui/SelectorDeTemas`.
 
