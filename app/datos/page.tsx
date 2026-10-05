@@ -2,6 +2,7 @@
 // Datos: lib/open-data.ts (búsqueda, temática, estado y orden en searchParams, resueltos en SQL).
 
 import Link from "next/link";
+import { entradaDeTarjeta, retraso } from "@/lib/animaciones";
 import type { Metadata } from "next";
 import PublicHeader from "@/components/layout/PublicHeader";
 import PublicFooter from "@/components/layout/PublicFooter";
@@ -78,19 +79,19 @@ export default async function CatalogoDeDatosPage({
       <PublicHeader />
 
       <main className="mx-auto max-w-5xl px-6 pb-24 pt-14">
-        <p className="mb-2 font-mono text-[10.5px] uppercase tracking-widest text-accent">
+        <p className="landing-entrada mb-2 font-mono text-[10.5px] uppercase tracking-widest text-accent">
           Datos abiertos
         </p>
-        <h1 className="max-w-2xl text-[32px] font-extrabold leading-tight tracking-tight text-ink">
+        <h1 style={retraso(80)} className="landing-entrada max-w-2xl text-[32px] font-extrabold leading-tight tracking-tight text-ink">
           Conjuntos de datos de la comunidad
         </h1>
-        <p className="mt-4 max-w-2xl text-[14.5px] leading-relaxed text-ink-2">
+        <p style={retraso(160)} className="landing-entrada mt-4 max-w-2xl text-[14.5px] leading-relaxed text-ink-2">
           {nf.format(total)} {total === 1 ? "conjunto publicado" : "conjuntos publicados"} a
           partir de campañas ya cerradas. Cada uno reúne solo aportes aprobados, sin datos que
           identifiquen a quien participó.
         </p>
 
-        <form className="mt-6 flex flex-wrap gap-2.5" action="/datos" method="get">
+        <form style={retraso(240)} className="landing-entrada mt-6 flex flex-wrap gap-2.5" action="/datos" method="get">
           {orden !== "recientes" && <input type="hidden" name="orden" value={orden} />}
           {tematica && <input type="hidden" name="tematica" value={tematica} />}
           {locationState && <input type="hidden" name="estado" value={locationState} />}
@@ -108,7 +109,7 @@ export default async function CatalogoDeDatosPage({
         </form>
 
         <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-[220px_1fr]">
-          <aside className="flex flex-col gap-6">
+          <aside style={retraso(320)} className="landing-entrada flex flex-col gap-6">
             <div>
               <div className="mb-2 flex items-baseline justify-between gap-2">
                 <p className="text-[12.5px] font-semibold text-ink">Filtros</p>
@@ -170,7 +171,7 @@ export default async function CatalogoDeDatosPage({
           </aside>
 
           <div>
-            <nav className="mb-4 flex flex-wrap gap-2" aria-label="Ordenar resultados">
+            <nav style={retraso(320)} className="landing-entrada mb-4 flex flex-wrap gap-2" aria-label="Ordenar resultados">
               {ORDENES.map((o) => (
                 <Link
                   key={o.valor}
@@ -199,9 +200,9 @@ export default async function CatalogoDeDatosPage({
               </p>
             ) : (
               <div className="flex flex-col gap-3">
-                {conjuntos.map((c) => (
-                  <Link key={c.id} href={`/datos/${c.id}`}>
-                    <Card className="transition-colors hover:border-accent">
+                {conjuntos.map((c, i) => (
+                  <Link key={c.id} href={`/datos/${c.id}`} {...entradaDeTarjeta(i)}>
+                    <Card className="landing-tarjeta hover:border-accent">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div className="flex items-center gap-2">
                           <p className="text-[15px] font-bold text-ink">{c.name}</p>

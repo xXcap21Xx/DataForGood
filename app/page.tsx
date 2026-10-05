@@ -6,9 +6,11 @@ import Link from "next/link";
 import PublicHeader from "@/components/layout/PublicHeader";
 import PublicFooter from "@/components/layout/PublicFooter";
 import ButtonLink from "@/components/ui/ButtonLink";
+import ContadorAnimado from "@/components/ui/ContadorAnimado";
 import Card from "@/components/ui/Card";
 import ProgressBar from "@/components/ui/ProgressBar";
 import Tag from "@/components/ui/Tag";
+import { retraso } from "@/lib/animaciones";
 import { pool } from "@/lib/db";
 import { DATA_TYPE_LABELS, buscarConjuntosAbiertos, contarConjuntosPublicados } from "@/lib/open-data";
 
@@ -176,19 +178,19 @@ export default async function LandingPage() {
       <PublicHeader />
 
       <main className="mx-auto max-w-4xl px-6 pb-24 pt-16 text-center">
-        <p className="mb-4 font-mono text-[10.5px] uppercase tracking-widest text-accent">
+        <p className="landing-entrada mb-4 font-mono text-[10.5px] uppercase tracking-widest text-accent">
           Plataforma de crowdsourcing de datos
         </p>
-        <h1 className="mx-auto max-w-2xl text-[46px] font-extrabold leading-[1.08] tracking-tight text-ink">
+        <h1 style={retraso(90)} className="landing-entrada mx-auto max-w-2xl text-[46px] font-extrabold leading-[1.08] tracking-tight text-ink">
           Cada dato cuenta, cuando lo cuenta la comunidad
         </h1>
-        <p className="mx-auto mt-5 max-w-xl text-[16.5px] leading-relaxed text-ink-2">
+        <p style={retraso(180)} className="landing-entrada mx-auto mt-5 max-w-xl text-[16.5px] leading-relaxed text-ink-2">
           <span className="marca-animada">DataForGood</span> conecta organizaciones con personas dispuestas a aportar
           información en campo —fotos, audio o texto— para causas sociales,
           ambientales y comunitarias.
         </p>
 
-        <div className="mt-8 flex flex-wrap justify-center gap-2.5">
+        <div style={retraso(270)} className="landing-entrada mt-8 flex flex-wrap justify-center gap-2.5">
           <ButtonLink href="/registro" variant="primary">
             Crear una campaña
           </ButtonLink>
@@ -199,11 +201,11 @@ export default async function LandingPage() {
 
         {aportesRecientes.length > 0 ? (
           <div className="mt-14 grid grid-cols-2 gap-4 md:grid-cols-4">
-            {aportesRecientes.map((post) => (
+            {aportesRecientes.map((post, i) => (
               <div
                 key={post.id}
-                className="flex flex-col justify-between rounded-lg border border-line bg-surface p-4 text-left"
-                style={{ minHeight: 140 }}
+                className="landing-entrada landing-tarjeta flex flex-col justify-between rounded-lg border border-line bg-surface p-4 text-left"
+                style={{ minHeight: 140, ...retraso(380 + i * 90) }}
               >
                 <p className="text-[13px] leading-snug text-ink">
                   &ldquo;{post.description.length > 90 ? `${post.description.slice(0, 90)}…` : post.description}&rdquo;
@@ -236,7 +238,7 @@ export default async function LandingPage() {
             { valor: cifras.organizaciones, etiqueta: "Organizaciones" },
           ].map((k) => (
             <div key={k.etiqueta}>
-              <p className="font-mono text-2xl font-extrabold text-white">{nf.format(k.valor)}</p>
+              <ContadorAnimado valor={k.valor} className="block font-mono text-2xl font-extrabold text-white" />
               <p className="mt-1 font-mono text-[10.5px] uppercase tracking-widest text-white/60">
                 {k.etiqueta}
               </p>
@@ -246,7 +248,7 @@ export default async function LandingPage() {
       </section>
 
       <section id="como-funciona" className="mx-auto max-w-4xl px-6 pb-24 pt-16">
-        <div className="mb-9 text-center">
+        <div className="landing-revelar mb-9 text-center">
           <p className="mb-2.5 font-mono text-[10.5px] uppercase tracking-widest text-ink-3">
             El proceso
           </p>
@@ -256,7 +258,7 @@ export default async function LandingPage() {
         </div>
         <ol className="grid grid-cols-1 gap-6 sm:grid-cols-3">
           {PASOS.map((p) => (
-            <li key={p.numero}>
+            <li key={p.numero} className="landing-revelar">
               <p className="mb-1.5 font-mono text-[11px] text-ink-3" aria-hidden="true">
                 {p.numero}
               </p>
@@ -269,7 +271,7 @@ export default async function LandingPage() {
 
       {campanasDestacadas.length > 0 && (
         <section className="mx-auto max-w-4xl px-6 pb-24" aria-label="Campañas destacadas">
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div className="landing-revelar mb-5 flex flex-wrap items-end justify-between gap-3">
             <h2 className="text-2xl font-extrabold text-ink">Campañas destacadas</h2>
             <Link href="/explorar" className="text-[13px] font-semibold text-accent hover:underline">
               Ver todas →
@@ -281,8 +283,8 @@ export default async function LandingPage() {
                 ? Math.min(100, Math.round((c.currentContributions / c.goalContributions) * 100))
                 : 0;
               return (
-                <Link key={c.id} href={`/campanas/${c.id}`}>
-                  <Card className="h-full transition-colors hover:border-accent">
+                <Link key={c.id} href={`/campanas/${c.id}`} className="landing-revelar block rounded-lg">
+                  <Card className="landing-tarjeta h-full hover:border-accent">
                     <div className={`-mx-4 -mt-4 mb-3 h-24 rounded-t-lg bg-gradient-to-br ${COVER_GRADIENTS[i % COVER_GRADIENTS.length]}`} />
                     <div className="mb-2 flex items-start justify-between gap-2">
                       <p className="text-[15px] font-bold text-ink">{c.name}</p>
@@ -302,7 +304,7 @@ export default async function LandingPage() {
 
       {destacados.length > 0 && (
         <section className="mx-auto max-w-4xl px-6 pb-24" aria-label="Datos abiertos">
-          <div className="mb-5 flex flex-wrap items-end justify-between gap-3">
+          <div className="landing-revelar mb-5 flex flex-wrap items-end justify-between gap-3">
             <div>
               <h2 className="text-2xl font-extrabold text-ink">Datos abiertos</h2>
               <p className="mt-1 max-w-md text-left text-[13.5px] text-ink-2">
@@ -317,8 +319,8 @@ export default async function LandingPage() {
           </div>
           <div className="grid grid-cols-1 gap-3 text-left sm:grid-cols-3">
             {destacados.slice(0, 3).map((c) => (
-              <Link key={c.id} href={`/datos/${c.id}`}>
-                <Card className="h-full transition-colors hover:border-accent">
+              <Link key={c.id} href={`/datos/${c.id}`} className="landing-revelar block rounded-lg">
+                <Card className="landing-tarjeta h-full hover:border-accent">
                   <p className="text-[14px] font-bold text-ink">{c.name}</p>
                   <p className="mt-1 text-[12px] text-ink-2">
                     {c.organizer || "Sin organización"}
@@ -341,7 +343,7 @@ export default async function LandingPage() {
         </section>
       )}
 
-      <section className="w-full bg-ink px-6 py-16 text-center">
+      <section className="landing-brillo w-full bg-ink px-6 py-16 text-center">
         <h2 className="mx-auto max-w-xl text-[26px] font-extrabold tracking-tight text-white">
           ¿Tienes un proyecto con impacto social?
         </h2>

@@ -100,6 +100,81 @@ body {
   }
 }
 
+/* ── Animaciones de la landing (app/page.tsx) ─────────────────────────────
+   Todas viven dentro de `no-preference`: quien pidió reducir el movimiento
+   ve la página quieta y completa. Sin JavaScript, salvo el contador de cifras
+   (components/ui/ContadorAnimado.tsx). */
+@media (prefers-reduced-motion: no-preference) {
+  /* Entrada escalonada al cargar; el retraso llega en --retraso. */
+  .landing-entrada {
+    /* backwards, no both: al terminar suelta el transform y deja funcionar el hover. */
+    animation: landing-subir 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+    animation-delay: var(--retraso, 0ms);
+  }
+
+  /* Aparece al entrar en pantalla con el scroll. Si el navegador no soporta
+     animaciones ligadas al scroll, el bloque se ve normal. */
+  @supports (animation-timeline: view()) {
+    .landing-revelar {
+      animation: landing-subir linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 25%;
+    }
+  }
+
+  /* Tarjetas que se elevan al pasar el cursor. */
+  .landing-tarjeta {
+    transition:
+      transform 0.25s ease,
+      box-shadow 0.25s ease,
+      border-color 0.25s ease;
+  }
+  .landing-tarjeta:hover,
+  .landing-tarjeta:focus-visible {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 28px -14px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+
+  /* Brillo lento sobre el fondo oscuro del llamado final. */
+  .landing-brillo {
+    position: relative;
+    overflow: hidden;
+    isolation: isolate;
+  }
+  .landing-brillo::before {
+    content: "";
+    position: absolute;
+    inset: -40%;
+    z-index: -1;
+    background: radial-gradient(
+      circle at center,
+      color-mix(in srgb, var(--accent) 45%, transparent),
+      transparent 55%
+    );
+    animation: landing-deriva 14s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes landing-subir {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes landing-deriva {
+  from {
+    transform: translate(-30%, -10%);
+  }
+  to {
+    transform: translate(30%, 10%);
+  }
+}
+
 .dashboard-shell {
   min-height: calc(100vh - 61px);
 }

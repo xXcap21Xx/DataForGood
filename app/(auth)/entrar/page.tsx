@@ -10,6 +10,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
 import PasswordInput from "@/components/ui/PasswordInput";
+import { retraso } from "@/lib/animaciones";
 import { BASE_PATH } from "@/lib/base-path";
 import { conDestino, destinoSeguro } from "@/lib/redireccion";
 
@@ -74,15 +75,15 @@ function EntrarForm() {
   }
 
   return (
-    <div className="rounded-lg border border-line bg-surface p-8">
-      <div className="mb-6 text-center">
+    <div className="landing-entrada rounded-lg border border-line bg-surface p-8">
+      <div style={retraso(120)} className="landing-entrada mb-6 text-center">
         <h1 className="text-xl font-extrabold text-ink">Entra a tu cuenta</h1>
         <p className="mt-1 text-[13px] text-ink-2">
           Participa en campañas o administra las tuyas.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col">
+      <form onSubmit={handleSubmit} style={retraso(220)} className="landing-entrada flex flex-col">
         <Field label="Correo" required>
           <Input
             type="email"
@@ -125,14 +126,14 @@ function EntrarForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-[13px] text-ink-2">
+      <p style={retraso(320)} className="landing-entrada mt-6 text-center text-[13px] text-ink-2">
         ¿No tienes cuenta?{" "}
         <Link href={conDestino("/registro", next)} className="font-medium text-accent hover:underline">
           Regístrate
         </Link>
       </p>
 
-      <div className="mt-6 rounded-lg bg-sunken p-4 text-[12.5px] leading-relaxed text-ink-2">
+      <div style={retraso(400)} className="landing-entrada mt-6 rounded-lg bg-sunken p-4 text-[12.5px] leading-relaxed text-ink-2">
         Toda cuenta entra como usuario común. El rol de supervisor solo lo
         asigna el SuperUsuario; el de revisor de aportes te lo ofrece quien
         creó una campaña, y lo aceptas desde tus notificaciones. Aparecen

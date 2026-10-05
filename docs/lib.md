@@ -19,6 +19,7 @@
 | `app-url.ts` | URL absoluta con `APP_ORIGIN` + `BASE_PATH` (para redirecciones y correos) | `absoluteUrl` |
 | `ip.ts` | IP real del cliente detrás del proxy | `ipDelCliente` |
 | `api-docs.ts` | Decide si se puede ver `/api/docs` | `puedeVerDocs` |
+| `animaciones.ts` 🟢 | Ayudantes de las animaciones de entrada de las páginas públicas (clases `.landing-*` de `globals.css`) | `retraso`, `entradaDeTarjeta` |
 
 ## Autenticación y cuentas
 
