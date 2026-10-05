@@ -9,12 +9,13 @@ import { usePathname } from "next/navigation";
 import { claseDeOpcionMarcada, useIndicadorDeMenu } from "@/components/ui/useIndicadorDeMenu";
 import type { SessionUser } from "@/lib/session";
 
-type Opcion = { href: string; label: string; tono: "accent" | "ok" };
+type Opcion = { href: string; label: string };
 
+// Todas las opciones se marcan en azul (accent), el color principal del sistema.
 const NAV_ITEMS: Opcion[] = [
-  { href: "/campanas", label: "Explorar", tono: "accent" },
-  { href: "/mis-aportes", label: "Mis aportes", tono: "ok" },
-  { href: "/mis-campanas", label: "Mis campañas", tono: "ok" },
+  { href: "/campanas", label: "Explorar" },
+  { href: "/mis-aportes", label: "Mis aportes" },
+  { href: "/mis-campanas", label: "Mis campañas" },
 ];
 
 export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
@@ -23,8 +24,8 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
 
   const opciones: Opcion[] = [
     ...NAV_ITEMS,
-    ...(roles.includes("supervisor") ? [{ href: "/supervision", label: "Supervisión", tono: "accent" as const }] : []),
-    ...(roles.includes("revisor") ? [{ href: "/revisiones", label: "Revisor de aportes", tono: "accent" as const }] : []),
+    ...(roles.includes("supervisor") ? [{ href: "/supervision", label: "Supervisión" }] : []),
+    ...(roles.includes("revisor") ? [{ href: "/revisiones", label: "Revisor de aportes" }] : []),
   ];
 
   const activo = opciones.find((o) => pathname.startsWith(o.href))?.href ?? null;
@@ -44,11 +45,10 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
               key={item.href}
               href={item.href}
               data-menu-clave={item.href}
-              data-menu-tono={item.tono}
               aria-current={activo === item.href ? "page" : undefined}
               onClick={alElegir(item.href)}
               className={`relative rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors duration-300 ${
-                marcada ? claseDeOpcionMarcada(item.tono) : "text-ink-2 hover:bg-sunken hover:text-ink"
+                marcada ? claseDeOpcionMarcada() : "text-ink-2 hover:bg-sunken hover:text-ink"
               }`}
             >
               {item.label}

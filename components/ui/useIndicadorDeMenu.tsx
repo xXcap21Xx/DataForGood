@@ -1,15 +1,15 @@
 "use client";
 
 // Indicador deslizante de los menús laterales (components/layout/SidebarNav y
-// components/sistema/Sidebar): una sola pastilla de color que se mueve hasta la
-// opción activa en vez de que cada enlace pinte su propio fondo.
+// components/sistema/Sidebar): una sola pastilla azul (accent, el color principal
+// del sistema) que se mueve hasta la opción activa en vez de que cada enlace pinte
+// su propio fondo.
 
 import { useLayoutEffect, useRef, useState, type MouseEvent } from "react";
 
 /**
  * `activo` es la clave de la opción que corresponde a la URL actual. Cada
- * enlace del menú lleva `data-menu-clave` (y opcionalmente `data-menu-tono`:
- * "accent" u "ok"). El `<nav>` recibe `navRef` y debe ser `relative`.
+ * enlace del menú lleva `data-menu-clave`. El `<nav>` recibe `navRef` y debe ser `relative`.
  *
  * Al hacer clic, la pastilla se mueve de inmediato a la opción elegida, sin
  * esperar a que cargue la página: `visual` es la opción que se pinta como
@@ -41,7 +41,6 @@ export function useIndicadorDeMenu(activo: string | null) {
       indicador.style.transform = `translate(${enlace.offsetLeft}px, ${enlace.offsetTop}px)`;
       indicador.style.width = `${enlace.offsetWidth}px`;
       indicador.style.height = `${enlace.offsetHeight}px`;
-      indicador.dataset.tono = enlace.dataset.menuTono ?? "accent";
       indicador.style.opacity = "1";
       // Desde aquí la pastilla pinta el fondo: el enlace activo suelta el suyo
       // (ver claseDeOpcionMarcada).
@@ -76,7 +75,7 @@ export function useIndicadorDeMenu(activo: string | null) {
     <span
       ref={indicadorRef}
       aria-hidden="true"
-      className="pointer-events-none absolute left-0 top-0 rounded-pill opacity-0 data-[tono=accent]:bg-accent data-[tono=ok]:bg-ok data-[listo=true]:transition-[transform,width,height,background-color,opacity] data-[listo=true]:duration-300 data-[listo=true]:ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none!"
+      className="pointer-events-none absolute left-0 top-0 rounded-pill bg-accent opacity-0 data-[listo=true]:transition-[transform,width,height,opacity] data-[listo=true]:duration-300 data-[listo=true]:ease-[cubic-bezier(0.2,0.7,0.2,1)] motion-reduce:transition-none!"
     />
   );
 
@@ -88,6 +87,6 @@ export function useIndicadorDeMenu(activo: string | null) {
  * está colocada (HTML del servidor, antes de hidratar): si no, el texto blanco
  * quedaría sobre fondo blanco un instante.
  */
-export function claseDeOpcionMarcada(tono: "accent" | "ok" = "accent"): string {
-  return `text-white ${tono === "ok" ? "bg-ok" : "bg-accent"} in-data-[indicador=listo]:bg-transparent`;
+export function claseDeOpcionMarcada(): string {
+  return "text-white bg-accent in-data-[indicador=listo]:bg-transparent";
 }

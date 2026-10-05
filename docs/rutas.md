@@ -40,7 +40,7 @@ No piden sesión. Archivos en `app/` (fuera de los grupos).
 
 | URL | Archivo | Tipo | Datos y acciones |
 | --- | --- | --- | --- |
-| `/entrar` | `(auth)/entrar/page.tsx` | C | `POST /api/auth/login`. Botón de Google → `GET /api/auth/google?next=...`. Respeta `?next=` para volver a la pantalla pedida (`lib/redireccion.ts`) |
+| `/entrar` | `(auth)/entrar/page.tsx` | C | `POST /api/auth/login`. Botón de Google → `GET /api/auth/google?next=...`. Respeta `?next=` para volver a la pantalla pedida (`lib/redireccion.ts`). Si el login canceló una baja de cuenta (`bajaCancelada` en la respuesta, o `?baja=cancelada` desde el regreso de Google), muestra el aviso "Tu cuenta sigue activa" y un botón "Continuar" |
 | `/registro` | `(auth)/registro/page.tsx` | C | `POST /api/usuarios` (crea la cuenta y envía el código) → `/verificar` |
 | `/verificar` | `(auth)/verificar/page.tsx` | C | `GET /api/auth/verificar` (a qué correo se envió), `POST /api/auth/verificar` (código), `POST /api/auth/verificar/reenviar` |
 | `/bienvenida` | `(auth)/bienvenida/page.tsx` | C | `GET /api/auth/sesion`. Pasos 3 y 4 del registro: paso 3, estado y municipio (se guardan al dar "Siguiente"); paso 4, especialidad e intereses. Guarda con `PATCH /api/usuarios/[id]`. Catálogos en `lib/mexico-geo.ts`, `lib/intereses.ts`, `lib/perfil-opciones.ts` |
