@@ -131,15 +131,15 @@ export default async function ExplorarCampanasPage({
                 <p className="mb-2 text-[11.5px] font-semibold uppercase tracking-wide text-ink-3">
                   Temática
                 </p>
-                <div className="flex flex-col gap-1">
+                <div className="dashboard-nav flex min-w-0 flex-row gap-2 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch] md:flex-col md:gap-1 md:overflow-visible md:pb-0">
                   {tematicas.map((t) => (
                     <Link
                       key={t.valor}
                       href={enlaceCon({ tematica: tematica === t.valor ? undefined : t.valor })}
-                      className={`flex items-center justify-between rounded px-2 py-1.5 text-[13px] ${
+                      className={`flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-pill border px-3 py-1.5 text-[12.5px] md:shrink md:rounded md:border-0 md:px-2 md:py-1.5 md:text-[13px] ${
                         tematica === t.valor
-                          ? "bg-accent-tint font-semibold text-accent"
-                          : "text-ink-2 hover:bg-sunken"
+                          ? "border-accent bg-accent-tint font-semibold text-accent"
+                          : "border-line-2 bg-surface text-ink-2 hover:bg-sunken md:border-transparent md:bg-transparent"
                       }`}
                     >
                       <span>{t.valor}</span>
@@ -155,15 +155,15 @@ export default async function ExplorarCampanasPage({
                 <p className="mb-2 text-[11.5px] font-semibold uppercase tracking-wide text-ink-3">
                   Estado
                 </p>
-                <div className="flex flex-col gap-1">
+                <div className="dashboard-nav flex min-w-0 flex-row gap-2 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch] md:flex-col md:gap-1 md:overflow-visible md:pb-0">
                   {estados.map((e) => (
                     <Link
                       key={e.valor}
                       href={enlaceCon({ estado: locationState === e.valor ? undefined : e.valor })}
-                      className={`flex items-center justify-between rounded px-2 py-1.5 text-[13px] ${
+                      className={`flex shrink-0 items-center justify-between gap-2 whitespace-nowrap rounded-pill border px-3 py-1.5 text-[12.5px] md:shrink md:rounded md:border-0 md:px-2 md:py-1.5 md:text-[13px] ${
                         locationState === e.valor
-                          ? "bg-accent-tint font-semibold text-accent"
-                          : "text-ink-2 hover:bg-sunken"
+                          ? "border-accent bg-accent-tint font-semibold text-accent"
+                          : "border-line-2 bg-surface text-ink-2 hover:bg-sunken md:border-transparent md:bg-transparent"
                       }`}
                     >
                       <span>{e.valor}</span>
@@ -176,12 +176,16 @@ export default async function ExplorarCampanasPage({
           </aside>
 
           <div>
-            <nav style={retraso(320)} className="landing-entrada mb-4 flex flex-wrap gap-2" aria-label="Ordenar resultados">
+            <nav
+              style={retraso(320)}
+              className="dashboard-nav landing-entrada mb-4 flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch] md:flex-wrap md:overflow-visible md:pb-0"
+              aria-label="Ordenar resultados"
+            >
               {ORDENES.map((o) => (
                 <Link
                   key={o.valor}
                   href={enlaceCon({ orden: o.valor === "participacion" ? undefined : o.valor })}
-                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
+                  className={`shrink-0 whitespace-nowrap rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors ${
                     orden === o.valor
                       ? "border-accent bg-accent text-white"
                       : "border-line-2 bg-surface text-ink-2 hover:border-accent"

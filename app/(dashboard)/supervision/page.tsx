@@ -2,8 +2,8 @@
 
 // Pantalla /supervision: campañas en revisión que puedes tomar y las que ya supervisas.
 // Componente cliente. Datos: GET /api/campanas, GET /api/campanas?supervised=true y GET /api/auth/sesion.
-// Filtros (búsqueda, temática, tipo de dato y orden): components/campanas/BarraDeFiltros.tsx,
-// aplicados en el navegador con lib/campanas/filtro-local.ts.
+// Filtros y categorías: components/campanas/BarraDeFiltros.tsx; aplicados en el navegador
+// con lib/campanas/filtro-local.ts.
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -102,6 +102,36 @@ export default function SupervisionPage() {
   const supervisedCount = useMemo(() => supervisedCampaigns.length, [supervisedCampaigns]);
   const finishedCount = useMemo(() => finishedCampaigns.length, [finishedCampaigns]);
   const flaggedCount = useMemo(() => flaggedCampaigns.length, [flaggedCampaigns]);
+
+  function renderCategoryTabs(selectedTab: TabKey, onSelect: (tab: TabKey) => void) {
+    const tabs: { key: TabKey; label: string; count: number }[] = [
+      { key: "pending", label: "Por supervisar", count: pendingCount },
+      { key: "supervised", label: "Campañas supervisadas", count: supervisedCount },
+      { key: "flagged", label: "Campañas reportadas / rechazadas", count: flaggedCount },
+      { key: "finished", label: "Campañas finalizadas", count: finishedCount },
+    ];
+
+    return (
+      <div
+        role="group"
+        aria-label="Categorías de supervisión"
+        tabIndex={0}
+        className="dashboard-nav w-full min-w-0 max-w-full touch-pan-x flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch] md:flex-wrap md:overflow-visible md:pb-0"
+      >
+        {tabs.map(({ key, label, count }) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={selectedTab === key}
+            onClick={() => onSelect(key)}
+            className={`shrink-0 whitespace-nowrap rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${selectedTab === key ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}
+          >
+            {label}&nbsp; <span className="font-mono text-[11px]">{count}</span>
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   const themeOptions = useMemo(
     () => opcionesDeTematica([...pendingCampaigns, ...supervisedCampaigns, ...finishedCampaigns, ...flaggedCampaigns].map(tematicaDe)),
@@ -282,56 +312,21 @@ export default function SupervisionPage() {
   return (
     <div className="mx-auto max-w-4xl lg:mx-0 lg:max-w-none">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="w-full min-w-0">
           <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Supervisión</p>
-          <h1 className="mt-2 text-2xl font-extrabold text-ink">
-            {activeTab === "pending" ? "Campañas por supervisar" : activeTab === "supervised" ? "Campañas supervisadas" : activeTab === "finished" ? "Campañas finalizadas" : "Campañas reportadas / rechazadas"}
-          </h1>
+          <div className="mt-3 w-full min-w-0">{renderCategoryTabs(activeTab, setActiveTab)}</div>
           <p className="mt-1 text-[13px] text-ink-2">
             {activeTab === "pending" ? `${filteredPendingCampaigns.length} esperando revisión` : activeTab === "supervised" ? `${filteredSupervisedCampaigns.length} bajo supervisión` : activeTab === "finished" ? `${filteredFinishedCampaigns.length} finalizadas` : `${filteredFlaggedCampaigns.length} con incidencia`}
           </p>
         </div>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          aria-pressed={activeTab === "pending"}
-          onClick={() => setActiveTab("pending")}
-          className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${activeTab === "pending" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}
-        >
-          Por supervisar&nbsp; <span className="font-mono text-[11px]">{pendingCount}</span>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={activeTab === "supervised"}
-          onClick={() => setActiveTab("supervised")}
-          className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${activeTab === "supervised" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}
-        >
-          Campañas supervisadas&nbsp; <span className="font-mono text-[11px]">{supervisedCount}</span>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={activeTab === "flagged"}
-          onClick={() => setActiveTab("flagged")}
-          className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${activeTab === "flagged" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}
-        >
-          Campañas reportadas / rechazadas&nbsp; <span className="font-mono text-[11px]">{flaggedCount}</span>
-        </button>
-
-        <button
-          type="button"
-          aria-pressed={activeTab === "finished"}
-          onClick={() => setActiveTab("finished")}
-          className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${activeTab === "finished" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}
-        >
-          Campañas finalizadas&nbsp; <span className="font-mono text-[11px]">{finishedCount}</span>
-        </button>
-      </div>
-
-      <BarraDeFiltros valores={filtros} tematicas={themeOptions} onCambiar={cambiarFiltro} />
+      <BarraDeFiltros
+        valores={filtros}
+        tematicas={themeOptions}
+        onCambiar={cambiarFiltro}
+        colapsableEnMovil
+      />
 
       {activeTab === "pending" ? renderPendingList() : activeTab === "supervised" ? renderSupervisedList() : activeTab === "finished" ? renderFinishedList() : renderFlaggedList()}
     </div>

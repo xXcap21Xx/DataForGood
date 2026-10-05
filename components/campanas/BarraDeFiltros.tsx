@@ -12,7 +12,7 @@ import { NOMBRE_DE_TIPO, ORDENES_DE_CAMPANA, VIGENCIAS, type TipoDeDato } from "
 const TIPOS = Object.keys(NOMBRE_DE_TIPO) as TipoDeDato[];
 
 const CLASE_SELECT =
-  "rounded border border-line-2 bg-surface px-3 text-sm text-ink outline-none transition-colors focus:border-accent min-h-[38px]";
+  "min-h-[38px] w-full rounded border border-line-2 bg-surface px-3 text-sm text-ink outline-none transition-colors focus:border-accent";
 
 export type ValoresDeFiltros = {
   q: string;
@@ -27,16 +27,27 @@ export default function BarraDeFiltros({
   tematicas,
   onCambiar,
   conVigencia = false,
+  colapsableEnMovil = false,
 }: {
   valores: ValoresDeFiltros;
   tematicas: string[];
   onCambiar: (clave: keyof ValoresDeFiltros, valor: string) => void;
   /** Muestra el filtro "Vigencia" (solo /sistema/campanas). */
   conVigencia?: boolean;
+  /** En móvil mantiene la búsqueda visible y coloca los controles en un panel emergente. */
+  colapsableEnMovil?: boolean;
 }) {
   const [texto, setTexto] = useState(valores.q);
+  const [panelAbierto, setPanelAbierto] = useState(false);
+  const [filtrosBorrador, setFiltrosBorrador] = useState({
+    tematica: valores.tematica,
+    tipo: valores.tipo,
+    vigencia: valores.vigencia,
+    orden: valores.orden,
+  });
 
   const idQ = useId();
+  const idPanel = useId();
   const idTema = useId();
   const idTipo = useId();
   const idVig = useId();
@@ -50,14 +61,15 @@ export default function BarraDeFiltros({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [texto]);
 
-  return (
-    <div className="mb-5 flex flex-wrap items-center gap-2.5">
+  function campoBusqueda(sufijo: string) {
+    const id = `${idQ}-${sufijo}`;
+    return (
       <div className="min-w-[220px] flex-1">
-        <label className="sr-only" htmlFor={idQ}>
+        <label className="sr-only" htmlFor={id}>
           Buscar campaña
         </label>
         <input
-          id={idQ}
+          id={id}
           type="search"
           value={texto}
           onChange={(e) => setTexto(e.target.value)}
@@ -65,69 +77,167 @@ export default function BarraDeFiltros({
           className="w-full rounded border border-line-2 bg-surface px-3.5 py-2 text-sm text-ink outline-none transition-colors focus:border-accent"
         />
       </div>
+    );
+  }
 
-      <div>
-        <label className="sr-only" htmlFor={idTema}>
-          Filtrar por temática
-        </label>
-        <select id={idTema} className={CLASE_SELECT} value={valores.tematica} onChange={(e) => onCambiar("tematica", e.target.value)}>
-          <option value="">Temática: todas</option>
-          {tematicas.map((t) => (
-            <option key={t} value={t}>
-              {t}
-            </option>
-          ))}
-        </select>
-      </div>
+  function controles(sufijo: string, borrador: boolean) {
+    const filtros = borrador ? { ...valores, ...filtrosBorrador } : valores;
+    const cambiar = (clave: keyof ValoresDeFiltros, valor: string) => {
+      if (borrador) {
+        setFiltrosBorrador((actuales) => ({ ...actuales, [clave]: valor }));
+      } else {
+        onCambiar(clave, valor);
+      }
+    };
 
-      <div>
-        <label className="sr-only" htmlFor={idTipo}>
-          Filtrar por tipo de dato
-        </label>
-        <select id={idTipo} className={CLASE_SELECT} value={valores.tipo} onChange={(e) => onCambiar("tipo", e.target.value)}>
-          <option value="">Tipo de dato: todos</option>
-          {TIPOS.map((t) => (
-            <option key={t} value={t}>
-              {NOMBRE_DE_TIPO[t]}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {conVigencia && (
-        <div>
-          <label className="sr-only" htmlFor={idVig}>
-            Filtrar por vigencia
+    return (
+      <>
+        <div className="min-w-0 flex-1">
+          <label className="sr-only" htmlFor={`${idTema}-${sufijo}`}>
+            Filtrar por temática
           </label>
           <select
-            id={idVig}
+            id={`${idTema}-${sufijo}`}
             className={CLASE_SELECT}
-            value={valores.vigencia ?? ""}
-            onChange={(e) => onCambiar("vigencia", e.target.value)}
+            value={filtros.tematica}
+            onChange={(e) => cambiar("tematica", e.target.value)}
           >
-            <option value="">Vigencia: cualquiera</option>
-            {VIGENCIAS.map((v) => (
-              <option key={v.valor} value={v.valor}>
-                {v.etiqueta}
+            <option value="">Temática: todas</option>
+            {tematicas.map((tema) => (
+              <option key={tema} value={tema}>
+                {tema}
               </option>
             ))}
           </select>
         </div>
+
+        <div className="min-w-0 flex-1">
+          <label className="sr-only" htmlFor={`${idTipo}-${sufijo}`}>
+            Filtrar por tipo de dato
+          </label>
+          <select
+            id={`${idTipo}-${sufijo}`}
+            className={CLASE_SELECT}
+            value={filtros.tipo}
+            onChange={(e) => cambiar("tipo", e.target.value)}
+          >
+            <option value="">Tipo de dato: todos</option>
+            {TIPOS.map((tipo) => (
+              <option key={tipo} value={tipo}>
+                {NOMBRE_DE_TIPO[tipo]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {conVigencia && (
+          <div className="min-w-0 flex-1">
+            <label className="sr-only" htmlFor={`${idVig}-${sufijo}`}>
+              Filtrar por vigencia
+            </label>
+            <select
+              id={`${idVig}-${sufijo}`}
+              className={CLASE_SELECT}
+              value={filtros.vigencia ?? ""}
+              onChange={(e) => cambiar("vigencia", e.target.value)}
+            >
+              <option value="">Vigencia: cualquiera</option>
+              {VIGENCIAS.map((vigencia) => (
+                <option key={vigencia.valor} value={vigencia.valor}>
+                  {vigencia.etiqueta}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
+        <div className="min-w-0 flex-1">
+          <label className="sr-only" htmlFor={`${idOrden}-${sufijo}`}>
+            Ordenar por
+          </label>
+          <select
+            id={`${idOrden}-${sufijo}`}
+            className={CLASE_SELECT}
+            value={filtros.orden}
+            onChange={(e) => cambiar("orden", e.target.value)}
+          >
+            <option value="">Más recientes</option>
+            {ORDENES_DE_CAMPANA.map((orden) => (
+              <option key={orden.valor} value={orden.valor}>
+                {orden.etiqueta}
+              </option>
+            ))}
+          </select>
+        </div>
+      </>
+    );
+  }
+
+  function alternarPanel() {
+    if (!panelAbierto) {
+      setFiltrosBorrador({
+        tematica: valores.tematica,
+        tipo: valores.tipo,
+        vigencia: valores.vigencia,
+        orden: valores.orden,
+      });
+    }
+    setPanelAbierto((abierto) => !abierto);
+  }
+
+  function aplicarPanel() {
+    onCambiar("tematica", filtrosBorrador.tematica);
+    onCambiar("tipo", filtrosBorrador.tipo);
+    onCambiar("orden", filtrosBorrador.orden);
+    if (filtrosBorrador.vigencia !== undefined) onCambiar("vigencia", filtrosBorrador.vigencia);
+    setPanelAbierto(false);
+  }
+
+  return (
+    <>
+      {colapsableEnMovil && (
+        <div className="relative mb-5 md:hidden">
+          <div className="flex items-center gap-2.5">
+            {campoBusqueda("mobile")}
+            <button
+              type="button"
+              aria-label={panelAbierto ? "Cerrar filtros" : "Abrir filtros"}
+              aria-expanded={panelAbierto}
+              aria-controls={idPanel}
+              onClick={alternarPanel}
+              className={`grid size-[42px] shrink-0 place-items-center rounded border transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${
+                panelAbierto ? "border-accent bg-accent-tint text-accent" : "border-line-2 bg-surface text-ink-2 hover:border-accent hover:text-accent"
+              }`}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" className="size-5">
+                <path d="M4 7h9m4 0h3M4 17h3m4 0h9M13 5v4M7 15v4" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+              </svg>
+            </button>
+          </div>
+
+          <section
+            id={idPanel}
+            aria-label="Filtros de campañas"
+            hidden={!panelAbierto}
+            className="absolute inset-x-0 top-full z-30 mt-2 rounded-lg border border-line bg-surface p-4 shadow-lg"
+          >
+            <h2 className="mb-3 text-sm font-bold text-ink">Filtros de campañas</h2>
+            <div className="flex flex-col gap-2.5">{controles("mobile", true)}</div>
+            <button
+              type="button"
+              onClick={aplicarPanel}
+              className="mt-4 w-full rounded border border-accent bg-accent px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-accent/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            >
+              Filtrar
+            </button>
+          </section>
+        </div>
       )}
 
-      <div>
-        <label className="sr-only" htmlFor={idOrden}>
-          Ordenar por
-        </label>
-        <select id={idOrden} className={CLASE_SELECT} value={valores.orden} onChange={(e) => onCambiar("orden", e.target.value)}>
-          <option value="">Más recientes</option>
-          {ORDENES_DE_CAMPANA.map((o) => (
-            <option key={o.valor} value={o.valor}>
-              {o.etiqueta}
-            </option>
-          ))}
-        </select>
+      <div className={colapsableEnMovil ? "mb-5 hidden flex-wrap items-center gap-2.5 md:flex" : "mb-5 flex flex-wrap items-center gap-2.5"}>
+        {campoBusqueda("desktop")}
+        {controles("desktop", false)}
       </div>
-    </div>
+    </>
   );
 }

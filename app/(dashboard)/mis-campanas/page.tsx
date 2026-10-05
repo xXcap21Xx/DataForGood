@@ -135,7 +135,11 @@ export default function MisCampanasPage() {
         </ButtonLink>
       </div>
 
-      <div className="mb-5 mt-4 flex flex-wrap gap-2 max-md:gap-1.5" role="group" aria-label="Filtrar por estado">
+      <div
+        className="dashboard-nav mb-5 mt-4 flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch] max-md:gap-1.5 md:flex-wrap md:overflow-visible md:pb-0"
+        role="group"
+        aria-label="Filtrar por estado"
+      >
         {filtros.map((f) => {
           const activo = filtro === f.valor;
           const total = f.valor === "todas" ? campaigns.length : count(f.valor);
@@ -145,7 +149,7 @@ export default function MisCampanasPage() {
               type="button"
               aria-pressed={activo}
               onClick={() => setFiltro(f.valor)}
-              className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${
+              className={`shrink-0 whitespace-nowrap rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${
                 activo ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"
               }`}
             >

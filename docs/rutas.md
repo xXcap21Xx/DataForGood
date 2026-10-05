@@ -25,7 +25,7 @@ No piden sesión. Archivos en `app/` (fuera de los grupos).
 | URL | Archivo | Tipo | Datos |
 | --- | --- | --- | --- |
 | `/` | `app/page.tsx` | S | SQL directo (`lib/db.ts`) para las cifras de la portada, y `lib/open-data.ts` para los conjuntos destacados. `revalidate = 300`: se regenera cada 5 min y sus consultas van en `try/catch` porque el build corre sin BD |
-| `/explorar` | `app/explorar/page.tsx` | S | `lib/campanas/publicas.ts` (`buscarCampanasActivas`, `obtenerTematicasActivas`, `obtenerEstadosActivos`). Filtros en `searchParams`. Al abrir una campaña manda a `/campanas/[id]`, que pide sesión |
+| `/explorar` | `app/explorar/page.tsx` | S | `lib/campanas/publicas.ts` (`buscarCampanasActivas`, `obtenerTematicasActivas`, `obtenerEstadosActivos`). Filtros en `searchParams`; opciones de temática, estado y orden en filas desplazables en móvil, verticales en escritorio. Al abrir una campaña manda a `/campanas/[id]`, que pide sesión |
 | `/datos` | `app/datos/page.tsx` | S | `lib/open-data.ts` (`buscarConjuntosAbiertos`, facetas). Catálogo de campañas `finalizada` |
 | `/datos/[id]` | `app/datos/[id]/page.tsx` | S | `lib/open-data.ts` (`obtenerConjuntoAbierto`). El botón de descarga apunta a `GET /api/datos/[id]/descarga` |
 | `/contacto`, `/privacidad`, `/sobre-nosotros` | `app/<nombre>/page.tsx` | S | Texto fijo |
@@ -60,10 +60,10 @@ Flujo de alta: `/registro` → `/verificar` → `/bienvenida` → `/campanas` (o
 
 | URL | Archivo | Tipo | Datos y acciones |
 | --- | --- | --- | --- |
-| `/campanas` | `campanas/page.tsx` | C | `GET /api/campanas` (activas) y `GET /api/auth/sesion` (para el filtro "Tu localidad"). Filtros por temática en el cliente |
+| `/campanas` | `campanas/page.tsx` | C | `GET /api/campanas` (activas) y `GET /api/auth/sesion` (para el filtro "Tu localidad"). Filtros por temática en el cliente; fila desplazable horizontalmente en móvil |
 | `/campanas/[id]` | `campanas/[id]/page.tsx` | C | `GET /api/campanas?id=` (incluye `viewer`: si eres el creador, si estás baneado, cuántos aportes llevas). Guardar como favorita: `POST`/`DELETE /api/campanas/[id]/guardar`. El botón **Compartir** abre un `<dialog>` (`compartir.tsx` + `enlace-publico.tsx` + `regenerar.tsx`) con el enlace público `/c/[token]`, cuenta regresiva, copiar, QR y descargas: lo carga con `GET /api/campanas/[id]/enlace` y el QR con `GET /api/campanas/[id]/qr`. Cualquiera con sesión lo ve; solo el creador regenera (`POST /api/campanas/[id]/enlace`), ve visitas y aportes del enlace y cambia "Permitir aportes sin cuenta" (`permitir-anonimos.tsx` → `PATCH /api/campanas/[id]/enlace`) |
 | `/campanas/[id]/aportar` | `campanas/[id]/aportar/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true` (tus aportes, para la cuota). Envía con `POST /api/aportes` (`multipart/form-data` con el archivo). Checklists con `lib/campanas/checklist.ts`. Si la URL trae `?enlace=<token>` (viene de `/c/[token]`), lo reenvía para atribuir el aporte al enlace |
-| `/mis-aportes` | `mis-aportes/page.tsx` | C | `GET /api/campanas?misAportes=true` (campañas en las que aportaste o que guardaste) |
+| `/mis-aportes` | `mis-aportes/page.tsx` | C | `GET /api/campanas?misAportes=true` (campañas en las que aportaste o que guardaste). Botones de filtro en una fila desplazable horizontalmente en móvil |
 | `/mis-aportes/[campanaId]` | `mis-aportes/[campanaId]/page.tsx` | C | `GET /api/campanas?id=`, `GET /api/aportes?campaignId=&mine=true`. Muestra el motivo de los rechazados. Borrar un aporte no aceptado: `DELETE /api/aportes/[id]` |
 | `/cuenta` | `cuenta/page.tsx` + `PerfilForm.tsx` + `CambiarContrasena.tsx` | S + C | La página lee el usuario con `exigirUsuario()`. Los campos están deshabilitados hasta que "Editar perfil" habilita la edición y "Guardar cambios" guarda con `PATCH /api/usuarios/[id]`; la ventana de contraseña, con `PATCH /api/usuarios/[id]/contrasena`. "Eliminar cuenta" lleva a `/cuenta/eliminar` |
 | `/cuenta/eliminar` | `cuenta/eliminar/page.tsx` + `EliminarCuentaForm.tsx` | S + C | Baja voluntaria (SCR-WEB-31). Resumen con `obtenerResumenDeBaja()` (`lib/usuarios/baja.ts`); el formulario elige el destino de los aportes, confirma con contraseña y ELIMINAR y manda `DELETE /api/usuarios/[id]`. Al terminar va a `/baja-solicitada` |
@@ -74,7 +74,7 @@ Cualquier usuario puede crear campañas. Todas estas rutas comprueban en el serv
 
 | URL | Archivo | Tipo | Datos y acciones |
 | --- | --- | --- | --- |
-| `/mis-campanas` | `mis-campanas/page.tsx` | C | `GET /api/campanas?mine=true`. Botón "Finalizar": `PATCH /api/campanas/[id]` con `{ status: "finalizada" }` |
+| `/mis-campanas` | `mis-campanas/page.tsx` | C | `GET /api/campanas?mine=true`. Filtros por estado en botones; en móvil forman una fila desplazable horizontalmente. Botón "Finalizar": `PATCH /api/campanas/[id]` con `{ status: "finalizada" }` |
 | `/mis-campanas/nueva` (`?edit=<id>` para editar) | `mis-campanas/nueva/page.tsx` + `NuevaCampanaForm.tsx` | S + C | Crear: `POST /api/campanas`. Editar: `GET /api/campanas/[id]` y `PATCH /api/campanas/[id]`. Lo que se puede editar depende del estado (ver [datos.md](datos.md) § 3) |
 | `/mis-campanas/[id]/aportes` | `mis-campanas/[id]/aportes/page.tsx` | C | Bandeja de aportes: `GET /api/campanas/[id]`, `GET /api/aportes?campaignId=` (todos, solo el creador), con filtros por estado en el cliente. La sección de baneados (`baneados.tsx`) usa `GET`/`DELETE /api/campanas/[id]/baneos` |
 | `/mis-campanas/[id]/aportes/[aporteId]` | `.../aportes/[aporteId]/page.tsx` | C | `GET /api/aportes/[id]`; aceptar o rechazar: `PATCH /api/aportes/[id]` con `{ status, rejectionReason, inapropiado? }`. Banear al participante: `POST`/`DELETE /api/campanas/[id]/baneos`; en un aporte anónimo, el mismo `POST` bloquea su dispositivo en la campaña y `DELETE { bloqueoId }` lo desbloquea. Borrar el archivo de un aporte anónimo: `DELETE /api/aportes/[id]/archivo`. La imagen se carga de `GET /api/aportes/[id]/archivo` |
@@ -100,7 +100,7 @@ Para revisores que aceptaron una invitación (`campana_revisores.estado = 'acept
 
 | URL | Archivo | Tipo | Datos y acciones |
 | --- | --- | --- | --- |
-| `/supervision` | `supervision/page.tsx` | C | `GET /api/campanas` (las `en_revision` que puedes tomar), `GET /api/campanas?supervised=true` (las tuyas), `GET /api/auth/sesion`. Barra de filtros de `components/campanas/BarraDeFiltros.tsx` (búsqueda, temática, tipo de dato, orden), aplicada en el navegador |
+| `/supervision` | `supervision/page.tsx` | C | `GET /api/campanas` (las `en_revision` que puedes tomar), `GET /api/campanas?supervised=true` (las tuyas), `GET /api/auth/sesion`. En móvil muestra búsqueda e icono para filtros en un card emergente con botón "Filtrar"; los botones de categoría están fuera del card. En escritorio conserva la disposición anterior. Se aplica en el navegador |
 | `/supervision/campanas` | `supervision/campanas/page.tsx` | C | `GET /api/campanas?supervised=true` |
 | `/supervision/[campaignId]` | `supervision/[campaignId]/page.tsx` | C | `GET /api/campanas?id=`. Tomar: `PATCH /api/campanas/[id]` con `{ action: "tomar" }`. Dictaminar: `PATCH` con `{ action: "aceptada" \| "rechazada" \| "reportada", motivo }` |
 | `/supervision/[campaignId]/panel` | `supervision/[campaignId]/panel/page.tsx` | S | `lib/campanas/panel.ts` (`obtenerPanelDeCampana`) → `components/supervision/PanelDeCampanaSupervisor` |

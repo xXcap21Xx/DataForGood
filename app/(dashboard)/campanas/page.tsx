@@ -87,7 +87,7 @@ export default function CampanasPage() {
         </Link>
       </div>
 
-      <div className="mb-6 flex flex-wrap gap-2 max-md:mb-4 max-md:gap-1.5">
+      <div className="dashboard-nav mb-6 mt-4 flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch] max-md:mb-4 max-md:gap-1.5 md:flex-wrap md:overflow-visible md:pb-0" role="group" aria-label="Filtrar campañas">
         {filtros.map((filtro) => {
           const active = filtro === activeTag;
           const contador =
@@ -107,7 +107,7 @@ export default function CampanasPage() {
               onClick={() => setActiveTag(filtro)}
               aria-pressed={active}
               title={filtro === TU_LOCALIDAD && miEstado ? `Campañas en ${miEstado}` : undefined}
-              className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${
+              className={`shrink-0 whitespace-nowrap rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${
                 active
                   ? "border-accent bg-accent text-white"
                   : "border-line-2 bg-surface text-ink-2 hover:border-accent"
