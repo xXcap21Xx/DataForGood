@@ -1,12 +1,13 @@
 // /api/campanas — listado y creación de campañas. Lo usa casi toda la zona de usuario.
 // Antes de leer, activa las campañas aceptadas cuya fecha llegó y finaliza las vencidas (lib/campaign-date.ts).
-// Ojo: el POST acepta status "activa" del body (hueco conocido, docs/README.md § 8).
+// El POST exige sesión y solo crea borradores o campañas en revisión (lib/campanas/estado-del-creador.ts).
 
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { idsDeCampanasConBaneo } from "@/lib/campanas/baneos";
 import { normalizarSecciones, seccionesDesdeFila } from "@/lib/campanas/checklist";
+import { XP_POR_APORTE, errorDeEstadoPedido } from "@/lib/campanas/estado-del-creador";
 import { activateScheduledCampaigns, calculateCampaignDaysRemaining, finalizeExpiredCampaigns, normalizeCampaignDate, normalizeCampaignTime } from "@/lib/campaign-date";
 
 async function obtenerIdsGuardados(usuarioId: number): Promise<Set<number>> {
@@ -212,8 +213,10 @@ export async function GET(request: Request) {
 // POST: crea una campaña. Valida campos obligatorios salvo en borrador.
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
+    // La campaña siempre es de quien tiene la sesión: nunca se toma el creador del body.
     const sessionUser = await getSessionUser();
+    if (!sessionUser) return NextResponse.json({ error: "Debes iniciar sesión" }, { status: 401 });
+    const body = await request.json().catch(() => ({}));
 
     const name = String(body.name ?? "").trim();
     const description = String(body.description ?? "").trim();
@@ -227,15 +230,8 @@ export async function POST(request: Request) {
       );
     }
 
-    const creatorId = Number(sessionUser?.id ?? body.creatorId ?? body.creator_id ?? 0);
-    if (!creatorId || Number.isNaN(creatorId)) {
-      return NextResponse.json(
-        { error: "El usuario creador es obligatorio" },
-        { status: 400 }
-      );
-    }
-
-    const creator = sessionUser ? `${sessionUser.nombre} ${sessionUser.apellidos}`.trim() : String(body.creatorName ?? body.creator_name ?? "").trim();
+    const creatorId = Number(sessionUser.id);
+    const creator = `${sessionUser.nombre} ${sessionUser.apellidos}`.trim();
     if (!creator) {
       return NextResponse.json(
         { error: "El nombre del usuario creador es obligatorio" },
@@ -244,7 +240,9 @@ export async function POST(request: Request) {
     }
 
     const dataTypes = normalizeDataTypes(body.dataTypes ?? body.data_types ?? []);
-    const status = normalizeCampaignStatus(body.status ?? "activa");
+    const status = normalizeCampaignStatus(body.status ?? "borrador");
+    const errorDeEstado = await errorDeEstadoPedido(status, creatorId);
+    if (errorDeEstado) return NextResponse.json({ error: errorDeEstado }, { status: 400 });
     // Checklists con título (la descripción del aporte siempre es obligatoria:
     // es el texto libre). Un cliente viejo que manda la lista plana
     // checklistOpciones la guarda como un solo checklist titulado "Checklist".
@@ -264,15 +262,17 @@ export async function POST(request: Request) {
 
     const goalContributions = Number(body.goalContributions ?? body.goal_contributions ?? 0);
     const quotaPerUser = Number(body.quotaPerUser ?? body.quota_per_user ?? 1);
-    const currentContributions = Number(body.currentContributions ?? body.current_contributions ?? 0);
-    const approvedContributions = Number(body.approvedContributions ?? body.approved_contributions ?? 0);
-    const pendingContributions = Number(body.pendingContributions ?? body.pending_contributions ?? 0);
-    const rejectedContributions = Number(body.rejectedContributions ?? body.rejected_contributions ?? 0);
-    const participants = Number(body.participants ?? 0);
-    const xpPerContribution = Number(body.xpPerContribution ?? body.xp_per_contribution ?? 0);
-    const daysRemaining = Number(body.daysRemaining ?? body.days_remaining ?? 0);
-    const isSpecial = Boolean(body.isSpecial ?? body.is_special ?? false);
-    const hasReviewerAssigned = Boolean(body.hasReviewerAssigned ?? body.has_reviewer_assigned ?? false);
+    // Contadores, XP, "especial" y "revisor asignado" los decide el sistema, no el body:
+    // una campaña nueva empieza en cero y sin revisor.
+    const currentContributions = 0;
+    const approvedContributions = 0;
+    const pendingContributions = 0;
+    const rejectedContributions = 0;
+    const participants = 0;
+    const xpPerContribution = XP_POR_APORTE;
+    const daysRemaining = null;
+    const isSpecial = false;
+    const hasReviewerAssigned = false;
 
     const startDate = normalizeCampaignDate(body.startDate ?? body.start_date);
     const startTime = normalizeCampaignTime(body.startTime ?? body.start_time);
@@ -282,8 +282,9 @@ export async function POST(request: Request) {
     const locationState = String(body.locationState ?? body.location_state ?? "").trim();
     const locationColonia = String(body.locationColonia ?? body.location_colonia ?? "").trim();
     const organizer = String(body.organizer ?? "").trim();
-    const shareToken = String(body.shareToken ?? body.share_token ?? "").trim();
-    const shareTokenExpiresAt = body.shareTokenExpiresAt ?? body.share_token_expires_at ?? null;
+    // Columnas viejas del enlace (ya no se usan: campana_enlaces).
+    const shareToken = "";
+    const shareTokenExpiresAt = null;
 
     // Un borrador puede quedar incompleto a propósito; para cualquier otro
     // estado (en_revision, activa...) sí se exigen los campos importantes,
@@ -315,7 +316,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const aportes = Array.isArray(body.aportes) ? body.aportes : [];
+    const aportes: unknown[] = [];
 
     const result = await pool.query(
       `INSERT INTO campanas (

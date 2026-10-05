@@ -32,7 +32,11 @@ export default async function SupervisoresPage({
 
   return (
     <div>
-      <Subtabs pestanas={PESTANAS_USUARIOS} etiquetaAria="Secciones de usuarios" />
+      <Subtabs
+        pestanas={PESTANAS_USUARIOS}
+        etiquetaAria="Secciones de usuarios"
+        volverAlMenuEnMovil
+      />
 
       <Encabezado
         titulo="Supervisores"
@@ -54,43 +58,91 @@ export default async function SupervisoresPage({
       {supervisores.length === 0 ? (
         <p className="py-7 text-[13px] text-ink-2">Ningún supervisor coincide con la búsqueda.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm">
-          <table className="w-full min-w-[720px] text-left text-[13.5px]">
-            <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
-              <tr>
-                <th className="pb-3 font-medium">Supervisor</th>
-                <th className="pb-3 font-medium">Campañas</th>
-                <th className="pb-3 font-medium">Aportes validados</th>
-                <th className="pb-3 font-medium">Acciones</th>
-                <th className="pb-3 font-medium">Última actividad</th>
-                <th className="pb-3 text-right font-medium">Actividad</th>
-              </tr>
-            </thead>
-            <tbody>
-              {supervisores.map((s) => (
-                <tr key={s.id} className="border-b border-line last:border-0">
-                  <td className="py-4">
-                    <p className="font-bold text-ink">{s.nombre}</p>
-                    <p className="font-mono text-[11px] text-ink-3">
-                      Supervisor desde {formatearFechaSup(s.desde)}
-                    </p>
-                  </td>
-                  <td className="font-mono tabular-nums">{s.campanasACargo}</td>
-                  <td className="font-mono tabular-nums">{formatearNumero(s.aportesValidados)}</td>
-                  <td className="font-mono tabular-nums">{s.accionesEnRango}</td>
-                  <td className="font-mono text-[11px] text-ink-3">
-                    {formatearFechaHoraSup(s.ultimaActividad)}
-                  </td>
-                  <td className="text-right">
-                    <EnlaceBoton href={`/usuarios/supervisores/${s.id}`}>
-                      Ver<span className="sr-only"> la actividad de {s.nombre}</span>
-                    </EnlaceBoton>
-                  </td>
+        <>
+          <div className="space-y-3 md:hidden">
+            {supervisores.map((s) => (
+              <article key={s.id} className="rounded-lg border border-line bg-surface p-4 shadow-sm">
+                <div className="min-w-0">
+                  <p className="break-words text-[14px] font-bold leading-snug text-ink">{s.nombre}</p>
+                  <p className="mt-1 text-[11px] text-ink-3">
+                    Supervisor desde {formatearFechaSup(s.desde)}
+                  </p>
+                </div>
+
+                <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-3">
+                  <div>
+                    <dt className="text-[11px] text-ink-2">Campañas</dt>
+                    <dd className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums text-ink">
+                      {formatearNumero(s.campanasACargo)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] text-ink-2">Aportes validados</dt>
+                    <dd className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums text-ink">
+                      {formatearNumero(s.aportesValidados)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[11px] text-ink-2">Acciones (30 días)</dt>
+                    <dd className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums text-ink">
+                      {formatearNumero(s.accionesEnRango)}
+                    </dd>
+                  </div>
+                  <div className="min-w-0">
+                    <dt className="text-[11px] text-ink-2">Última actividad</dt>
+                    <dd className="mt-0.5 break-words text-[12px] leading-snug text-ink">
+                      {formatearFechaHoraSup(s.ultimaActividad)}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="mt-3 grid">
+                  <EnlaceBoton href={`/usuarios/supervisores/${s.id}`}>
+                    Ver actividad<span className="sr-only"> de {s.nombre}</span>
+                  </EnlaceBoton>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm md:block">
+            <table className="w-full min-w-[720px] text-left text-[13.5px]">
+              <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+                <tr>
+                  <th className="pb-3 font-medium">Supervisor</th>
+                  <th className="pb-3 font-medium">Campañas</th>
+                  <th className="pb-3 font-medium">Aportes validados</th>
+                  <th className="pb-3 font-medium">Acciones</th>
+                  <th className="pb-3 font-medium">Última actividad</th>
+                  <th className="pb-3 text-right font-medium">Actividad</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {supervisores.map((s) => (
+                  <tr key={s.id} className="border-b border-line last:border-0">
+                    <td className="py-4">
+                      <p className="font-bold text-ink">{s.nombre}</p>
+                      <p className="font-mono text-[11px] text-ink-3">
+                        Supervisor desde {formatearFechaSup(s.desde)}
+                      </p>
+                    </td>
+                    <td className="font-mono tabular-nums">{s.campanasACargo}</td>
+                    <td className="font-mono tabular-nums">{formatearNumero(s.aportesValidados)}</td>
+                    <td className="font-mono tabular-nums">{s.accionesEnRango}</td>
+                    <td className="font-mono text-[11px] text-ink-3">
+                      {formatearFechaHoraSup(s.ultimaActividad)}
+                    </td>
+                    <td className="text-right">
+                      <EnlaceBoton href={`/usuarios/supervisores/${s.id}`}>
+                        Ver<span className="sr-only"> la actividad de {s.nombre}</span>
+                      </EnlaceBoton>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );

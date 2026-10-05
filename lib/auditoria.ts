@@ -24,23 +24,43 @@ export type AccionAuditada =
   | "supervision.dictaminar"
   | "campana.banear"
   | "campana.desbanear"
+  | "campana.enlace_regenerar"
   | "revisor.invitar"
   | "revisor.aceptar"
   | "root.acceso"
-  | "root.acceso_fallido";
+  | "root.acceso_fallido"
+  | "root.token_api"
+  | "usuario.contrasena_cambiar"
+  // Baja voluntaria de cuenta (lib/usuarios/baja.ts).
+  | "usuario.baja_solicitar"
+  | "usuario.baja_cancelar"
+  | "usuario.baja_ejecutar"
+  // Aportes sin cuenta y sus sanciones (lib/aportes/sanciones-anonimas.ts).
+  | "aporte.anonimo_enviar"
+  | "aporte.inapropiado"
+  | "aporte.archivo_borrar"
+  | "campana.anonimos_cambiar"
+  | "campana.bloquear_dispositivo"
+  | "campana.desbloquear_dispositivo"
+  | "sancion.dispositivo_bloquear"
+  | "sancion.dispositivo_restaurar";
 
 export async function registrarAuditoria(entrada: {
   actor: ActorDeAuditoria;
   accion: AccionAuditada;
   objetivo?: { tipo: string; id: string | number };
   detalle?: Record<string, unknown>;
+  /** false: no guardar la IP. Lo usa el actor anónimo, cuya IP nunca se guarda en claro. */
+  guardarIp?: boolean;
 }): Promise<void> {
   try {
     let ip: string | null = null;
-    try {
-      ip = ipDelCliente(await headers());
-    } catch {
-      // Fuera de una petición (no debería pasar) no hay encabezados.
+    if (entrada.guardarIp !== false) {
+      try {
+        ip = ipDelCliente(await headers());
+      } catch {
+        // Fuera de una petición (no debería pasar) no hay encabezados.
+      }
     }
 
     await pool.query(

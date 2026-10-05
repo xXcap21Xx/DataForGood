@@ -5,6 +5,9 @@ import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser } from "@/lib/session";
 import { respuestasValidas, seccionesDesdeFila } from "@/lib/campanas/checklist";
+import { bloqueoEnCampanaDelAporte, marcarInapropiado, quitarMarcaInapropiado } from "@/lib/aportes/sanciones-anonimas";
+import { recalcularContadores } from "@/lib/aportes/comun";
+import { borrarArchivo } from "@/lib/minio";
 
 const ALLOWED_STATUS = new Set(["pendiente", "espera_final", "aceptado", "rechazado"]);
 
@@ -24,6 +27,8 @@ function mapAporte(row: Record<string, unknown>) {
     rejectionReason: row.rejection_reason ? String(row.rejection_reason) : undefined,
     firstPassBy: row.first_pass_by ? String(row.first_pass_by) : undefined,
     firstPassByUserId: row.first_pass_by_user_id != null ? String(row.first_pass_by_user_id) : undefined,
+    inapropiado: row.inapropiado === true,
+    archivoBorrado: row.archivo_borrado_en != null,
   };
 }
 
@@ -60,7 +65,19 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "No tienes permiso para ver este aporte" }, { status: 403 });
     }
 
-    return NextResponse.json({ data: mapAporte(row) });
+    // Al creador, si el dispositivo de un aporte anónimo ya está bloqueado en su campaña.
+    const bloqueoId =
+      isCampaignCreator && row.user_id == null && row.anonimo_id ? await bloqueoEnCampanaDelAporte(Number(row.id)) : null;
+
+    // El revisor (que no es el creador ni quien aportó) no recibe el correo del participante.
+    const { participantEmail, ...aporte } = mapAporte(row);
+    return NextResponse.json({
+      data: {
+        ...aporte,
+        ...(isOwner || isCampaignCreator ? { participantEmail } : {}),
+        ...(isCampaignCreator ? { dispositivoBloqueadoId: bloqueoId != null ? String(bloqueoId) : null } : {}),
+      },
+    });
   } catch (error) {
     console.error("Error obteniendo aporte", error);
     return NextResponse.json({ error: "No se pudo obtener el aporte" }, { status: 500 });
@@ -94,51 +111,75 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     const rejectionReason = body.rejectionReason ?? body.rejection_reason ?? null;
-    if (isReviewer && !isCampaignCreator && (status !== "aceptado" || String(row.status) !== "pendiente")) {
-      return NextResponse.json({ error: "El revisor solo puede aceptar aportes pendientes" }, { status: 403 });
+    const comoRevisor = isReviewer && !isCampaignCreator;
+    if (comoRevisor && (!["aceptado", "espera_final"].includes(status) || String(row.status) !== "pendiente")) {
+      return NextResponse.json({ error: "El revisor solo puede validar aportes pendientes" }, { status: 403 });
+    }
+    // El creador decide: acepta o rechaza. Ya no puede regresar un aporte a pendiente.
+    if (!comoRevisor && status !== "aceptado" && status !== "rechazado") {
+      return NextResponse.json({ error: "Solo puedes aceptar o rechazar el aporte" }, { status: 400 });
     }
     if (status === "rechazado" && !String(rejectionReason ?? "").trim()) {
       return NextResponse.json({ error: "rejectionReason es obligatorio al rechazar" }, { status: 400 });
     }
-
-    const firstPassBy = isReviewer
-      ? `${user.nombre} ${user.apellidos}`.trim()
-      : body.firstPassBy ?? body.first_pass_by ?? row.first_pass_by ?? `${user.nombre} ${user.apellidos}`.trim();
-    const previousStatus = String(row.status);
-
-    const result = await pool.query(
-      `UPDATE aportes SET
-        status = $2,
-        rejection_reason = $3,
-        first_pass_by = $4,
-        first_pass_by_user_id = $5,
-        reviewed_at = NOW(),
-        updated_at = NOW()
-      WHERE id = $1
-      RETURNING *`,
-      [
-        id,
-        status,
-        status === "rechazado" ? String(rejectionReason).trim() : null,
-        firstPassBy,
-        isReviewer ? user.id : row.first_pass_by_user_id,
-      ]
-    );
-
-    const wasPending = previousStatus === "pendiente" || previousStatus === "espera_final";
-    if (wasPending && status === "aceptado") {
-      await pool.query(
-        `UPDATE campanas SET approved_contributions = approved_contributions + 1, pending_contributions = GREATEST(pending_contributions - 1, 0), updated_at = NOW() WHERE id = $1`,
-        [row.campaign_id]
-      );
-    } else if (wasPending && status === "rechazado") {
-      await pool.query(
-        `UPDATE campanas SET rejected_contributions = rejected_contributions + 1, pending_contributions = GREATEST(pending_contributions - 1, 0), updated_at = NOW() WHERE id = $1`,
-        [row.campaign_id]
-      );
+    // Casilla "Contenido inapropiado" al rechazar: solo para aportes sin cuenta.
+    const inapropiado = body.inapropiado === true;
+    if (inapropiado && (status !== "rechazado" || row.user_id != null)) {
+      return NextResponse.json({ error: "Solo un aporte anónimo rechazado se puede marcar como inapropiado" }, { status: 400 });
     }
 
-    return NextResponse.json({ message: "Aporte actualizado", data: mapAporte(result.rows[0]) });
+    // Revisión en dos instancias (dominio.md § 5): lo que el revisor acepta queda en
+    // espera_final hasta que el creador decide. El nombre del revisor nunca sale del body.
+    const nuevoEstado = comoRevisor ? "espera_final" : status;
+    const firstPassBy = comoRevisor ? `${user.nombre} ${user.apellidos}`.trim() : row.first_pass_by ?? null;
+
+    // El cambio y el recálculo de contadores van juntos, con la campaña bloqueada.
+    const client = await pool.connect();
+    let result;
+    try {
+      await client.query("BEGIN");
+      await client.query(`SELECT 1 FROM campanas WHERE id = $1 FOR NO KEY UPDATE`, [row.campaign_id]);
+      result = await client.query(
+        `UPDATE aportes SET
+          status = $2,
+          rejection_reason = $3,
+          first_pass_by = $4,
+          first_pass_by_user_id = $5,
+          reviewed_at = NOW(),
+          updated_at = NOW()
+        WHERE id = $1
+        RETURNING *`,
+        [
+          id,
+          nuevoEstado,
+          nuevoEstado === "rechazado" ? String(rejectionReason).trim() : null,
+          firstPassBy,
+          comoRevisor ? user.id : row.first_pass_by_user_id,
+        ]
+      );
+      await recalcularContadores(row.campaign_id, client);
+      await client.query("COMMIT");
+    } catch (error) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+
+    // El creador decide al final: si acepta, se quita la marca que pudo poner un revisor.
+    if (nuevoEstado === "aceptado" && isCampaignCreator) await quitarMarcaInapropiado(Number(id));
+    const bloqueoGlobal = inapropiado ? (await marcarInapropiado(Number(id), Number(user.id))).bloqueoGlobal : false;
+
+    // Se relee: la marca de inapropiado pudo cambiar después del UPDATE.
+    const final = inapropiado || nuevoEstado === "aceptado" ? (await loadAporteWithCampaign(id)) ?? result.rows[0] : result.rows[0];
+    return NextResponse.json({
+      message: bloqueoGlobal
+        ? "Aporte actualizado. Ese dispositivo juntó varios aportes inapropiados y quedó bloqueado en toda la plataforma."
+        : comoRevisor
+          ? "Aporte validado: queda en espera de la aprobación final del creador"
+          : "Aporte actualizado",
+      data: mapAporte(final),
+    });
   } catch (error) {
     console.error("Error revisando aporte", error);
     return NextResponse.json({ error: "No se pudo actualizar el aporte" }, { status: 500 });
@@ -216,27 +257,17 @@ export async function DELETE(_request: Request, context: { params: Promise<{ id:
     }
 
     await client.query("BEGIN");
+    await client.query(`SELECT 1 FROM campanas WHERE id = $1 FOR NO KEY UPDATE`, [row.campaign_id]);
     await client.query(`DELETE FROM aportes WHERE id = $1 AND user_id = $2`, [id, user.id]);
-
-    const remainingUserContributions = await client.query(
-      `SELECT COUNT(*)::int AS count FROM aportes WHERE campaign_id = $1 AND user_id = $2`,
-      [row.campaign_id, user.id]
-    );
-    const participantDelta = Number(remainingUserContributions.rows[0].count) === 0 ? 1 : 0;
-    const pendingDelta = previousStatus === "pendiente" || previousStatus === "espera_final" ? 1 : 0;
-    const rejectedDelta = previousStatus === "rechazado" ? 1 : 0;
-
-    await client.query(
-      `UPDATE campanas SET
-        current_contributions = GREATEST(current_contributions - 1, 0),
-        pending_contributions = GREATEST(pending_contributions - $2, 0),
-        rejected_contributions = GREATEST(rejected_contributions - $3, 0),
-        participants = GREATEST(participants - $4, 0),
-        updated_at = NOW()
-       WHERE id = $1`,
-      [row.campaign_id, pendingDelta, rejectedDelta, participantDelta]
-    );
+    await recalcularContadores(row.campaign_id, client);
     await client.query("COMMIT");
+
+    // Ya borrada la fila, también el archivo: antes quedaba huérfano en MinIO para siempre.
+    if (row.file_path && !row.archivo_borrado_en) {
+      await borrarArchivo(String(row.file_path)).catch((error) => {
+        console.error(`No se pudo borrar de MinIO el archivo del aporte ${id}`, error);
+      });
+    }
 
     return NextResponse.json({ message: "Aporte eliminado" });
   } catch (error) {

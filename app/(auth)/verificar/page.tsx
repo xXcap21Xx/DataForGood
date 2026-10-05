@@ -169,7 +169,7 @@ function VerificarForm() {
       </div>
       <h1 className="text-xl font-extrabold text-ink">Verifica tu correo</h1>
       <p className="mt-1 font-mono text-[10.5px] uppercase tracking-wider text-accent">
-        Paso 2 de 3 · Verificación
+        Paso 2 de 4 · Verificación
       </p>
       <p className="mt-3 text-[13px] text-ink-2">
         Enviamos un código a <span className="font-medium text-ink">{email}</span>
@@ -178,6 +178,7 @@ function VerificarForm() {
       <div className="my-5 flex gap-1.5">
         <div className="h-1 flex-1 rounded-pill bg-accent" />
         <div className="h-1 flex-1 rounded-pill bg-accent" />
+        <div className="h-1 flex-1 rounded-pill bg-line" />
         <div className="h-1 flex-1 rounded-pill bg-line" />
       </div>
 

@@ -49,7 +49,7 @@ const CAMPANAS_CON_CONTEOS = `
   LEFT JOIN (
     SELECT campaign_id,
            COUNT(*) AS aportes,
-           COUNT(DISTINCT COALESCE(user_id::text, participant_email)) AS participantes
+           COUNT(DISTINCT COALESCE(user_id::text, participant_email, anonimo_id)) AS participantes
     FROM aportes
     GROUP BY campaign_id
   ) a ON a.campaign_id = c.id`;
@@ -173,7 +173,7 @@ export async function obtenerDashboardDeCampanas(): Promise<DashboardDeCampanas>
     pool.query(`${CAMPANAS_CON_CONTEOS} ORDER BY c.id`),
     pool.query<{ aportes: string; participantes: string }>(
       // Personas distintas en toda la plataforma: quien aporta en tres campañas cuenta una vez.
-      `SELECT COUNT(*) AS aportes, COUNT(DISTINCT COALESCE(user_id::text, participant_email)) AS participantes FROM aportes`,
+      `SELECT COUNT(*) AS aportes, COUNT(DISTINCT COALESCE(user_id::text, participant_email, anonimo_id)) AS participantes FROM aportes`,
     ),
   ]);
 

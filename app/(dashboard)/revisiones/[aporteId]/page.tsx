@@ -2,7 +2,9 @@
 
 // Pantalla /revisiones/[aporteId]: revisar un aporte como revisor.
 // Componente cliente. Datos: GET /api/aportes/[id]. Acción: PATCH /api/aportes/[id] { status: "aceptado" }.
-// Ojo: hoy el servidor lo deja en "aceptado", no en "espera_final" (docs/README.md § 8).
+// Aporte anónimo: "Marcar como inapropiado" con POST /api/aportes/[id]/inapropiado (no cambia
+// el estado; decide el creador).
+// El servidor lo deja en "espera_final": la aprobación final es del creador.
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -11,6 +13,7 @@ import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
 import type { Contribution } from "@/types";
 import { BASE_PATH } from "@/lib/base-path";
+import { formatearTamano } from "@/lib/aportes/archivo";
 
 const STATUS_LABELS: Record<string, string> = {
   pendiente: "Sin revisar",
@@ -25,6 +28,7 @@ export default function RevisionAportePage() {
   const [item, setItem] = useState<Contribution | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -60,6 +64,22 @@ export default function RevisionAportePage() {
     }
   }
 
+  async function marcarInapropiado() {
+    setSubmitting(true);
+    setError(null);
+    try {
+      const response = await fetch(`${BASE_PATH}/api/aportes/${aporteId}/inapropiado`, { method: "POST" });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.error ?? "No se pudo marcar el aporte");
+      setItem((actual) => (actual ? { ...actual, inapropiado: true } : actual));
+      setAviso(payload.message ?? "Marcado como inapropiado");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "No se pudo marcar el aporte");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   if (error && !item) {
     return <p className="mx-auto max-w-3xl text-sm text-danger">{error}</p>;
   }
@@ -84,15 +104,23 @@ export default function RevisionAportePage() {
           <h1 className="mt-2 text-2xl font-extrabold text-ink">Vista previa del aporte</h1>
           <p className="mt-1 text-[13px] text-ink-2">Revisa el contenido antes de validarlo para la aprobación final del creador.</p>
         </div>
-        <Tag tone={statusTone}>{STATUS_LABELS[item.status] ?? item.status}</Tag>
+        <div className="flex flex-wrap justify-end gap-1.5">
+          {item.inapropiado && <Tag tone="danger">Contenido inapropiado</Tag>}
+          <Tag tone={statusTone}>{STATUS_LABELS[item.status] ?? item.status}</Tag>
+        </div>
       </div>
 
       {error && <p className="mb-4 rounded border border-danger bg-danger-tint p-3 text-[12.5px] text-danger">{error}</p>}
+      {aviso && <p className="mb-4 rounded border border-warn bg-warn-tint p-3 text-[12.5px] text-warn">{aviso}</p>}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(280px,.9fr)]">
         <section className="rounded-lg border border-line bg-surface p-5 shadow-sm">
           <p className="mb-3 text-[12.5px] font-semibold text-ink">Archivo enviado</p>
-          {item.fileType === "foto" ? (
+          {item.archivoBorrado ? (
+            <div className="flex aspect-video items-center justify-center rounded-lg border border-dashed border-line-2 bg-sunken text-[12.5px] text-ink-3">
+              El creador borró este archivo
+            </div>
+          ) : item.fileType === "foto" ? (
             <img
               src={`${BASE_PATH}/api/aportes/${item.id}/archivo`}
               alt={`Vista previa del aporte de ${item.participantName}`}
@@ -104,7 +132,7 @@ export default function RevisionAportePage() {
             </div>
           )}
           <p className="mt-3 font-mono text-[11.5px] text-ink-3">
-            {item.fileType} {item.fileSizeBytes ? `· ${(item.fileSizeBytes / 1_000_000).toFixed(1)} MB` : ""}
+            {item.fileType} {item.fileSizeBytes ? `· ${formatearTamano(item.fileSizeBytes)}` : ""}
           </p>
         </section>
 
@@ -137,11 +165,18 @@ export default function RevisionAportePage() {
 
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-5">
         <p className="max-w-xl text-[12.5px] text-ink-2">
-          Al aceptar, el aporte queda aprobado y el dueño de la campaña podrá consultarlo en su historial.
+          Al aceptar, el aporte queda validado y pasa a la aprobación final de quien creó la campaña.
         </p>
-        <Button variant="primary" disabled={alreadyValidated || submitting} onClick={() => void acceptContribution()}>
-          {submitting ? "Validando..." : alreadyValidated ? "Aporte ya validado" : "Aceptar aporte"}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {item.userId === null && !item.inapropiado && (
+            <Button variant="danger" disabled={submitting} onClick={() => void marcarInapropiado()}>
+              Marcar como inapropiado
+            </Button>
+          )}
+          <Button variant="primary" disabled={alreadyValidated || submitting} onClick={() => void acceptContribution()}>
+            {submitting ? "Validando..." : alreadyValidated ? "Aporte ya validado" : "Aceptar aporte"}
+          </Button>
+        </div>
       </div>
     </div>
   );

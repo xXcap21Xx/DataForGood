@@ -1,7 +1,8 @@
 "use client";
 
 // Selector de temáticas: muestra las elegidas y abre un <dialog> nativo con buscador.
-// Aplica los cambios solo al dar Aceptar. Lo usan /bienvenida y /cuenta.
+// Aplica los cambios solo al dar Aceptar. Lo usan /bienvenida, /cuenta y el formulario de
+// campaña (/mis-campanas/nueva, con `unica`: una sola temática).
 
 import { useRef, useState } from "react";
 import Button from "@/components/ui/Button";
@@ -15,17 +16,28 @@ import Tag from "@/components/ui/Tag";
  *
  * Con `quitables`, cada temática elegida trae una × para quitarla sin abrir
  * la ventana, y el botón queda como "Agregar temáticas" (así en /cuenta).
+ *
+ * Con `unica`, se elige exactamente una temática (la de una campaña): tocar
+ * otra reemplaza a la anterior y "Aceptar" pide que haya una marcada.
  */
 export default function SelectorDeTemas({
   opciones,
   seleccionados,
   onAceptar,
   quitables = false,
+  unica = false,
+  deshabilitado = false,
+  titulo,
+  descripcion,
 }: {
   opciones: string[];
   seleccionados: string[];
   onAceptar: (temas: string[]) => void;
   quitables?: boolean;
+  unica?: boolean;
+  deshabilitado?: boolean;
+  titulo?: string;
+  descripcion?: string;
 }) {
   const dialogo = useRef<HTMLDialogElement>(null);
   const [borrador, setBorrador] = useState<string[]>([]);
@@ -48,8 +60,23 @@ export default function SelectorDeTemas({
   }
 
   function alternar(tema: string) {
+    if (unica) {
+      setBorrador([tema]);
+      return;
+    }
     setBorrador((prev) => (prev.includes(tema) ? prev.filter((t) => t !== tema) : [...prev, tema]));
   }
+
+  const textoDelBoton =
+    seleccionados.length === 0
+      ? unica
+        ? "+ Elegir temática"
+        : "+ Elegir temáticas"
+      : unica
+        ? "Cambiar temática"
+        : quitables
+          ? "+ Agregar temáticas"
+          : "Cambiar temáticas";
 
   const termino = busqueda.trim().toLowerCase();
   const visibles = termino ? opciones.filter((tema) => tema.toLowerCase().includes(termino)) : opciones;
@@ -59,7 +86,7 @@ export default function SelectorDeTemas({
       <div className="flex flex-wrap items-center gap-2">
         {seleccionados.length === 0 ? (
           <p className="text-[12.5px] text-ink-3">Aún no eliges ninguna temática.</p>
-        ) : quitables ? (
+        ) : quitables && !unica ? (
           seleccionados.map((tema) => (
             <button
               key={tema}
@@ -81,8 +108,8 @@ export default function SelectorDeTemas({
             </Tag>
           ))
         )}
-        <Button type="button" size="sm" onClick={abrir}>
-          {seleccionados.length === 0 ? "+ Elegir temáticas" : quitables ? "+ Agregar temáticas" : "Cambiar temáticas"}
+        <Button type="button" size="sm" onClick={abrir} disabled={deshabilitado}>
+          {textoDelBoton}
         </Button>
       </div>
 
@@ -98,10 +125,13 @@ export default function SelectorDeTemas({
         <div className="flex max-h-[85vh] flex-col">
           <div className="border-b border-line p-5">
             <h2 id="selector-temas-titulo" className="text-lg font-extrabold text-ink">
-              Elige tus temáticas
+              {titulo ?? (unica ? "Elige la temática" : "Elige tus temáticas")}
             </h2>
             <p className="mt-1 text-[12.5px] text-ink-2">
-              Marca las que te interesen; te mostraremos campañas relacionadas.
+              {descripcion ??
+                (unica
+                  ? "Marca una; tocar otra la reemplaza."
+                  : "Marca las que te interesen; te mostraremos campañas relacionadas.")}
             </p>
             <input
               type="search"
@@ -148,7 +178,7 @@ export default function SelectorDeTemas({
               <Button type="button" variant="secondary" size="sm" onClick={cerrar}>
                 Cancelar
               </Button>
-              <Button type="button" variant="primary" size="sm" onClick={aceptar}>
+              <Button type="button" variant="primary" size="sm" onClick={aceptar} disabled={unica && borrador.length === 0}>
                 Aceptar
               </Button>
             </div>

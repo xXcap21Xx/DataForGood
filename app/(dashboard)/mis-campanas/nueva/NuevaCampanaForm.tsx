@@ -11,6 +11,7 @@ import Link from "next/link";
 import { Field, Input, Textarea } from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import Tag from "@/components/ui/Tag";
+import SelectorDeTemas from "@/components/ui/SelectorDeTemas";
 import type { Campaign, DataType } from "@/types";
 import { municipiosDe, NOMBRES_DE_ESTADOS } from "@/lib/mexico-geo";
 import { opcionesCon } from "@/lib/perfil-opciones";
@@ -469,23 +470,17 @@ function CampanaFormulario({
             <p className="mb-1.5 text-[13px] font-medium text-ink">
               Temática <span className="text-danger">*</span>
             </p>
-            <div className="mb-1 flex flex-wrap gap-2">
-              {/* opcionesCon conserva la temática de una campaña vieja aunque ya no esté en la lista. */}
-              {opcionesCon(theme, THEMES).map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  disabled={edicionLimitada}
-                  onClick={() => setTheme(t)}
-                  className={`rounded-pill border px-3 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    theme === t
-                      ? "border-accent bg-accent text-white"
-                      : "border-line-2 bg-surface text-ink-2 hover:border-accent"
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
+            <div className="mb-1">
+              {/* El mismo selector de /cuenta, con una sola temática. opcionesCon conserva
+                  la temática de una campaña vieja aunque ya no esté en la lista. */}
+              <SelectorDeTemas
+                unica
+                opciones={opcionesCon(theme, THEMES)}
+                seleccionados={theme ? [theme] : []}
+                onAceptar={(temas) => setTheme(temas[0] ?? theme)}
+                deshabilitado={edicionLimitada}
+                descripcion="Marca una; define en qué categoría aparece la campaña en el catálogo público."
+              />
             </div>
             <p className="text-[11.5px] text-ink-3">
               Define en qué categoría aparece la campaña en el catálogo público.

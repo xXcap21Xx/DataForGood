@@ -5,6 +5,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { pool } from "@/lib/db";
 import { createSession } from "@/lib/session";
+import { cancelarBajaSiPendiente } from "@/lib/usuarios/baja";
 import { exchangeCodeForProfile } from "@/lib/google";
 import { absoluteUrl } from "@/lib/app-url";
 import { conDestino, destinoSeguro } from "@/lib/redireccion";
@@ -59,8 +60,14 @@ export async function GET(request: Request) {
 
     // Una cuenta bloqueada también entra: al llegar a la app la mandan a
     // /cuenta-bloqueada, donde ve el motivo (exigirUsuario en lib/session.ts).
+    // Entrar dentro del plazo de gracia cancela la baja de cuenta (lib/usuarios/baja.ts).
+    const bajaCancelada = await cancelarBajaSiPendiente(usuarioId);
     await createSession(usuarioId);
 
+    // Con la baja recién cancelada, primero el aviso de /entrar; de ahí sigue a `destino`.
+    if (bajaCancelada) {
+      return NextResponse.redirect(absoluteUrl(conDestino("/entrar?baja=cancelada", destino)));
+    }
     return NextResponse.redirect(absoluteUrl(destino));
   } catch (error) {
     console.error(error);

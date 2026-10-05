@@ -50,3 +50,5 @@ next-env.d.ts
 *.img
 
 /data
+# Ajustes locales de Docker Compose (p. ej. consola de MinIO); no van al servidor.
+docker-compose.override.yml

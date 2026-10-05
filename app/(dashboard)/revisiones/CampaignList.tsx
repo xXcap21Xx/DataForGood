@@ -2,11 +2,15 @@
 
 // Lista de campañas del revisor (pestañas "en curso" y "finalizadas").
 // Datos: GET /api/revisiones (campañas con campana_revisores.estado = 'aceptado').
+// Filtros (búsqueda, temática, tipo de dato y orden): components/campanas/BarraDeFiltros.tsx,
+// aplicados en el navegador con lib/campanas/filtro-local.ts.
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Tag from "@/components/ui/Tag";
+import BarraDeFiltros, { type ValoresDeFiltros } from "@/components/campanas/BarraDeFiltros";
 import { BASE_PATH } from "@/lib/base-path";
+import { FILTROS_VACIOS, avisoSinResultados, filtrarCampanas, opcionesDeTematica, type FiltrosLocales } from "@/lib/campanas/filtro-local";
 
 type ReviewCampaign = {
   id: string;
@@ -16,12 +20,20 @@ type ReviewCampaign = {
   participants: number;
   status: string;
   pendingContributions: number;
+  currentContributions: number;
+  goalContributions: number;
+  creatorName: string;
+  dataTypes: string[];
+  endDate: string | null;
 };
+
+const tematicaDe = (campaign: ReviewCampaign) => campaign.tag;
 
 export default function CampaignList({ completed = false }: { completed?: boolean }) {
   const [campaigns, setCampaigns] = useState<ReviewCampaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filtros, setFiltros] = useState<FiltrosLocales>(FILTROS_VACIOS);
 
   useEffect(() => {
     async function load() {
@@ -44,10 +56,19 @@ export default function CampaignList({ completed = false }: { completed?: boolea
   const title = completed ? "Campañas finalizadas" : "Campañas en curso";
   const currentCount = campaigns.filter((campaign) => campaign.status !== "finalizada").length;
   const completedCount = campaigns.filter((campaign) => campaign.status === "finalizada").length;
-  const visibleCampaigns = campaigns.filter((campaign) => completed ? campaign.status === "finalizada" : campaign.status !== "finalizada");
+  const tabCampaigns = useMemo(
+    () => campaigns.filter((campaign) => completed ? campaign.status === "finalizada" : campaign.status !== "finalizada"),
+    [campaigns, completed]
+  );
+  const visibleCampaigns = useMemo(() => filtrarCampanas(tabCampaigns, filtros, tematicaDe), [tabCampaigns, filtros]);
+  const tematicas = useMemo(() => opcionesDeTematica(campaigns.map(tematicaDe)), [campaigns]);
+
+  function cambiarFiltro(clave: keyof ValoresDeFiltros, valor: string) {
+    setFiltros((actuales) => ({ ...actuales, [clave]: valor }));
+  }
 
   return (
-    <div className="mx-auto max-w-5xl">
+    <div className="mx-auto max-w-5xl lg:mx-0 lg:max-w-none">
       <div className="mb-6">
         <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Revisor de aportes</p>
         <h1 className="mt-2 text-2xl font-extrabold text-ink">Mis campañas</h1>
@@ -55,9 +76,11 @@ export default function CampaignList({ completed = false }: { completed?: boolea
       </div>
 
       <nav className="mb-6 flex flex-wrap gap-2" aria-label="Estado de campañas">
-        <Link href="/revisiones" className={`rounded-pill border px-4 py-2 text-[13px] font-bold transition-colors ${activeTab === "curso" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}>En curso {currentCount}</Link>
-        <Link href="/revisiones/finalizadas" className={`rounded-pill border px-4 py-2 text-[13px] font-bold transition-colors ${activeTab === "finalizadas" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}>Finalizadas {completedCount}</Link>
+        <Link href="/revisiones" className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${activeTab === "curso" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}>En curso {currentCount}</Link>
+        <Link href="/revisiones/finalizadas" className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${activeTab === "finalizadas" ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}>Finalizadas {completedCount}</Link>
       </nav>
+
+      <BarraDeFiltros valores={filtros} tematicas={tematicas} onCambiar={cambiarFiltro} />
 
       <div className="mb-4 flex items-center justify-between gap-3">
         <h2 className="text-lg font-extrabold text-ink">{title}</h2>
@@ -65,7 +88,9 @@ export default function CampaignList({ completed = false }: { completed?: boolea
       </div>
 
       {loading ? <p className="text-[13px] text-ink-2">Cargando campañas…</p> : error ? <p className="rounded border border-danger bg-danger-tint p-3 text-sm text-danger">{error}</p> : visibleCampaigns.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-line-2 p-6 text-sm text-ink-2">No tienes campañas {completed ? "finalizadas" : "en curso"} asignadas.</div>
+        <div className="rounded-lg border border-dashed border-line-2 p-6 text-sm text-ink-2">
+          {avisoSinResultados(tabCampaigns.length, `No tienes campañas ${completed ? "finalizadas" : "en curso"} asignadas.`)}
+        </div>
       ) : (
         <div className="space-y-3">
           {visibleCampaigns.map((campaign) => (

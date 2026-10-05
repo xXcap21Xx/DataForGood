@@ -23,7 +23,10 @@
         "aporteId": 1,
         "usuarioId": 1,
         "notificacionId": 1,
-        "datosId": 1
+        "datosId": 1,
+        "enlaceToken": "",
+        "bloqueoId": 1,
+        "rootToken": ""
       }
     },
     {
@@ -123,7 +126,7 @@
       "parameters": [],
       "body": {
         "mimeType": "application/json",
-        "text": "{\n  \"nombre\": \"Ana\",\n  \"apellidos\": \"Pérez López\",\n  \"email\": \"ana@correo.com\",\n  \"password\": \"Contraseña123\",\n  \"state\": \"Nayarit\",\n  \"city\": \"Tepic\",\n  \"specialty\": \"\",\n  \"intereses\": [\n    \"medio ambiente\"\n  ]\n}"
+        "text": "{\n  \"nombre\": \"Ana\",\n  \"apellidos\": \"Pérez López\",\n  \"email\": \"ana@correo.com\",\n  \"password\": \"Contraseña123!\",\n  \"state\": \"Nayarit\",\n  \"city\": \"Tepic\",\n  \"specialty\": \"\",\n  \"intereses\": [\n    \"medio ambiente\"\n  ]\n}"
       },
       "description": "Guarda la cookie pending_verification_id para verificar.",
       "metaSortKey": 4
@@ -195,6 +198,27 @@
       },
       "description": "Guarda la cookie root_session_token (2 h). Límite: 5 intentos por minuto por IP.",
       "metaSortKey": 8
+    },
+    {
+      "_id": "req_root_token",
+      "_type": "request",
+      "parentId": "fld_auth",
+      "name": "Token SuperUsuario (Bearer)",
+      "method": "POST",
+      "url": "{{ _.base }}/api/auth/root/token",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"identificador\": \"ROOT_USER_ID\",\n  \"credencial\": \"contraseña\"\n}"
+      },
+      "description": "Devuelve data.token (2 h), sin cookie. Ponlo en la variable rootToken del entorno para usar \"Usuarios (SuperUsuario)\".",
+      "metaSortKey": 8.5
     },
     {
       "_id": "fld_campanas",
@@ -438,7 +462,7 @@
         "mimeType": "application/json",
         "text": "{\n  \"contributionId\": \"{{ _.aporteId }}\",\n  \"reason\": \"Motivo del baneo\"\n}"
       },
-      "description": "Solo el creador. Se banea a quien envió ese aporte.",
+      "description": "Solo el creador. Se banea a quien envió ese aporte; si el aporte es anónimo, se bloquea su dispositivo en la campaña.",
       "metaSortKey": 21
     },
     {
@@ -476,6 +500,27 @@
       "metaSortKey": 21.2
     },
     {
+      "_id": "req_26c",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Desbloquear dispositivo anónimo",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/baneos",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"bloqueoId\": {{ _.bloqueoId }}\n}"
+      },
+      "description": "Solo el creador. bloqueoId sale de \"dispositivos\" en el GET de baneos o de dispositivoBloqueadoId en el detalle del aporte.",
+      "metaSortKey": 21.3
+    },
+    {
       "_id": "req_27",
       "_type": "request",
       "parentId": "fld_campanas",
@@ -487,6 +532,71 @@
       "body": {},
       "description": "Ojo: solo pide sesión, no revisa permisos (pendiente conocido).",
       "metaSortKey": 22
+    },
+    {
+      "_id": "req_27a",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Enlace público de la campaña",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/enlace",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Cualquiera con sesión. Visitas, aportes recibidos y permiteAnonimos completos solo para el creador. Copia data.token a enlaceToken del entorno.",
+      "metaSortKey": 22.1
+    },
+    {
+      "_id": "req_27b",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Generar o regenerar enlace público",
+      "method": "POST",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/enlace",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Solo el creador, con la campaña activa. Revoca el enlace anterior.",
+      "metaSortKey": 22.2
+    },
+    {
+      "_id": "req_27c",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "Permitir o cortar aportes sin cuenta",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/enlace",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"permiteAnonimos\": false\n}"
+      },
+      "description": "Solo el creador. No toca los aportes anónimos ya recibidos.",
+      "metaSortKey": 22.3
+    },
+    {
+      "_id": "req_27d",
+      "_type": "request",
+      "parentId": "fld_campanas",
+      "name": "QR del enlace público",
+      "method": "GET",
+      "url": "{{ _.base }}/api/campanas/{{ _.campanaId }}/qr",
+      "headers": [],
+      "parameters": [
+        {
+          "name": "formato",
+          "value": "png"
+        }
+      ],
+      "body": {},
+      "description": "Cualquiera con sesión. formato png o svg. 410 si el enlace caducó.",
+      "metaSortKey": 22.4
     },
     {
       "_id": "fld_aportes",
@@ -560,6 +670,37 @@
       "metaSortKey": 25
     },
     {
+      "_id": "req_30a",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Aporte anónimo desde enlace (multipart)",
+      "method": "POST",
+      "url": "{{ _.base }}/api/c/{{ _.enlaceToken }}/aportes",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "multipart/form-data"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "description",
+            "value": "Foto tomada sin cuenta"
+          },
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          }
+        ]
+      },
+      "description": "SIN sesión: cierra sesión antes o responde 409. Crea la cookie anonimo_id en la primera respuesta. 403 si la campaña no permite anónimos o el dispositivo está bloqueado; 429 por la espera de 60 s o el tope por IP.",
+      "metaSortKey": 25.1
+    },
+    {
       "_id": "req_31",
       "_type": "request",
       "parentId": "fld_aportes",
@@ -615,6 +756,27 @@
       "metaSortKey": 28
     },
     {
+      "_id": "req_33a",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Rechazar aporte anónimo como inapropiado",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"status\": \"rechazado\",\n  \"rejectionReason\": \"Contenido ofensivo\",\n  \"inapropiado\": true\n}"
+      },
+      "description": "Solo aportes anónimos. Con 3 inapropiados del mismo dispositivo en 30 días, se bloquea 30 días.",
+      "metaSortKey": 28.1
+    },
+    {
       "_id": "req_34",
       "_type": "request",
       "parentId": "fld_aportes",
@@ -639,6 +801,32 @@
       "body": {},
       "description": "",
       "metaSortKey": 30
+    },
+    {
+      "_id": "req_35a",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Borrar archivo de aporte anónimo",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}/archivo",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Solo el creador y solo aportes anónimos. Borra el archivo de MinIO; la fila se conserva y el GET responde 410.",
+      "metaSortKey": 30.1
+    },
+    {
+      "_id": "req_35b",
+      "_type": "request",
+      "parentId": "fld_aportes",
+      "name": "Marcar aporte anónimo como inapropiado",
+      "method": "POST",
+      "url": "{{ _.base }}/api/aportes/{{ _.aporteId }}/inapropiado",
+      "headers": [],
+      "parameters": [],
+      "body": {},
+      "description": "Creador o revisor aceptado. No cambia el estado del aporte.",
+      "metaSortKey": 30.2
     },
     {
       "_id": "fld_otros",
@@ -706,6 +894,48 @@
       "metaSortKey": 34
     },
     {
+      "_id": "req_contrasena",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Cambiar mi contraseña",
+      "method": "PATCH",
+      "url": "{{ _.base }}/api/usuarios/{{ _.usuarioId }}/contrasena",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"actual\": \"ContraseñaActual1!\",\n  \"nueva\": \"ContraseñaNueva1!\"\n}"
+      },
+      "description": "Solo la cuenta propia. Una contraseña actual equivocada cuenta para el bloqueo del login. No cierra sesiones.",
+      "metaSortKey": 34.5
+    },
+    {
+      "_id": "req_usuario_baja",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Pedir la baja de mi cuenta",
+      "method": "DELETE",
+      "url": "{{ _.base }}/api/usuarios/{{ _.usuarioId }}",
+      "headers": [
+        {
+          "name": "Content-Type",
+          "value": "application/json"
+        }
+      ],
+      "parameters": [],
+      "body": {
+        "mimeType": "application/json",
+        "text": "{\n  \"destino\": \"anonimizar\",\n  \"confirmacion\": \"ELIMINAR\",\n  \"contrasena\": \"Contraseña123!\"\n}"
+      },
+      "description": "Baja voluntaria con 30 días de gracia; iniciar sesión la cancela. destino: eliminar | anonimizar | autoria. Cierra la sesión.",
+      "metaSortKey": 35
+    },
+    {
       "_id": "req_40",
       "_type": "request",
       "parentId": "fld_otros",
@@ -756,6 +986,44 @@
       "body": {},
       "description": "",
       "metaSortKey": 38
+    },
+    {
+      "_id": "req_usuarios_root",
+      "_type": "request",
+      "parentId": "fld_otros",
+      "name": "Usuarios del sistema (SuperUsuario)",
+      "method": "GET",
+      "url": "{{ _.base }}/api/usuarios",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.rootToken }}"
+        }
+      ],
+      "parameters": [
+        {
+          "name": "pagina",
+          "value": "1"
+        },
+        {
+          "name": "q",
+          "value": "",
+          "disabled": true
+        },
+        {
+          "name": "rol",
+          "value": "supervisor",
+          "disabled": true
+        },
+        {
+          "name": "estado",
+          "value": "ACTIVA",
+          "disabled": true
+        }
+      ],
+      "body": {},
+      "description": "Todos los usuarios, 20 por página. Requiere el token de \"Token SuperUsuario (Bearer)\".",
+      "metaSortKey": 32.5
     }
   ]
 }

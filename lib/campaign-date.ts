@@ -121,12 +121,18 @@ function nowLocalTimestampParam(): string {
  * Sin start_time, COALESCE la deja en 00:00 (mismo comportamiento que antes).
  */
 export async function activateScheduledCampaigns(): Promise<void> {
-  await pool.query(
+  const { rows } = await pool.query<{ id: number }>(
     `UPDATE campanas SET status = 'activa', updated_at = NOW()
      WHERE status = 'aceptada'
-       AND (start_date::timestamp + COALESCE(start_time, TIME '00:00:00')) <= $1::timestamp`,
+       AND (start_date::timestamp + COALESCE(start_time, TIME '00:00:00')) <= $1::timestamp
+     RETURNING id`,
     [nowLocalTimestampParam()]
   );
+  if (rows.length === 0) return;
+  // Al empezar, cada campaña recibe su enlace público. Import dinámico:
+  // lib/campanas/enlaces.ts importa este archivo y un import estático haría un ciclo.
+  const { asegurarEnlaceVigente } = await import("@/lib/campanas/enlaces");
+  for (const { id } of rows) await asegurarEnlaceVigente(Number(id));
 }
 
 /**

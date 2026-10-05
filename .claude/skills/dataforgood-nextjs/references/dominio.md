@@ -24,6 +24,13 @@ Fuentes: `(auth)/registro`, `verificar`, `bienvenida` y `entrar`.
 - **Perfil inicial (se puede omitir):** estado, ciudad, especialidad opcional (solo es un título informativo: **no** influye en qué campañas supervisa alguien) y temas de interés. Si se omite, se asignan etiquetas por defecto según las campañas más populares de la zona.
 - **Inicio de sesión:** correo y contraseña; hay botón "Continuar con Google" y enlace "¿Olvidaste tu contraseña?", ambos sin flujo definido todavía.
 - **Datos del usuario** (`User`): alias, email, avatar, estado, ciudad, especialidad, `xpTotal`, `level` y `streakDays`.
+- **Baja voluntaria** (SCR-WEB-31 del prototipo `DataForGood_Acceso_v2`; decisiones del usuario del 2026-10-05). Implementada en `lib/usuarios/baja.ts`:
+  - Se confirma con la contraseña (las cuentas de Google, solo escribiendo ELIMINAR) **y** escribiendo ELIMINAR. Una contraseña equivocada suma al bloqueo del login.
+  - **30 días de gracia.** Se cierran todas las sesiones; **iniciar sesión dentro del plazo cancela la baja** (contraseña o Google).
+  - Al pedirla: las campañas propias **activas o pausadas se finalizan**; las que **no tienen ningún aporte** (borrador, en revisión, aceptada) **se borran**; las finalizadas no se tocan. Esto no se revierte si la persona cancela.
+  - Destino de los aportes, a elegir: **eliminarlos**, **conservarlos anónimos** o **conservarlos con su nombre** (nombre y apellidos; el correo se borra siempre).
+  - **Aporte "ya utilizado"** = aceptado en una campaña **finalizada** (es parte de los datos abiertos). Nunca se borra: con "eliminar" se anonimiza igual. Los aceptados de campañas en curso, pendientes y rechazados sí se borran.
+  - Al vencer el plazo: se aplica el destino, sus campañas muestran "Cuenta eliminada", se borran notificaciones y guardadas, deja de ser revisor y suelta las campañas que supervisaba sin dictamen. La fila de `usuarios` **no se borra** (se vacía: `eliminada_en`), porque `campanas.creator_id` es `ON DELETE CASCADE`. El correo queda libre para un registro nuevo y se pierden XP y nivel.
 
 ## 2. Roles
 
@@ -38,7 +45,7 @@ Fuentes: texto informativo de `/entrar` y la pantalla `agregar-revisor`.
 | SuperUsuario | Global | — |
 
 - **Los roles nuevos aparecen dentro de la misma sesión**, sin volver a entrar. Por eso los permisos se recalculan en cada petición.
-- **Quien crea una campaña la administra** desde `/mis-campanas/[id]/*`: bandeja, panel, compartir, especial, agregar revisor, editar y pausar.
+- **Quien crea una campaña la administra** desde `/mis-campanas/[id]/*`: bandeja, panel, especial, agregar revisor, editar y pausar. Compartir está en la descripción (`/campanas/[id]`), abierto a todos; el creador además regenera el enlace.
 - **El Supervisor dictamina las campañas "En revisión".**
 - **Sección Campañas del panel del SuperUsuario (solo consulta):** `/sistema/campanas` (listado con filtros, orden y paginación en SQL), `/sistema/campanas/dashboard` y `/sistema/campanas/[id]` (panel individual). Viven bajo `/sistema` porque `/campanas` y `/campanas/[id]` ya son pantallas del usuario común: dos route groups no pueden resolver a la misma URL. Los datos están en `lib/campanas/sistema.ts` (consultas, exigen sesión raíz) y `lib/campanas/sistema-opciones.ts` (constantes sin imports de servidor, las usa el cliente). Aportes y participantes se cuentan desde `aportes`; un participante es un `user_id` distinto, o un correo distinto si aportó sin cuenta.
 - **Hay dos tipos de supervisor.**
@@ -101,19 +108,42 @@ Fuentes: `mis-campanas/[id]/aportes` y `[aporteId]`.
 - **Estados del aporte:** `pendiente` (sin revisar), `espera_final`, `aceptado` y `rechazado`.
 - **Sin revisor asignado:** todo llega sin filtro y quien administra la campaña decide en **una sola instancia** (`pendiente` → `aceptado` o `rechazado`).
 - **Con revisor asignado:** el revisor valida en primera instancia (`pendiente` → `espera_final`, guardando quién lo validó), y quien administra da la aprobación final (`espera_final` → `aceptado` o `rechazado`).
-  - **Estado real del código (2026-10-01):** no se cumple. En `PATCH /api/aportes/[id]` el revisor solo puede mandar `status: "aceptado"` sobre un aporte `pendiente`, y el servidor lo guarda tal cual como `aceptado` (con `first_pass_by`); nunca asigna `espera_final`. La interfaz (`/revisiones/[aporteId]`, bandeja del creador) sí muestra ese estado. Arreglo pendiente: si quien acepta es revisor y no creador, guardar `espera_final` y no sumar a `approved_contributions` hasta la decisión del creador.
-- **Rechazar exige un motivo:** uno de la lista ("Contenido borroso o ilegible", "No corresponde a la campaña", "Datos incompletos", "Contenido duplicado") o uno redactado. **El participante recibe el motivo por notificación.**
+  - *Implementado el 2026-10-01:* cuando el revisor (que no es el creador) acepta un aporte `pendiente`, `PATCH /api/aportes/[id]` lo guarda en `espera_final` con su nombre; el creador solo decide `aceptado` o `rechazado` y no puede regresarlo a pendiente. El nombre del revisor ya no se toma del body.
+- **Contadores de la campaña** (`current/pending/approved/rejected_contributions`, `participants`): se **recalculan** desde `aportes` después de cada envío, revisión o borrado (`recalcularContadores()`, `lib/aportes/comun.ts`), con la fila de la campaña bloqueada (`FOR NO KEY UPDATE`; `FOR UPDATE` choca con la llave foránea de los aportes y produce deadlocks). Antes se sumaban y restaban y un cambio de decisión los desfasaba.
+- **Rechazar exige un motivo:** uno de la lista ("Contenido borroso o ilegible", "No corresponde a la campaña", "Datos incompletos", "Contenido duplicado") o uno redactado. Se guarda en `aportes.rejection_reason`.
+  - **Dónde lo ve el participante:** en `/mis-aportes/[campanaId]`, bajo el aporte rechazado (`ContributionCard`). **No se notifica:** `PATCH /api/aportes/[id]` no crea notificación al rechazar. En un aporte anónimo nadie lo recibe.
 - **Desde el detalle de un aporte se puede "Banear de la campaña"** al participante. El baneo es por campaña, no global.
 
 ## 6. Enlace público y aportes anónimos
 
-Fuente: `mis-campanas/[id]/compartir`.
+Fuente: pantalla de compartir del prototipo; hoy es el cuadro "Compartir" de `/campanas/[id]`.
 
 - **Enlace:** `dataforgood.mx/c/{token}`, con código QR descargable en PNG y SVG (512 × 512 px).
 - **Aportes anónimos:** quien abre el enlace puede aportar **sin registrarse** mientras el token siga vigente. Esos aportes aparecen como "Anónimo" (`userId = null`).
 - **Vencimiento y regeneración:** el token vence (la pantalla muestra unas 21 horas restantes). Al regenerarlo se crea una dirección nueva y la anterior queda inutilizable **para siempre**; los aportes ya recibidos se conservan.
 - **Estadísticas del enlace vencido:** aportes recibidos y visitas.
-- **Estado técnico:** `campanas.share_token` y `share_token_expires_at` ya existen, pero la ruta pública `/c/[token]` y el aporte anónimo todavía no están implementados.
+- **Estado técnico (2026-10-01):**
+  - **Implementado:** tabla `campana_enlaces` (una fila por token; regenerar revoca la anterior con `revocado_en` sin borrarla), lógica en `lib/campanas/enlaces.ts`, cuadro **Compartir** (`<dialog>`) en la descripción de la campaña `/campanas/[id]` (`compartir.tsx`; ya **no** existe `/mis-campanas/[id]/compartir`), `GET`/`POST /api/campanas/[id]/enlace` (consultar / regenerar, este último auditado como `campana.enlace_regenerar`) y `GET /api/campanas/[id]/qr?formato=png|svg` (QR con `qrcode`). La URL es `absoluteUrl("/c/<token>")`, no un dominio fijo.
+  - **Decidido el 2026-10-01:**
+    - El token vale **24 horas** (`HORAS_DE_VIGENCIA`) y **solo existe con la campaña `activa`**.
+    - **Se genera solo al aceptarse la campaña:** en cuanto queda `activa` (aceptada y ya empezó, al llegar su fecha de inicio si se aceptó antes, o al reactivarse) con `asegurarEnlaceVigente`, en `lib/supervision/decision.ts`, `activateScheduledCampaigns` y `PATCH`/`PUT /api/campanas/[id]`. No se genera en el estado `aceptada` con inicio futuro: vencería antes de que la campaña empiece.
+    - **Cualquiera con sesión** abre "Compartir" en `/campanas/[id]` y obtiene el enlace y el QR. **Solo el creador** lo regenera y ve sus visitas y aportes.
+  - **Ruta pública `/c/[token]`:** valida el token en el servidor en cada apertura (inexistente, revocado, caducado, campaña no activa) y cuenta una visita por apertura de un enlace vigente. Para aportar **pide iniciar sesión o registrarse** (con `?next=` a `/campanas/[id]/aportar?enlace=<token>`); `POST /api/aportes` guarda el enlace en `aportes.enlace_id` si es el vigente de la campaña. Así "aportes recibidos" del enlace es real.
+  - **Aporte anónimo (implementado el 2026-10-01):**
+    - Sin sesión, `/c/[token]` muestra un formulario que envía a `POST /api/c/[token]/aportes`. La lógica está en `lib/campanas/aportes-anonimos.ts`.
+    - **La persona anónima solo participa si le comparten la campaña.** No ve ni toca nada más del sistema: ni sus aportes después, ni archivos, ni la app. Solo ve lo que muestra `/c/[token]`.
+    - El aporte se guarda sin datos personales: `user_id` NULL, "Anónimo", sin correo y sin nombre de archivo. Lleva `enlace_id` y `anonimo_id`, que es el sha256 de la cookie del dispositivo.
+    - Con sesión iniciada, el endpoint responde 409: se aporta con la cuenta.
+    - El creador lo revisa como cualquier aporte; nadie recibe el motivo del rechazo. En vez de "Banear" tiene las sanciones de abajo.
+    - En las métricas, un dispositivo cuenta como participante.
+    - **Espera entre aportes** (2026-10-01): 60 segundos entre dos aportes sin cuenta del mismo dispositivo, en cualquier campaña (`ESPERA_ENTRE_APORTES_SEGUNDOS`, `TODO(dominio)`: valor elegido sin consulta). Responde 429 con `esperaSegundos` y `Retry-After`; el formulario muestra la cuenta regresiva. Se comprueba dentro del candado, así que envíos simultáneos tampoco la saltan. **Sin cookie** (dispositivo nuevo), la espera también cuenta desde el último aporte anónimo de la misma IP, llevado en memoria (no se guarda en la BD); con cookie propia no se espera por otros de su IP. Antes, quien no mandaba la cookie se saltaba la espera y la cuota.
+    - La foto se guarda sin metadatos (EXIF con GPS, etc.) y solo si es de verdad JPG o PNG (`lib/aportes/imagen.ts`). Lo mismo aplica a los aportes con cuenta.
+  - **Sanciones para anónimos (implementado el 2026-10-01, `lib/aportes/sanciones-anonimas.ts`):**
+    1. **Aporte:** casilla "Contenido inapropiado" al rechazar (creador) o botón "Marcar como inapropiado" (revisor; no cambia el estado). Si el creador acepta después, la marca se quita. Solo los marcados cuentan para el nivel 4. El creador puede **borrar el archivo** de MinIO.
+    2. **Campaña:** el creador bloquea el dispositivo en su campaña ("Bloquear este dispositivo", misma API que el baneo). Solo por dispositivo, sin vencimiento; se quita desde "Participantes baneados".
+    3. **Enlace:** regenerar el token y el interruptor "Permitir aportes sin cuenta" del cuadro Compartir (`campanas.permite_anonimos`). Apagado, `/c/[token]` solo invita a entrar o registrarse.
+    4. **Plataforma:** 3 aportes inapropiados del mismo dispositivo en 30 días lo bloquean 30 días en todas las campañas (solo el dispositivo). El SuperUsuario lo ve y lo quita en `/usuarios/sanciones`. Todo queda en `audit_log`.
+  - Las columnas viejas `campanas.share_token`/`share_token_expires_at` ya no se usan.
 
 ## 7. Experiencia (XP) y campañas especiales
 
@@ -158,8 +188,8 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
 3. **Colaborador de Supervisor.** Aparecía en requisitos anteriores; no existe en la rama. ¿Sigue vigente?
 4. **Cálculo de XP.** `xpPerContribution` por campaña (50, 40, 35, 30) frente a XP base por tipo en la pantalla de especial (texto 10, foto o documento 25, audio o video 50). ¿Cuál manda, o se combinan?
 5. ~~**Catálogo de temáticas.** El filtro de `/campanas` usa "Salud y bienestar" y omite varias categorías; el formulario usa "Salud urbana".~~ *Resuelto (2026-09-30): una sola lista de 23 temáticas en `lib/intereses.ts` para intereses del perfil y temáticas de campaña; los filtros de `/campanas` se arman con las temáticas de las campañas activas.*
-6. **Límites de archivos** para video, audio y documento, y formatos de documento. Hoy `POST /api/aportes` solo acepta JPG y PNG de hasta 10 MB.
-7. **Cuota de aportes anónimos.** Sin cuenta no hay persona a quien contar: ¿límite por dispositivo o IP, o solo la meta total?
+6. **Límites de archivos** para video, audio y documento, y formatos de documento. Hoy `POST /api/aportes` solo acepta JPG y PNG de hasta 10 MB y 50 megapíxeles (`MAXIMO_DE_MEGAPIXELES` en `lib/aportes/imagen.ts`, valor elegido sin consulta el 2026-10-01).
+7. ~~**Cuota de aportes anónimos.** Sin cuenta no hay persona a quien contar: ¿límite por dispositivo o IP, o solo la meta total?~~ *Resuelto (2026-10-01): la misma cuota por persona de la campaña, contada **por dispositivo** (cookie `anonimo_id`), más un **tope por IP** contra abuso. El valor del tope (20 aportes anónimos por IP por hora, `TOPE_POR_IP_POR_HORA`) se eligió sin consulta: confirmarlo con el equipo. Vive en memoria, así que se reinicia con cada despliegue.*
 8. **Rechazo en primera instancia.** ¿El revisor puede rechazar de forma definitiva o solo validar? No hay pantalla del revisor.
 9. **Valor del tope diario de XP.**
 10. **Recuperación de contraseña:** el enlace "¿Olvidaste tu contraseña?" existe, el flujo no. (El inicio con Google ya funciona.)
@@ -174,3 +204,16 @@ Fuentes: pantalla pública `/` (landing) y `/datos` (catálogo).
 15. **Topes de checklists** (2026-09-30): 50 checklists de 50 opciones y 120 caracteres por texto (`lib/campanas/checklist.ts`). Son técnicos, elegidos sin consulta: ¿el equipo quiere otros?
 16. **Motivo visible al sancionado** (2026-09-30): `/cuenta-bloqueada` muestra tal cual el `detalle` que escribe el SuperUsuario. ¿Se redacta pensando en la persona o conviene un campo aparte para el mensaje?
 17. **Motivo del baneo por campaña:** hoy el participante solo ve que no puede aportar, no el motivo que escribió el creador. ¿Se le muestra?
+18. ~~**Sanciones para aportes anónimos**~~ *Implementado el 2026-10-01 (ver § 6). Decisiones: marcan "inapropiado" el creador y el revisor; bloquear, borrar el archivo y apagar los anónimos, solo el creador; nivel 4 con 3 inapropiados en 30 días → 30 días de bloqueo (números provisionales, `TODO(dominio)` en `lib/aportes/sanciones-anonimas.ts`); al principio se guardó el HMAC de la IP (`ANONIMO_IP_SECRETO`) para bloquear también la red, pero el mismo 2026-10-01 se quitó a pedido del usuario: la IP de una persona sin cuenta no se guarda en ningún lado y el bloqueo global es solo por dispositivo. Abajo, la propuesta original.*
+    - **Situación actual:** si una persona sin cuenta sube algo indebido, solo se puede **rechazar** el aporte. Nadie recibe el motivo, no hay "Banear" y la persona sigue aportando hasta su cuota.
+    - **Identificador disponible:** solo `aportes.anonimo_id`, el hash de la cookie del dispositivo; la IP no se guarda. Borrar las cookies o usar modo incógnito da un dispositivo nuevo, así que la meta es volver tedioso el abuso, no imposible.
+    - **Propuesta aceptada:**
+      1. **Aporte:** casilla "Contenido inapropiado" al rechazar; solo esos cuentan para lo demás. El creador puede borrar el archivo de MinIO si es ilegal o dañino.
+      2. **Campaña:** el creador bloquea ese dispositivo en la campaña. Es como el baneo por campaña, pero por `anonimo_id`, y se quita desde "Participantes baneados".
+      3. **Enlace:** regenerar el token (ya existe) y un interruptor por campaña "Permitir aportes sin cuenta".
+      4. **Plataforma:** 3 aportes inapropiados del mismo dispositivo lo bloquean en toda la plataforma por un tiempo. El SuperUsuario lo ve y lo restaura en `/usuarios/sanciones`, y queda en `audit_log`.
+    - **Orden sugerido:** implementar 1–3 primero; el 4, cuando se fijen sus números.
+    - **Por decidir:**
+      - Quién marca "inapropiado". Propuesta: creador y revisor. Bloquear, borrar el archivo y cortar los aportes anónimos, solo el creador.
+      - Los números del nivel 4: cuántos aportes y cuánto dura el bloqueo.
+      - Si guardar un HMAC de la IP. Recomendación: no, salvo que haya abuso real.

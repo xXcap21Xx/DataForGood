@@ -33,6 +33,8 @@ Definidos en `app/globals.css` como variables en `:root`, expuestas a Tailwind v
 - **JetBrains Mono** (400 y 500) como `font-mono`, para números, contadores, fechas, tokens, límites de caracteres y etiquetas de sección.
 - **Escala en uso:** `text-[11px]`, `[11.5px]`, `[12px]`, `[12.5px]`, `[13px]`, `text-sm`, `[15px]`; títulos `text-xl`, `text-2xl`, `text-[26px]` y `text-[46px]` en la landing, con `font-extrabold`. Mantén esta escala; no agregues tamaños nuevos.
 
+**Animaciones:** quien pidió menos movimiento ve la página quieta. Las clases `.landing-*` van dentro de `@media (prefers-reduced-motion: no-preference)` en `globals.css`; `.marca-animada` está fuera y se apaga con `@media (prefers-reduced-motion: reduce)`; la pastilla de los menús usa `motion-reduce:transition-none` y `ui/ContadorAnimado` lo revisa con `matchMedia`. Las tres formas son válidas, no las "corrijas"; en animaciones nuevas de CSS prefiere `no-preference`. Las de las páginas públicas son las clases `.landing-*` con los ayudantes de `lib/animaciones.ts`; no inventes otro sistema.
+
 ## 2. Componentes existentes
 
 Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `Record` y `className` para extender.
@@ -42,17 +44,22 @@ Todos usan `export default`, nombre de archivo en PascalCase, variantes en un `R
 | `ui/Button` | `variant`: primary (verde) · secondary · danger · ghost; `size`: sm · md | Forma de píldora. Para navegar usa `ui/ButtonLink` (nunca `<Link>` envolviendo `<Button>`) |
 | `ui/Card` | `highlighted` | `rounded-lg border bg-surface p-4 shadow-sm` |
 | `ui/Input` | `Field` (label, hint, required), `Input`, `Textarea` | Asterisco rojo en obligatorios; la pista va en `text-ink-3` |
+| `ui/PasswordInput` | Las de `Input`, sin `type` | Cliente. `Input` con botón de ojo para mostrar u ocultar la contraseña. Úsalo en todo campo de contraseña de la zona de usuario (`/entrar`, `/registro`, la ventana de contraseña de `/cuenta`) |
 | `ui/Tag` | `tone`: default · ok · warn · danger · on | Estados y temáticas |
 | `ui/ProgressBar` | `pct`, `tone`: accent · ok | Limita el valor entre 0 y 100 |
 | `ui/MetricCard` | `label`, `value` | Métricas del panel |
 | `cards/CampaignCard` | `campaign` | Tarjeta vertical del catálogo |
 | `cards/ContributionCard` | `contribution` | Estado con `Tag` |
 | `layout/PublicHeader`, `PublicFooter` | — | Landing |
-| `layout/TopBar` | `usuario: SessionUser` | Búsqueda, `NotificationsBell`, avatar |
-| `ui/SelectorDeTemas` | `opciones`, `seleccionados`, `onAceptar`, `quitables` | Muestra las temáticas elegidas y abre un `<dialog>` nativo con buscador; aplica solo al dar Aceptar. En `/bienvenida` y `/cuenta` (con `quitables`: × en cada una) |
+| `layout/Logo` (+ `IconoDelLogo`) | `alto`, `tamanoIcono`, `acronimoEnMovil` | Ícono y palabra de `public/logo.svg` y `public/Texto.svg` dibujados en línea (colores `accent`/`ink`). Con el cursor encima se vuelve "DFG"; en `max-md` muestra siempre "DFG". Solo CSS. Úsalo en vez de escribir "DataForGood" con un cuadro: está en `PublicHeader`, `(auth)/layout`, `CuentaBloqueada` y `sistema/Topbar` |
+| `campanas/BarraDeFiltros` | `valores`, `tematicas`, `onCambiar`, `conVigencia` | Cliente. Búsqueda, temática, tipo de dato, vigencia (opcional) y orden de campañas. Solo dibuja: `/sistema/campanas` escribe los cambios en la URL y `/supervision`, `/supervisar` y `/revisiones` filtran en el navegador con `lib/campanas/filtro-local.ts` |
+| `layout/TopBar` | `usuario: SessionUser` | Búsqueda (`layout/BuscadorDeLaBarra`: solo en las rutas de `RUTAS_CON_BUSCADOR`: `/campanas` y `/mis-aportes`; aún no busca nada), `NotificationsBell`, avatar |
+| `ui/SelectorDeTemas` | `opciones`, `seleccionados`, `onAceptar`, `quitables`, `unica`, `deshabilitado`, `titulo`, `descripcion` | Muestra las temáticas elegidas y abre un `<dialog>` nativo con buscador; aplica solo al dar Aceptar. En `/bienvenida`, `/cuenta` (con `quitables`: × en cada una) y la temática del formulario de campaña (con `unica`: exactamente una) |
 | `layout/CuentaBloqueada` | `nombre`, `bloqueo`, `historial` | Pantalla de `/cuenta-bloqueada`: motivo y contador de sanciones |
 | `layout/VigilanteDeSesion` | — | En el layout de `(dashboard)`: revisa la sesión en cada navegación y recarga si ya no vale |
-| `layout/SidebarNav` | `usuario` (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas; agrega Supervisión si `role` incluye `supervisor` |
+| `layout/SidebarNav` | `usuario` (cliente, `usePathname`) | `NAV_ITEMS`: Explorar, Mis aportes, Mis campañas (tono verde); agrega Supervisión si `role` incluye `supervisor` y Revisor de aportes si incluye `revisor`. Opción activa con pastilla deslizante |
+| `ui/useIndicadorDeMenu` | hook: `activo` → `{ navRef, visual, indicador, alElegir }`; `claseDeOpcionMarcada()` | Cliente. Pastilla azul (accent, siempre: es el color principal) que se desliza a la opción activa de un menú (`SidebarNav` y `sistema/Sidebar`). El `<nav>` va `relative` con `navRef` y `{indicador}` dentro; cada enlace lleva `data-menu-clave`, `onClick={alElegir(clave)}` y, si está marcado, `claseDeOpcionMarcada()` |
+| `ui/ContadorAnimado` | `valor`, `className` | Cliente. Cifra que cuenta desde 0 al entrar en pantalla (landing); sin JS o con movimiento reducido se ve el valor final |
 
 Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta uno nuevo (Select, EmptyState), sigue las mismas convenciones. Para ventanas usa `<dialog>` nativo con `showModal()`, como `ui/SelectorDeTemas`.
 
@@ -62,7 +69,7 @@ Antes de crear un componente, busca si ya existe uno equivalente. Si hace falta 
 
 - **Chips de filtro:** `rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold`. Activo: `border-accent bg-accent text-white`. Inactivo: `border-line-2 bg-surface text-ink-2 hover:border-accent`. Si hay contador, va dentro en `font-mono`.
 - **Cajas informativas:** `rounded-lg p-3.5` o `p-4` con `text-[12.5px]`: neutra `bg-sunken text-ink-2`, aviso `bg-warn-tint text-warn`, información `border-l-4 border-accent bg-sunken text-ink-2` (no uses `bg-accent-tint` para avisos: se confundía con un botón), error `bg-danger-tint text-danger`, éxito `border border-ok bg-ok-tint text-ok`.
-- **Etiqueta de sección o de paso:** `font-mono text-[10.5px]` a `[12px] uppercase tracking-wide text-accent` o `text-ink-3` (por ejemplo "Paso 1 de 3 · Tus datos", "1 · Datos básicos").
+- **Etiqueta de sección o de paso:** `font-mono text-[10.5px]` a `[12px] uppercase tracking-wide text-accent` o `text-ink-3` (por ejemplo "Paso 1 de 4 · Tus datos", "1 · Datos básicos").
 - **Enlace de regreso:** `← Volver a …` con `text-[13px] text-ink-2 hover:text-ink`, arriba del título.
 - **Cabecera de página:** título `text-xl` o `text-2xl font-extrabold` + subtítulo `text-[13px] text-ink-2`, con acciones a la derecha.
 - **Listas de datos:** `<dl>` con filas `flex justify-between`, `dt` en `text-ink-2` y `dd` en `font-medium text-ink`.
@@ -95,6 +102,7 @@ Las pantallas del panel usan solo ese kit, y las de usuario solo `components/ui/
 - **Barra lateral:** por debajo de 768 px pasa a navegación horizontal con scroll (`globals.css`, clases `dashboard-*`) y oculta el bloque motivacional.
 - **Grids:** `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`.
 - **TopBar:** oculta el nombre en pantallas pequeñas.
+- **Panel del SuperUsuario (2026-10-04, Gerard):** menú de Usuarios en móvil con `/usuarios?movil=menu` y las opciones móviles de `Subtabs` (`listaEnMovil`, `distribuidasEnMovil`, `volverAlMenuEnMovil`, `menuInicialMovil`); tablas del panel como tarjetas `md:hidden` + tabla en escritorio; botones de sanciones con `anchoCompleto`.
 
 **Pendiente o por revisar:**
 
@@ -119,7 +127,7 @@ Las pantallas del panel usan solo ese kit, y las de usuario solo `components/ui/
 </label>
 ```
 
-- **Validación en el cliente:** mantén la que ya existe (formato y 10 MB) para avisar pronto; el servidor vuelve a validar (`ALLOWED_FILE_TYPES` y `MAX_FILE_SIZE` en `app/api/aportes/route.ts`).
+- **Validación en el cliente:** mantén la que ya existe (formato y 10 MB) para avisar pronto; el servidor vuelve a validar con `errorDeArchivo()` (`lib/aportes/archivo.ts`, la misma que puede usar el cliente) y con la firma real del archivo (`lib/aportes/imagen.ts`).
 - **Vista previa:** `URL.createObjectURL(file)`, liberando la URL después.
 - **Audio en vivo:** `MediaRecorder` (Chrome graba `audio/webm`, Safari `audio/mp4`). Requiere HTTPS o `localhost`; como respaldo, ofrece `<input type="file" accept="audio/*">`.
 - **Subida:** `FormData` con `fetch` a `POST /api/aportes` (ver `almacenamiento.md`). Si falla, conserva lo que la persona escribió.

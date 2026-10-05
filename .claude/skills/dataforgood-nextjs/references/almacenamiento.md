@@ -11,7 +11,8 @@
 
 `lib/minio.ts` crea, en el primer uso, un `Client` del SDK `minio` con las variables `MINIO_*` (sin valores por defecto para las credenciales) y exporta:
 
-- **`saveUploadedFile(file, subdir)`:** crea el bucket la primera vez (`MINIO_BUCKET`, por defecto `aportes`), guarda el objeto como `<subdir>/<uuid><ext>` con `putObject` y devuelve `{ relativePath, originalName, mimeType, sizeBytes }`.
+- **`guardarArchivo(buffer, { subdir, extension, mimeType })`:** crea el bucket la primera vez (`MINIO_BUCKET`, por defecto `aportes`), guarda el objeto como `<subdir>/<uuid><ext>` con `putObject` y devuelve `{ relativePath, mimeType, sizeBytes }`. Recibe el archivo **ya validado y limpio**: la extensión y el tipo los decide el servidor por el contenido, nunca por el nombre ni por `file.type`.
+- **`borrarArchivo(key)`:** borra el objeto (el creador quita el archivo de un aporte anónimo ilegal o dañino).
 - **`readUploadedFile(key)`:** descarga el objeto completo a un `Buffer`.
 
 **El archivo pasa por el servidor de Next.** El navegador manda `multipart/form-data` al route handler y el handler lo sube a MinIO. No hay URLs firmadas ni subida directa del navegador a MinIO.
@@ -21,15 +22,21 @@
 `POST /api/aportes` (`app/api/aportes/route.ts`):
 
 1. `getSessionUser()`, campaña activa, sin baneo, cuota disponible, sin ser el creador.
-2. **Validación en el servidor:** hoy solo `image/jpeg` e `image/png`, hasta 10 MB (`ALLOWED_FILE_TYPES`, `MAX_FILE_SIZE`). La interfaz también valida, pero solo para avisar pronto.
-3. `saveUploadedFile(file, \`campanas/${campaignId}\`)`, y después el `INSERT` en `aportes` con `file_path` = clave del objeto.
+2. **Validación rápida:** `errorDeArchivo()` (`lib/aportes/archivo.ts`): solo `image/jpeg` e `image/png` según `file.type`, hasta 10 MB. La interfaz usa la misma función para avisar pronto.
+3. **Validación real y limpieza** (`limpiarImagen()` en `lib/aportes/imagen.ts`, desde `guardarFotoDelAporte()` de `lib/aportes/comun.ts`): los primeros bytes deben ser la firma de JPEG o PNG, la imagen no puede pasar de 50 megapíxeles (se lee solo el encabezado antes de decodificarla), y la foto se **vuelve a codificar con `sharp`**, lo que quita todos los metadatos (EXIF con GPS, modelo del teléfono, fecha). Se aplica antes la orientación del EXIF para que no quede girada. Un archivo que solo parece imagen se rechaza con 400.
+4. `guardarArchivo()` con `subdir = campanas/<campaignId>`, y después `insertarAporteConCuota()` (`lib/aportes/comun.ts`): cuenta e inserta dentro de una transacción con `pg_advisory_xact_lock` por campaña y persona, para que dos envíos simultáneos no pasen la cuota. Si la cuota ya se llenó, borra de MinIO el archivo recién subido.
+
+El aporte anónimo (`POST /api/c/[token]/aportes`, `lib/campanas/aportes-anonimos.ts`) sigue los mismos pasos 2 a 4.
 
 **Para aceptar video, audio o documentos** hay que ampliar la validación por tipo de dato de la campaña (`campanas.data_types`) y fijar límites por tipo. Subir archivos grandes a través del servidor ocupa memoria (el archivo completo queda en un `Buffer`). Si se necesitan archivos de más de unas decenas de MB, conviene pasar a subida directa con POST firmado: coméntalo antes de cambiar el flujo.
 
 ## 3. Mostrar y descargar
 
-- **Archivo de un aporte:** `GET /api/aportes/[id]/archivo`. Verifica el permiso (ver `roles-y-sesiones.md` § 4), lee de MinIO y responde con el `Content-Type` guardado y `Cache-Control: private`. En las pantallas se usa esa URL como `src`.
-- **Datos abiertos:** `GET /api/datos/[id]/descarga` solo para campañas `finalizada`. Arma un ZIP con `archiver` con los archivos de los aportes aceptados, renombrados `aporte-001.ext`... (sin nombre ni correo del participante), e incrementa `downloads_count`.
+- **Archivo de un aporte:** `GET /api/aportes/[id]/archivo`. Verifica el permiso (ver `roles-y-sesiones.md` § 4), lee de MinIO y responde con el `Content-Type` guardado (solo `image/jpeg` o `image/png`; cualquier otro, como binario), `X-Content-Type-Options: nosniff`, una CSP `sandbox` y `Cache-Control: private`. Responde `410` si el creador borró el archivo (`aportes.archivo_borrado_en`). En las pantallas se usa esa URL como `src`.
+- **Borrar el aporte** (`DELETE /api/aportes/[id]`, quien aportó) borra también su archivo.
+- **No se guarda el nombre original** del archivo (`file_original_name` va NULL desde el 2026-10-01): el del teléfono puede traer nombres o fechas.
+- **Borrar el archivo:** `DELETE /api/aportes/[id]/archivo`, solo el creador y solo en aportes anónimos. La fila se conserva.
+- **Datos abiertos:** `GET /api/datos/[id]/descarga` solo para campañas `finalizada`. Arma un ZIP con `archiver` con los archivos de los aportes aceptados, renombrados `aporte-001.ext`... (sin nombre ni correo del participante), e incrementa `downloads_count`. Omite los archivos borrados. Las fotos subidas **antes del 2026-10-01** no pasaron por la limpieza: `scripts/limpiar-metadatos.mjs` las re-codifica una vez (lista por defecto; `--aplicar` escribe). En local ya se corrió; en el servidor falta. El comando está en la cabecera del script.
 - **El bucket no se expone.** Nunca construyas URLs directas a MinIO para el navegador.
 
 ## 4. Configuración

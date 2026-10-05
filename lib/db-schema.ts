@@ -35,6 +35,13 @@ export async function ensureUsuariosTable(): Promise<void> {
       verification_code_hash VARCHAR(64),
       verification_code_expires_at TIMESTAMPTZ,
       verification_attempts INTEGER NOT NULL DEFAULT 0,
+      -- Baja voluntaria (lib/usuarios/baja.ts): se pide, corre un plazo de gracia y al
+      -- vencer la fila se vacía de datos personales (eliminada_en). Nunca se borra la fila:
+      -- campanas.creator_id es ON DELETE CASCADE y se llevaría aportes de otras personas.
+      baja_solicitada_en TIMESTAMPTZ,
+      baja_efectiva_en TIMESTAMPTZ,
+      baja_destino_aportes VARCHAR(20),
+      eliminada_en TIMESTAMPTZ,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
@@ -57,6 +64,10 @@ export async function ensureUsuariosTable(): Promise<void> {
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS verification_code_expires_at TIMESTAMPTZ;
     ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS verification_attempts INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE usuarios ALTER COLUMN password_hash DROP NOT NULL;
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS baja_solicitada_en TIMESTAMPTZ;
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS baja_efectiva_en TIMESTAMPTZ;
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS baja_destino_aportes VARCHAR(20);
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS eliminada_en TIMESTAMPTZ;
   `);
 }
 
@@ -122,6 +133,7 @@ export async function ensureCampanasTable(): Promise<void> {
       share_token_expires_at TIMESTAMPTZ,
       aportes JSONB NOT NULL DEFAULT '[]'::jsonb,
       downloads_count INTEGER NOT NULL DEFAULT 0,
+      permite_anonimos BOOLEAN NOT NULL DEFAULT true,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMP NOT NULL DEFAULT NOW()
     );
@@ -166,6 +178,8 @@ export async function ensureCampanasTable(): Promise<void> {
     -- El SuperUsuario no tiene fila en usuarios: cuando dictamina desde
     -- /supervisar, supervisor_id queda NULL y se marca aquí.
     ALTER TABLE campanas ADD COLUMN IF NOT EXISTS supervisado_por_root BOOLEAN NOT NULL DEFAULT false;
+    -- Interruptor del creador: si es false, /c/[token] no acepta aportes sin cuenta.
+    ALTER TABLE campanas ADD COLUMN IF NOT EXISTS permite_anonimos BOOLEAN NOT NULL DEFAULT true;
   `);
 }
 
@@ -251,6 +265,29 @@ export async function ensureCampanasGuardadasTable(): Promise<void> {
   `);
 }
 
+/**
+ * Enlaces públicos de participación (/c/[token]). Cada regeneración inserta
+ * una fila nueva y marca la anterior como revocada, sin borrarla: así se
+ * conserva cuántas visitas y aportes entraron por cada token. Vigente =
+ * revocado_en IS NULL y expira_en > NOW(). Reemplaza a las columnas viejas
+ * campanas.share_token / share_token_expires_at, que ya no se escriben.
+ */
+export async function ensureCampanaEnlacesTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS campana_enlaces (
+      id SERIAL PRIMARY KEY,
+      campana_id INTEGER NOT NULL REFERENCES campanas(id) ON DELETE CASCADE,
+      token VARCHAR(32) NOT NULL UNIQUE,
+      creado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      expira_en TIMESTAMPTZ NOT NULL,
+      revocado_en TIMESTAMPTZ,
+      visitas INTEGER NOT NULL DEFAULT 0
+    );
+    CREATE INDEX IF NOT EXISTS campana_enlaces_campana_idx ON campana_enlaces (campana_id, creado_en DESC);
+  `);
+}
+
 export async function ensureAportesTable(): Promise<void> {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS aportes (
@@ -270,6 +307,12 @@ export async function ensureAportesTable(): Promise<void> {
       rejection_reason TEXT,
       first_pass_by VARCHAR(160),
       first_pass_by_user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      enlace_id INTEGER REFERENCES campana_enlaces(id) ON DELETE SET NULL,
+      anonimo_id CHAR(64),
+      inapropiado BOOLEAN NOT NULL DEFAULT false,
+      inapropiado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      inapropiado_en TIMESTAMPTZ,
+      archivo_borrado_en TIMESTAMPTZ,
       submitted_at TIMESTAMP NOT NULL DEFAULT NOW(),
       reviewed_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -282,7 +325,54 @@ export async function ensureAportesTable(): Promise<void> {
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS rejection_reason TEXT;
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS first_pass_by VARCHAR(160);
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS first_pass_by_user_id INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS enlace_id INTEGER REFERENCES campana_enlaces(id) ON DELETE SET NULL;
+    -- Aporte sin cuenta (desde /c/[token]): sha256 del identificador de dispositivo
+    -- (cookie anonimo_id). Sirve para la cuota por dispositivo; nunca se guarda el valor.
+    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS anonimo_id CHAR(64);
+    CREATE INDEX IF NOT EXISTS aportes_anonimo_idx ON aportes (campaign_id, anonimo_id) WHERE anonimo_id IS NOT NULL;
     ALTER TABLE aportes ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMP;
+    -- La IP de un aporte sin cuenta ya no se guarda de ninguna forma (2026-10-01): se quita
+    -- la columna del HMAC que existió unas horas, con los hashes que alcanzó a guardar.
+    DROP INDEX IF EXISTS aportes_ip_fecha_idx;
+    ALTER TABLE aportes DROP COLUMN IF EXISTS ip_hmac;
+    -- Espera entre aportes anónimos: último aporte del dispositivo, en cualquier campaña.
+    CREATE INDEX IF NOT EXISTS aportes_anonimo_fecha_idx ON aportes (anonimo_id, submitted_at) WHERE anonimo_id IS NOT NULL;
+    -- Marca "Contenido inapropiado" (creador o revisor) de un aporte anónimo. Solo
+    -- estos cuentan para el bloqueo global del dispositivo (lib/aportes/sanciones-anonimas.ts).
+    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS inapropiado BOOLEAN NOT NULL DEFAULT false;
+    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS inapropiado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL;
+    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS inapropiado_en TIMESTAMPTZ;
+    -- El creador borró el archivo de MinIO (ilegal o dañino). La fila se conserva.
+    ALTER TABLE aportes ADD COLUMN IF NOT EXISTS archivo_borrado_en TIMESTAMPTZ;
+  `);
+}
+
+/**
+ * Bloqueos de dispositivos anónimos (aportes sin cuenta). Dos alcances:
+ *   - campana_id con valor: el creador bloqueó ese dispositivo en su campaña.
+ *     No vence; se quita desde "Participantes baneados". Solo por dispositivo.
+ *   - campana_id NULL: bloqueo global automático al juntar aportes inapropiados.
+ *     Vence en `hasta`. El SuperUsuario lo ve y lo quita en /usuarios/sanciones.
+ * anonimo_id es el hash de la cookie, nunca su valor. No se guarda la IP.
+ */
+export async function ensureDispositivosBloqueadosTable(): Promise<void> {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS dispositivos_bloqueados (
+      id SERIAL PRIMARY KEY,
+      anonimo_id CHAR(64) NOT NULL,
+      campana_id INTEGER REFERENCES campanas(id) ON DELETE CASCADE,
+      motivo TEXT NOT NULL,
+      bloqueado_por INTEGER REFERENCES usuarios(id) ON DELETE SET NULL,
+      aporte_id INTEGER REFERENCES aportes(id) ON DELETE SET NULL,
+      hasta TIMESTAMPTZ,
+      activo BOOLEAN NOT NULL DEFAULT true,
+      creado_en TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      restaurado_en TIMESTAMPTZ
+    );
+    CREATE INDEX IF NOT EXISTS dispositivos_bloqueados_anonimo_idx ON dispositivos_bloqueados (anonimo_id) WHERE activo;
+    -- Sin bloqueo por red desde el 2026-10-01: fuera el HMAC de la IP.
+    DROP INDEX IF EXISTS dispositivos_bloqueados_ip_idx;
+    ALTER TABLE dispositivos_bloqueados DROP COLUMN IF EXISTS ip_hmac;
   `);
 }
 
@@ -336,7 +426,9 @@ export async function ensureCoreSchema(): Promise<void> {
   await ensureCampanaBaneadosTable();
   await ensureNotificacionesTable();
   await ensureCampanasGuardadasTable();
+  await ensureCampanaEnlacesTable(); // antes de aportes: aportes.enlace_id la referencia
   await ensureAportesTable();
+  await ensureDispositivosBloqueadosTable(); // después de aportes: aporte_id la referencia
   await ensureSancionesTable();
   await ensureAuditLogTable();
 }

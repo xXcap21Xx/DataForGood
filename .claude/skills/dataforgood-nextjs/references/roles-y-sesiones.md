@@ -17,13 +17,13 @@ Las reglas de negocio y los puntos abiertos están en `dominio.md`, secciones 1,
 | | Usuario | SuperUsuario |
 | --- | --- | --- |
 | Archivo | `lib/session.ts` | `lib/rootSession.ts` |
-| Cookie | `session_token`, httpOnly, `SameSite=Lax`, 30 días | `root_session_token`, httpOnly, `SameSite=Strict`, 2 horas |
+| Cookie | `session_token`, httpOnly, `SameSite=Lax`, 30 días | `root_session_token`, httpOnly, `SameSite=Strict`, 2 horas; o `Authorization: Bearer <token>` |
 | Tabla | `sessions` (`usuario_id`) | `root_sessions` (sin usuario) |
 | Leer | `getSessionUser()` → `SessionUser \| null` (con `cache` de React: una consulta por petición) | `hasRootSession()` → `boolean` |
-| Crear / cerrar | `createSession(id)` / `destroySession()` | `createRootSession()` / `destroyRootSession()` |
+| Crear / cerrar | `createSession(id)` / `destroySession()` | `createRootSession()` (cookie) o `emitirTokenRoot()` (Bearer) / `destroyRootSession()` |
 
 - **Tokens:** 32 bytes aleatorios. En la BD solo se guarda su sha256.
-- **El SuperUsuario no es una fila de `usuarios`.** Su credencial está en `ROOT_USER_ID` + `ROOT_PASSWORD_HASH` (bcrypt) y entra por `/root` → `POST /api/auth/root`. Esa ruta compara sin cortocircuito y limita a 5 intentos por minuto por IP, con un `Map` en memoria.
+- **El SuperUsuario no es una fila de `usuarios`.** Su credencial está en `ROOT_USER_ID` + `ROOT_PASSWORD_HASH` (bcrypt) y entra por `/root` → `POST /api/auth/root`. Para Swagger u otro cliente, `POST /api/auth/root/token` devuelve un token Bearer de 2 horas (otra fila de `root_sessions`, sin cookie; bitácora `root.token_api`); `hasRootSession()` acepta la cookie o ese encabezado. Las dos rutas validan con `verificarCredencialRoot()` (`lib/root-acceso.ts`): sin cortocircuito, 5 intentos por minuto por IP y 30 en total, con un `Map` en memoria. Con el token responden `GET /api/usuarios` (directorio completo, `buscarUsuarios()`) y `GET /api/usuarios/[id]` (cualquier id); el resto de la API es de la cuenta de un usuario.
 - **Las dos sesiones son independientes.** Una persona con rol `supervisor` no entra al panel raíz, y la sesión raíz no sirve en `(dashboard)`.
 
 ## 2. Capas de protección
@@ -54,11 +54,16 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 | Acción | Condición |
 | --- | --- |
-| Bandeja, panel, compartir, especial, editar, pausar, invitar revisor, banear | `campanas.creator_id = user.id` |
+| Bandeja, panel, especial, editar, pausar, invitar revisor, banear, regenerar el enlace público | `campanas.creator_id = user.id` |
+| Ver el enlace público y el QR (cuadro Compartir) | Cualquier usuario con sesión |
 | Primera instancia de revisión | Revisor aceptado de esa campaña |
 | Decisión final del aporte | Creador |
 | Ver el archivo de un aporte | Quien aportó, el creador, o un revisor aceptado si el aporte está `pendiente` o si él hizo la primera revisión (`app/api/aportes/[id]/archivo/route.ts`) |
 | Aportar | Campaña `activa`, sin baneo en `campana_baneados`, cuota disponible y sin ser el creador |
+| Aportar sin cuenta (persona anónima) | Solo desde `/c/[token]` con enlace vigente, campaña `activa` con `permite_anonimos` y sin bloqueo del dispositivo; cuota por dispositivo, 60 s de espera entre aportes del mismo dispositivo y tope por IP (`lib/campanas/aportes-anonimos.ts`). No ve ni modifica nada más |
+| Marcar un aporte anónimo como inapropiado | Creador (al rechazar, `PATCH /api/aportes/[id]`) o revisor aceptado (`POST /api/aportes/[id]/inapropiado`) |
+| Bloquear el dispositivo de un aporte anónimo en la campaña, borrar su archivo, apagar los aportes sin cuenta | Solo el creador |
+| Quitar un bloqueo global de dispositivo | SuperUsuario (`/usuarios/sanciones`) |
 | Tomar y dictaminar | Supervisor que no sea el creador y la campaña esté `en_revision` y libre; o el SuperUsuario. Solo quien la tomó dictamina (`lib/supervision/decision.ts`) |
 
 ## 5. Registro, verificación e inicio de sesión
@@ -88,17 +93,18 @@ No hay una función central: cada route handler lo comprueba con SQL. Si agregas
 
 `registrarAuditoria()` en `lib/auditoria.ts`, llamado después de que la acción se completó. Si el registro falla, solo se reporta en consola: no revierte la acción.
 
-- **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`).
-- **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `revisor.invitar`, `revisor.aceptar`, `root.acceso` y `root.acceso_fallido`. Este último no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
+- **Qué guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`, `aporte:7`, `dispositivo:2`), detalle JSONB e IP (`lib/ip.ts`: último valor de `X-Forwarded-For`). Para el actor `anonimo` la IP **no** se guarda (`guardarIp: false`): la IP de una persona sin cuenta no se guarda en ningún lado.
+- **Acciones:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `campana.enlace_regenerar`, `revisor.invitar`, `revisor.aceptar`, `root.acceso`, `root.acceso_fallido` y `usuario.contrasena_cambiar` (no guarda ninguna contraseña). `root.acceso_fallido` no guarda el identificador tecleado, por si alguien escribió ahí la contraseña.
 - **Sin pantalla:** todavía no hay vista en el panel para consultarla; se lee con SQL.
 
 ## 8. Huecos conocidos
 
-- **Campaña activa sin supervisión (grave):** `POST /api/campanas` toma `status` del body (admite `activa`, `pausada`, `finalizada`...) y usa `activa` si no viene; tampoco aplica el límite de 5 activas. El `PATCH`/`PUT` de un borrador también acepta cualquier estado válido. La interfaz solo manda `borrador` o `en_revision`, pero una llamada directa se salta al supervisor. Debe aceptar solo `borrador` o `en_revision`. Detectado el 2026-10-01, sin corregir.
+- ~~**Campaña activa sin supervisión**~~ *Corregido el 2026-10-01: `POST /api/campanas` exige sesión (antes tomaba el creador del body), solo acepta `borrador` o `en_revision` y fija contadores, XP y "especial" del lado del servidor; el `PATCH` en borrador/en revisión/rechazada solo acepta esos dos estados; el `PUT` solo vale en esos estados. El límite de 5 activas se aplica al enviar a revisión. Regla en `lib/campanas/estado-del-creador.ts`.*
 - **Panel protegido solo por el layout:** `/sistema` y `/usuarios/**` no llaman a `exigirSesionRoot()` y sus funciones de `lib/` no verifican. Las server actions que escriben sí. Detectado el 2026-10-01, sin corregir.
-- **`GET /api/campanas/[id]/recoleccion-diaria`** pide sesión pero no que sea el creador: cualquier usuario ve las estadísticas de cualquier campaña. Las pantallas `/mis-campanas/[id]/{panel,compartir,especial}` tampoco comprueban `viewer.isCreator`. Detectado el 2026-10-01, sin corregir.
-- **El registro acepta roles del body (grave):** `POST /api/usuarios` pasa `body.role`/`body.roles` por `normalizeRoles` (`lib/roles.ts`), que admite `supervisor`, `revisor` y `admin`. Cualquiera puede registrarse como supervisor, lo que rompe la regla de que solo el SuperUsuario lo asigna. Debe guardar siempre `["usuario"]`. Detectado el 2026-09-28, sin corregir.
-- **`GET /api/usuarios/[id]` no pide sesión** y devuelve correo, ubicación y XP de cualquier id: permite enumerar correos. Detectado el 2026-09-28, sin corregir.
+- **El tope y la espera por IP dependen del proxy:** `ipDelCliente` toma el último valor de `X-Forwarded-For`. Si alguien llega a la app sin pasar por el proxy (puerto 3000 abierto a Internet), puede escribir la IP que quiera. La cuota por dispositivo sí aplica. Se resuelve en el despliegue: el puerto de la app solo debe ser accesible desde el proxy. Detectado el 2026-10-01.
+- ~~**`GET /api/campanas/[id]/recoleccion-diaria` sin comprobar creador**~~ *Corregido el 2026-10-01: solo el creador.* Las pantallas `/mis-campanas/[id]/{panel,especial}` siguen sin comprobar `viewer.isCreator` (sin datos que filtrar: la API ya responde 403).
+- ~~**El registro acepta roles del body**~~ *Corregido el 2026-10-01: `POST /api/usuarios` guarda siempre `["usuario"]`.*
+- ~~**`GET /api/usuarios/[id]` sin sesión**~~ *Corregido el 2026-10-01: solo la cuenta propia (401/403), como el `PATCH`. Ninguna pantalla lo usaba.*
 - **`revertirAccion` no hace nada todavía:** ya exige sesión raíz, pero su lógica sigue en `TODO`. Cuando se implemente, debe registrar `supervision.revertir` en la bitácora.
-- **Buscador de revisores** (`GET /api/usuarios?campanaId=&q=`): solo el creador de esa campaña, con al menos 3 letras del nombre o un correo completo exacto. Devuelve 10 usuarios verificados como máximo, con el correo oculto (`an***@gmail.com`).
+- **Buscador de revisores** (`GET /api/usuarios?campanaId=&q=`, sin sesión raíz): solo el creador de esa campaña, con al menos 3 letras del nombre o un correo completo exacto. Devuelve 10 usuarios verificados como máximo, con el correo oculto (`an***@gmail.com`).
 - **El límite de intentos de `/root` vive en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. Hay dos límites: 5 por minuto por IP y 30 por minuto en total. La IP es el **último** valor de `X-Forwarded-For` (el que agrega el proxy), no el primero, que lo puede inventar el cliente.

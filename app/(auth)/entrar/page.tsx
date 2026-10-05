@@ -3,12 +3,16 @@
 // Pantalla /entrar: inicio de sesión con correo/contraseña o Google.
 // Acciones: POST /api/auth/login; Google vía GET /api/auth/google?next=...
 // Respeta ?next= (lib/redireccion.ts) para volver a la pantalla que se pidió.
+// Si iniciar sesión canceló una baja de cuenta (bajaCancelada en la respuesta del login, o
+// ?baja=cancelada desde el regreso de Google), muestra el aviso antes de seguir.
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import PasswordInput from "@/components/ui/PasswordInput";
+import { retraso } from "@/lib/animaciones";
 import { BASE_PATH } from "@/lib/base-path";
 import { conDestino, destinoSeguro } from "@/lib/redireccion";
 
@@ -35,6 +39,8 @@ function EntrarForm() {
     () => ERRORES_DE_URL[searchParams.get("error") ?? ""] ?? ""
   );
   const [submitting, setSubmitting] = useState(false);
+  // La sesión ya está abierta: el aviso solo explica y deja continuar.
+  const [bajaCancelada, setBajaCancelada] = useState(() => searchParams.get("baja") === "cancelada");
   // Pantalla que se pidió sin sesión (proxy.ts la manda en ?next=).
   const next = searchParams.get("next");
   const destino = destinoSeguro(next);
@@ -63,8 +69,13 @@ function EntrarForm() {
         return;
       }
 
-      router.push(destino);
-      router.refresh();
+      const payload = await response.json().catch(() => ({}));
+      if (payload.bajaCancelada) {
+        setBajaCancelada(true);
+        return;
+      }
+
+      continuar();
     } catch {
       setServerError("No se pudo conectar con el servicio de usuarios");
     } finally {
@@ -72,16 +83,42 @@ function EntrarForm() {
     }
   }
 
+  function continuar() {
+    router.push(destino);
+    router.refresh();
+  }
+
+  if (bajaCancelada) {
+    return (
+      <div className="rounded-lg border border-line bg-surface p-8" role="status">
+        <p className="mb-2 font-mono text-[10.5px] uppercase tracking-widest text-ok">Baja cancelada</p>
+        <h1 className="text-xl font-extrabold text-ink">Tu cuenta sigue activa</h1>
+        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-2">
+          Al iniciar sesión cancelamos la baja que habías pedido: no se borrará nada y tus aportes se quedan como
+          estaban.
+        </p>
+        <p className="mt-3 rounded-lg bg-sunken p-3.5 text-[12.5px] leading-relaxed text-ink-2">
+          Las campañas que se finalizaron al pedir la baja siguen finalizadas: puedes reactivarlas desde{" "}
+          <span className="font-semibold text-ink">Mis campañas</span> con una nueva fecha de fin. Las que no tenían
+          aportes se borraron y no se pueden recuperar.
+        </p>
+        <Button variant="primary" className="mt-5 w-full" onClick={continuar}>
+          Continuar
+        </Button>
+      </div>
+    );
+  }
+
   return (
-    <div className="rounded-lg border border-line bg-surface p-8">
-      <div className="mb-6 text-center">
+    <div className="landing-entrada rounded-lg border border-line bg-surface p-8">
+      <div style={retraso(120)} className="landing-entrada mb-6 text-center">
         <h1 className="text-xl font-extrabold text-ink">Entra a tu cuenta</h1>
         <p className="mt-1 text-[13px] text-ink-2">
           Participa en campañas o administra las tuyas.
         </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="flex flex-col">
+      <form onSubmit={handleSubmit} style={retraso(220)} className="landing-entrada flex flex-col">
         <Field label="Correo" required>
           <Input
             type="email"
@@ -93,8 +130,7 @@ function EntrarForm() {
           />
         </Field>
         <Field label="Contraseña" required>
-          <Input
-            type="password"
+          <PasswordInput
             name="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -125,14 +161,14 @@ function EntrarForm() {
         </Button>
       </form>
 
-      <p className="mt-6 text-center text-[13px] text-ink-2">
+      <p style={retraso(320)} className="landing-entrada mt-6 text-center text-[13px] text-ink-2">
         ¿No tienes cuenta?{" "}
         <Link href={conDestino("/registro", next)} className="font-medium text-accent hover:underline">
           Regístrate
         </Link>
       </p>
 
-      <div className="mt-6 rounded-lg bg-sunken p-4 text-[12.5px] leading-relaxed text-ink-2">
+      <div style={retraso(400)} className="landing-entrada mt-6 rounded-lg bg-sunken p-4 text-[12.5px] leading-relaxed text-ink-2">
         Toda cuenta entra como usuario común. El rol de supervisor solo lo
         asigna el SuperUsuario; el de revisor de aportes te lo ofrece quien
         creó una campaña, y lo aceptas desde tus notificaciones. Aparecen

@@ -2,11 +2,15 @@
 
 // Pantalla /supervision: campañas en revisión que puedes tomar y las que ya supervisas.
 // Componente cliente. Datos: GET /api/campanas, GET /api/campanas?supervised=true y GET /api/auth/sesion.
+// Filtros y categorías: components/campanas/BarraDeFiltros.tsx; aplicados en el navegador
+// con lib/campanas/filtro-local.ts.
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import Tag from "@/components/ui/Tag";
+import BarraDeFiltros, { type ValoresDeFiltros } from "@/components/campanas/BarraDeFiltros";
 import { BASE_PATH } from "@/lib/base-path";
+import { FILTROS_VACIOS, avisoSinResultados, filtrarCampanas, opcionesDeTematica, type FiltrosLocales } from "@/lib/campanas/filtro-local";
 
 type CampaignApiItem = {
   id: string;
@@ -22,7 +26,11 @@ type CampaignApiItem = {
   currentContributions?: number;
   goalContributions?: number;
   participants?: number;
+  dataTypes?: string[];
+  endDate?: string | null;
 };
+
+const tematicaDe = (campaign: CampaignApiItem) => String(campaign.tag ?? campaign.tematica ?? "").trim();
 
 type TabKey = "pending" | "supervised" | "finished" | "flagged";
 
@@ -32,6 +40,7 @@ export default function SupervisionPage() {
   const [finishedCampaigns, setFinishedCampaigns] = useState<CampaignApiItem[]>([]);
   const [flaggedCampaigns, setFlaggedCampaigns] = useState<CampaignApiItem[]>([]);
   const [activeTab, setActiveTab] = useState<TabKey>("pending");
+  const [filtros, setFiltros] = useState<FiltrosLocales>(FILTROS_VACIOS);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -94,36 +103,89 @@ export default function SupervisionPage() {
   const finishedCount = useMemo(() => finishedCampaigns.length, [finishedCampaigns]);
   const flaggedCount = useMemo(() => flaggedCampaigns.length, [flaggedCampaigns]);
 
-  const renderPendingList = () => (
-    <>
-      <div className="mb-3 rounded-lg border border-line bg-sunken px-4 py-3 text-[13px] text-ink-2">
-        Selecciona una campaña para ver su detalle. Las disponibles puedes tomarlas con “Supervisar esta campaña”; una vez tomada, solo tú puedes dictaminarla.
-      </div>
+  function renderCategoryTabs(selectedTab: TabKey, onSelect: (tab: TabKey) => void) {
+    const tabs: { key: TabKey; label: string; count: number }[] = [
+      { key: "pending", label: "Por supervisar", count: pendingCount },
+      { key: "supervised", label: "Campañas supervisadas", count: supervisedCount },
+      { key: "flagged", label: "Campañas reportadas / rechazadas", count: flaggedCount },
+      { key: "finished", label: "Campañas finalizadas", count: finishedCount },
+    ];
 
-      <div className="space-y-3">
-        {pendingCampaigns.length === 0 ? (
-          <div className="rounded-lg border border-line bg-surface p-5 text-[13px] text-ink-2">
-            No hay campañas pendientes por revisar.
-          </div>
-        ) : (
-          pendingCampaigns.map((campaign) => (
-            <Link
-              key={campaign.id}
-              href={`/supervision/${campaign.id}`}
-              className="block rounded-lg border border-line bg-surface p-5 shadow-sm transition-shadow hover:border-accent hover:shadow-md"
-            >
-              <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3">
-                <h2 className="text-[15px] font-extrabold text-ink">{campaign.name}</h2>
-                {campaign.supervisorId ? <Tag tone="ok">La supervisas tú</Tag> : <Tag tone="warn">Disponible</Tag>}
-              </div>
-              <p className="text-[12.5px] text-ink-3">
-                {(campaign.creatorName || "Usuario")} · {(campaign.tag || campaign.tematica || "Sin temática")} · meta {Number(campaign.goalContributions ?? 0)} aportes
-              </p>
-            </Link>
-          ))
-        )}
+    return (
+      <div
+        role="group"
+        aria-label="Categorías de supervisión"
+        tabIndex={0}
+        className="dashboard-nav w-full min-w-0 max-w-full touch-pan-x flex flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch] md:flex-wrap md:overflow-visible md:pb-0"
+      >
+        {tabs.map(({ key, label, count }) => (
+          <button
+            key={key}
+            type="button"
+            aria-pressed={selectedTab === key}
+            onClick={() => onSelect(key)}
+            className={`shrink-0 whitespace-nowrap rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold transition-colors max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${selectedTab === key ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2 hover:border-accent"}`}
+          >
+            {label}&nbsp; <span className="font-mono text-[11px]">{count}</span>
+          </button>
+        ))}
       </div>
-    </>
+    );
+  }
+
+  const themeOptions = useMemo(
+    () => opcionesDeTematica([...pendingCampaigns, ...supervisedCampaigns, ...finishedCampaigns, ...flaggedCampaigns].map(tematicaDe)),
+    [pendingCampaigns, supervisedCampaigns, finishedCampaigns, flaggedCampaigns]
+  );
+
+  function cambiarFiltro(clave: keyof ValoresDeFiltros, valor: string) {
+    setFiltros((actuales) => ({ ...actuales, [clave]: valor }));
+  }
+
+  const filteredPendingCampaigns = useMemo(
+    () => filtrarCampanas(pendingCampaigns, filtros, tematicaDe),
+    [pendingCampaigns, filtros]
+  );
+
+  const filteredSupervisedCampaigns = useMemo(
+    () => filtrarCampanas(supervisedCampaigns, filtros, tematicaDe),
+    [supervisedCampaigns, filtros]
+  );
+
+  const filteredFinishedCampaigns = useMemo(
+    () => filtrarCampanas(finishedCampaigns, filtros, tematicaDe),
+    [finishedCampaigns, filtros]
+  );
+
+  const filteredFlaggedCampaigns = useMemo(
+    () => filtrarCampanas(flaggedCampaigns, filtros, tematicaDe),
+    [flaggedCampaigns, filtros]
+  );
+
+  const renderPendingList = () => (
+    <div className="space-y-3">
+      {filteredPendingCampaigns.length === 0 ? (
+        <div className="rounded-lg border border-line bg-surface p-5 text-[13px] text-ink-2">
+          {avisoSinResultados(pendingCampaigns.length, "No hay campañas pendientes por revisar.")}
+        </div>
+      ) : (
+        filteredPendingCampaigns.map((campaign) => (
+          <Link
+            key={campaign.id}
+            href={`/supervision/${campaign.id}`}
+            className="block rounded-lg border border-line bg-surface p-5 shadow-sm transition-shadow hover:border-accent hover:shadow-md"
+          >
+            <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3">
+              <h2 className="text-[15px] font-extrabold text-ink">{campaign.name}</h2>
+              {campaign.supervisorId ? <Tag tone="ok">La supervisas tú</Tag> : <Tag tone="warn">Disponible</Tag>}
+            </div>
+            <p className="text-[12.5px] text-ink-3">
+              {(campaign.creatorName || "Usuario")} · {(campaign.tag || campaign.tematica || "Sin temática")} · meta {Number(campaign.goalContributions ?? 0)} aportes
+            </p>
+          </Link>
+        ))
+      )}
+    </div>
   );
 
   const renderSupervisedList = () => (
@@ -133,11 +195,11 @@ export default function SupervisionPage() {
         <Tag tone="ok">{supervisedCount}</Tag>
       </div>
 
-      {supervisedCampaigns.length === 0 ? (
-        <div className="p-5 text-[13px] text-ink-2">Todavía no tienes campañas aceptadas bajo supervisión.</div>
+      {filteredSupervisedCampaigns.length === 0 ? (
+        <div className="p-5 text-[13px] text-ink-2">{avisoSinResultados(supervisedCampaigns.length, "Todavía no tienes campañas aceptadas bajo supervisión.")}</div>
       ) : (
         <div className="divide-y divide-line">
-          {supervisedCampaigns.map((campaign) => {
+          {filteredSupervisedCampaigns.map((campaign) => {
             const progress = Number(campaign.goalContributions ?? 0) > 0
               ? `${Number(campaign.currentContributions ?? 0)} / ${Number(campaign.goalContributions ?? 0)}`
               : "0 / 0";
@@ -183,11 +245,11 @@ export default function SupervisionPage() {
         <Tag tone="danger">{flaggedCount}</Tag>
       </div>
 
-      {flaggedCampaigns.length === 0 ? (
-        <div className="p-5 text-[13px] text-ink-2">No tienes campañas reportadas o rechazadas.</div>
+      {filteredFlaggedCampaigns.length === 0 ? (
+        <div className="p-5 text-[13px] text-ink-2">{avisoSinResultados(flaggedCampaigns.length, "No tienes campañas reportadas o rechazadas.")}</div>
       ) : (
         <div className="divide-y divide-line">
-          {flaggedCampaigns.map((campaign) => {
+          {filteredFlaggedCampaigns.map((campaign) => {
             const isReported = campaign.latestSupervisionAction === "reportada";
             return (
               <div key={campaign.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
@@ -216,11 +278,11 @@ export default function SupervisionPage() {
         <Tag>{finishedCount}</Tag>
       </div>
 
-      {finishedCampaigns.length === 0 ? (
-        <div className="p-5 text-[13px] text-ink-2">Todavía no tienes campañas finalizadas.</div>
+      {filteredFinishedCampaigns.length === 0 ? (
+        <div className="p-5 text-[13px] text-ink-2">{avisoSinResultados(finishedCampaigns.length, "Todavía no tienes campañas finalizadas.")}</div>
       ) : (
         <div className="divide-y divide-line">
-          {finishedCampaigns.map((campaign) => (
+          {filteredFinishedCampaigns.map((campaign) => (
             <div key={campaign.id} className="flex flex-wrap items-center justify-between gap-3 p-4">
               <div>
                 <h3 className="text-[15px] font-extrabold text-ink">{campaign.name}</h3>
@@ -240,61 +302,31 @@ export default function SupervisionPage() {
   );
 
   if (loading) {
-    return <div className="mx-auto max-w-4xl text-[13px] text-ink-2">Cargando campañas por supervisar…</div>;
+    return <div className="mx-auto max-w-4xl text-[13px] text-ink-2 lg:mx-0 lg:max-w-none">Cargando campañas por supervisar…</div>;
   }
 
   if (error) {
-    return <div className="mx-auto max-w-4xl rounded-lg border border-danger/30 bg-danger-tint p-4 text-sm text-danger">{error}</div>;
+    return <div className="mx-auto max-w-4xl rounded-lg border border-danger/30 bg-danger-tint p-4 text-sm text-danger lg:mx-0 lg:max-w-none">{error}</div>;
   }
 
   return (
-    <div className="mx-auto max-w-4xl">
+    <div className="mx-auto max-w-4xl lg:mx-0 lg:max-w-none">
       <div className="mb-6 flex flex-wrap items-start justify-between gap-4">
-        <div>
+        <div className="w-full min-w-0">
           <p className="font-mono text-[11px] font-semibold uppercase tracking-[0.12em] text-accent">Supervisión</p>
-          <h1 className="mt-2 text-2xl font-extrabold text-ink">
-            {activeTab === "pending" ? "Campañas por supervisar" : activeTab === "supervised" ? "Campañas supervisadas" : activeTab === "finished" ? "Campañas finalizadas" : "Campañas reportadas / rechazadas"}
-          </h1>
+          <div className="mt-3 w-full min-w-0">{renderCategoryTabs(activeTab, setActiveTab)}</div>
           <p className="mt-1 text-[13px] text-ink-2">
-            {activeTab === "pending" ? `${pendingCount} esperando revisión` : activeTab === "supervised" ? `${supervisedCount} bajo supervisión` : activeTab === "finished" ? `${finishedCount} finalizadas` : `${flaggedCount} con incidencia`}
+            {activeTab === "pending" ? `${filteredPendingCampaigns.length} esperando revisión` : activeTab === "supervised" ? `${filteredSupervisedCampaigns.length} bajo supervisión` : activeTab === "finished" ? `${filteredFinishedCampaigns.length} finalizadas` : `${filteredFlaggedCampaigns.length} con incidencia`}
           </p>
         </div>
-        <span className="rounded-pill border border-line-2 bg-surface px-4 py-2 text-[12.5px] font-bold text-ink-2">Temática ▾</span>
       </div>
 
-      <div className="mb-5 flex flex-wrap gap-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab("pending")}
-          className={activeTab === "pending" ? "rounded-pill bg-accent px-4 py-2 text-[12.5px] font-bold text-white shadow-sm" : "rounded-pill border border-line-2 bg-surface px-4 py-2 text-[12.5px] font-bold text-ink-2"}
-        >
-          Por supervisar&nbsp; <span className="font-mono text-[11px]">{pendingCount}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("supervised")}
-          className={activeTab === "supervised" ? "rounded-pill bg-accent px-4 py-2 text-[12.5px] font-bold text-white shadow-sm" : "rounded-pill border border-line-2 bg-surface px-4 py-2 text-[12.5px] font-bold text-ink-2"}
-        >
-          Campañas supervisadas&nbsp; <span className="font-mono text-[11px]">{supervisedCount}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("flagged")}
-          className={activeTab === "flagged" ? "rounded-pill bg-accent px-4 py-2 text-[12.5px] font-bold text-white shadow-sm" : "rounded-pill border border-line-2 bg-surface px-4 py-2 text-[12.5px] font-bold text-ink-2"}
-        >
-          Campañas reportadas / rechazadas&nbsp; <span className="font-mono text-[11px]">{flaggedCount}</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setActiveTab("finished")}
-          className={activeTab === "finished" ? "rounded-pill bg-accent px-4 py-2 text-[12.5px] font-bold text-white shadow-sm" : "rounded-pill border border-line-2 bg-surface px-4 py-2 text-[12.5px] font-bold text-ink-2"}
-        >
-          Campañas finalizadas&nbsp; <span className="font-mono text-[11px]">{finishedCount}</span>
-        </button>
-      </div>
+      <BarraDeFiltros
+        valores={filtros}
+        tematicas={themeOptions}
+        onCambiar={cambiarFiltro}
+        colapsableEnMovil
+      />
 
       {activeTab === "pending" ? renderPendingList() : activeTab === "supervised" ? renderSupervisedList() : activeTab === "finished" ? renderFinishedList() : renderFlaggedList()}
     </div>

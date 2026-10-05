@@ -1,10 +1,10 @@
 // Almacenamiento de archivos en MinIO (compatible con S3).
-// - saveUploadedFile(file, subdir): guarda <subdir>/<uuid>.<ext> y devuelve la clave.
+// - guardarArchivo(buffer, { subdir, extension, mimeType }): guarda <subdir>/<uuid><ext> y devuelve la clave.
+// - borrarArchivo(key): borra el objeto (archivo de un aporte que el creador quitó).
 // - readUploadedFile(key): descarga el objeto a un Buffer.
 // El archivo siempre pasa por el servidor; el bucket es privado y no se expone al navegador.
 
 import { randomUUID } from "crypto";
-import path from "path";
 import { Client } from "minio";
 
 const BUCKET = process.env.MINIO_BUCKET || "aportes";
@@ -54,28 +54,33 @@ async function ensureBucket() {
 
 export interface SavedUpload {
   relativePath: string;
-  originalName: string;
   mimeType: string;
   sizeBytes: number;
 }
 
-export async function saveUploadedFile(file: File, subdir: string): Promise<SavedUpload> {
+/**
+ * Guarda un archivo ya validado y limpio (lib/aportes/imagen.ts) como
+ * <subdir>/<uuid><extension>. La extensión y el tipo los decide el servidor
+ * según el contenido real, nunca el nombre ni el tipo que mandó el navegador.
+ */
+export async function guardarArchivo(
+  contenido: Buffer,
+  opciones: { subdir: string; extension: string; mimeType: string }
+): Promise<SavedUpload> {
   await ensureBucket();
 
-  const extension = path.extname(file.name).toLowerCase();
-  const objectKey = `${subdir}/${randomUUID()}${extension}`;
-  const buffer = Buffer.from(await file.arrayBuffer());
-
-  await getClient().putObject(BUCKET, objectKey, buffer, buffer.byteLength, {
-    "Content-Type": file.type || "application/octet-stream",
+  const objectKey = `${opciones.subdir}/${randomUUID()}${opciones.extension}`;
+  await getClient().putObject(BUCKET, objectKey, contenido, contenido.byteLength, {
+    "Content-Type": opciones.mimeType,
   });
 
-  return {
-    relativePath: objectKey,
-    originalName: file.name,
-    mimeType: file.type,
-    sizeBytes: buffer.byteLength,
-  };
+  return { relativePath: objectKey, mimeType: opciones.mimeType, sizeBytes: contenido.byteLength };
+}
+
+/** Borra un objeto del bucket. Si ya no existía, no falla. */
+export async function borrarArchivo(objectKey: string): Promise<void> {
+  await ensureBucket();
+  await getClient().removeObject(BUCKET, objectKey);
 }
 
 export async function readUploadedFile(objectKey: string): Promise<Buffer> {

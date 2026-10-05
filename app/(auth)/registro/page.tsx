@@ -8,20 +8,10 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import Button from "@/components/ui/Button";
 import { Field, Input } from "@/components/ui/Input";
+import PasswordInput from "@/components/ui/PasswordInput";
+import { REGLAS_DE_CONTRASENA } from "@/lib/reglas-contrasena";
 import { BASE_PATH } from "@/lib/base-path";
 import { conDestino } from "@/lib/redireccion";
-
-interface Rule {
-  label: string;
-  test: (v: string) => boolean;
-}
-
-const PASSWORD_RULES: Rule[] = [
-  { label: "Mínimo 8 caracteres", test: (v) => v.length >= 8 },
-  { label: "Una mayúscula", test: (v) => /[A-Z]/.test(v) },
-  { label: "Un número", test: (v) => /[0-9]/.test(v) },
-  { label: "Un carácter especial", test: (v) => /[^A-Za-z0-9]/.test(v) },
-];
 
 function GoogleLogo() {
   return (
@@ -68,7 +58,7 @@ function RegistroForm() {
   const [serverError, setServerError] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
-  const allRulesPass = PASSWORD_RULES.every((r) => r.test(password));
+  const allRulesPass = REGLAS_DE_CONTRASENA.every((r) => r.test(password));
   const passwordsMatch = password.length > 0 && password === confirmPassword;
   const canSubmit = nombre && apellidos && email && allRulesPass && passwordsMatch && acceptedTerms;
 
@@ -100,7 +90,7 @@ function RegistroForm() {
         const payload = await response.json().catch(() => ({}));
         if (response.status === 409) {
           setEmailTaken(true);
-          setServerError(payload.error ?? "Ese correo ya está registrado");
+          setServerError("Ese correo ya está registrado");
         } else {
           setServerError(payload.error ?? "No se pudo crear la cuenta");
         }
@@ -120,12 +110,13 @@ function RegistroForm() {
       <div className="mb-2 text-center">
         <h1 className="text-xl font-extrabold text-ink">Crea tu cuenta</h1>
         <p className="mt-2 font-mono text-[10.5px] uppercase tracking-wider text-accent">
-          Paso 1 de 3 · Tus datos
+          Paso 1 de 4 · Tus datos
         </p>
       </div>
 
       <div className="my-5 flex gap-1.5">
         <div className="h-1 flex-1 rounded-pill bg-accent" />
+        <div className="h-1 flex-1 rounded-pill bg-line" />
         <div className="h-1 flex-1 rounded-pill bg-line" />
         <div className="h-1 flex-1 rounded-pill bg-line" />
       </div>
@@ -155,23 +146,23 @@ function RegistroForm() {
             value={email}
             onChange={(e) => {
               setEmail(e.target.value);
-              setEmailTaken(false);
+              // El aviso de correo ya registrado es de este campo: se quita al corregirlo.
+              if (emailTaken) {
+                setEmailTaken(false);
+                setServerError("");
+              }
             }}
             placeholder="carlos@correo.com"
             required
             className={emailTaken ? "border-danger bg-danger-tint" : ""}
           />
-          {emailTaken && (
-            <p className="mt-1.5 text-[12px] text-danger">Ese correo ya está registrado</p>
-          )}
           {serverError && (
             <p className="mt-1.5 text-[12px] text-danger">{serverError}</p>
           )}
         </Field>
 
         <Field label="Contraseña" required>
-          <Input
-            type="password"
+          <PasswordInput
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
@@ -180,8 +171,7 @@ function RegistroForm() {
         </Field>
 
         <Field label="Confirmar contraseña" required>
-          <Input
-            type="password"
+          <PasswordInput
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             placeholder="••••••••"
@@ -193,7 +183,7 @@ function RegistroForm() {
         </Field>
 
         <ul className="mb-4 flex flex-col gap-1.5">
-          {PASSWORD_RULES.map((rule) => {
+          {REGLAS_DE_CONTRASENA.map((rule) => {
             const pass = rule.test(password);
             return (
               <li

@@ -8,7 +8,7 @@ import GraficaDeColumnas from "@/components/sistema/grafica-columnas";
 import MetricCard from "@/components/sistema/MetricCard";
 import ProgressBar from "@/components/sistema/ProgressBar";
 import Tag from "@/components/sistema/Tag";
-import { Aviso, Reparto, Tarjeta, TituloDeSeccion, formatearNumero } from "@/components/sistema/ui";
+import { Aviso, EnlaceBoton, Reparto, Tarjeta, TituloDeSeccion, formatearNumero } from "@/components/sistema/ui";
 import RefrescoEnVivo from "@/components/supervision/RefrescoEnVivo";
 import { obtenerPanelDeCampana } from "@/lib/campanas/panel";
 import { hasRootSession } from "@/lib/rootSession";
@@ -79,7 +79,10 @@ export default async function PanelDeCampanaSistemaPage({ params }: { params: Pr
             {cabecera.tematica || "Sin temática"} · creada por {cabecera.creador || "—"} · supervisa: {cabecera.supervisadaPor}
           </p>
         </div>
-        {enVivo ? <Tag tone="ok">En vivo · actualiza cada 3 s</Tag> : <Tag tone={et.tono}>{et.texto}</Tag>}
+        <div className="flex flex-wrap items-center gap-2">
+          {enVivo ? <Tag tone="ok">En vivo · actualiza cada 3 s</Tag> : <Tag tone={et.tono}>{et.texto}</Tag>}
+          <EnlaceBoton href={`/aportes?campana=${id}`}>Ver aportes recibidos</EnlaceBoton>
+        </div>
       </header>
 
       {finalizada ? (

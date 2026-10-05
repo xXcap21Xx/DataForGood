@@ -35,16 +35,39 @@ function origenPermitido(request: NextRequest): boolean {
   return permitidos.some((host) => host && host === hostDeOrigen);
 }
 
+/**
+ * Ids de la API: enteros positivos que caben en un INTEGER de Postgres. Un id como
+ * "abc", "1.5" o "99999999999999999999" llegaba hasta la consulta, Postgres fallaba
+ * con error de tipo y la API respondía 500. Se revisa aquí, una vez para todas las rutas.
+ */
+const ID_VALIDO = /^[1-9]\d{0,8}$/;
+const RUTA_CON_ID = /^\/api\/(aportes|campanas|datos|notificaciones|usuarios)\/([^/]+)/;
+const PARAMETROS_DE_ID = ["id", "campaignId"];
+
+function idInvalido(request: NextRequest): NextResponse | null {
+  const segmento = request.nextUrl.pathname.match(RUTA_CON_ID)?.[2];
+  if (segmento !== undefined && !ID_VALIDO.test(segmento)) {
+    return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  }
+  for (const nombre of PARAMETROS_DE_ID) {
+    const valor = request.nextUrl.searchParams.get(nombre);
+    if (valor !== null && !ID_VALIDO.test(valor)) {
+      return NextResponse.json({ error: `${nombre} no es válido` }, { status: 400 });
+    }
+  }
+  return null;
+}
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // /api: solo se revisa el origen de las mutaciones. La sesión la valida
-  // cada route handler (este archivo solo ve si hay cookie).
+  // /api: solo se revisa el origen de las mutaciones y la forma de los ids. La
+  // sesión la valida cada route handler (este archivo solo ve si hay cookie).
   if (pathname.startsWith("/api/")) {
     if (!METODOS_SEGUROS.has(request.method) && !origenPermitido(request)) {
       return NextResponse.json({ error: "Origen no permitido" }, { status: 403 });
     }
-    return NextResponse.next();
+    return idInvalido(request) ?? NextResponse.next();
   }
 
   if (pathname.startsWith("/sistema")) {

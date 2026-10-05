@@ -6,9 +6,15 @@ info:
     Route handlers de `app/api`. Las acciones del panel del SuperUsuario
     (`/sistema`, `/usuarios`, `/supervisar`) son server actions y no aparecen aquí.
 
-    **Sesión:** se maneja con la cookie `session_token` (httpOnly). Ejecuta
+    **Sesión de usuario:** se maneja con la cookie `session_token` (httpOnly). Ejecuta
     primero `POST /api/auth/login`; el navegador (o Insomnia) guarda la cookie
     y la manda sola en las siguientes peticiones.
+
+    **SuperUsuario:** ejecuta `POST /api/auth/root/token` con la credencial de
+    SuperUsuario del entorno (`ROOT_USER_ID` y su contraseña), copia `data.token`,
+    pulsa **Authorize** y pégalo en `rootBearer`. Vale 2 horas. Con él responden
+    `GET /api/usuarios` (todos los usuarios) y `GET /api/usuarios/{id}` (cualquier id).
+    El resto de las rutas son de la cuenta de un usuario y piden `session_token`.
 
     **CSRF:** las mutaciones con un header `Origin` de otro sitio responden
     403 `Origen no permitido` (`proxy.ts`).
@@ -64,9 +70,10 @@ paths:
                 properties:
                   message: { type: string }
                   data: { $ref: "#/components/schemas/User" }
+                  bajaCancelada: { type: boolean, description: "true si la cuenta tenía una baja en curso: iniciar sesión la canceló" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401":
-          description: Correo o contraseña incorrectos
+          description: Correo o contraseña incorrectos, correo inexistente o cuenta solo de Google (misma respuesta para no revelar qué correos existen)
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
         "403":
           description: Cuenta suspendida, baneada o sin verificar (en ese caso guarda `pending_verification_id`)
@@ -165,7 +172,7 @@ paths:
         - { name: code, in: query, required: true, schema: { type: string } }
         - { name: state, in: query, required: true, schema: { type: string } }
       responses:
-        "307": { description: Redirige a la pantalla de `next` (o a `/campanas`), o a `/entrar?error=...` }
+        "307": { description: "Redirige a la pantalla de `next` (o a `/campanas`), o a `/entrar?error=...`" }
 
   /api/auth/root:
     post:
@@ -191,6 +198,44 @@ paths:
         "401": { $ref: "#/components/responses/Unauthorized" }
         "429": { description: Demasiados intentos }
 
+  /api/auth/root/token:
+    post:
+      tags: [Auth]
+      summary: Obtener el token Bearer del SuperUsuario
+      description: |
+        Misma credencial y mismo límite de intentos que `POST /api/auth/root`, pero no guarda
+        cookie: devuelve un token que vale 2 horas. Pégalo en **Authorize** → `rootBearer`
+        (o mándalo como `Authorization: Bearer <token>`). Se registra en `audit_log` como
+        `root.token_api`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [identificador, credencial]
+              properties:
+                identificador: { type: string, description: Valor de ROOT_USER_ID }
+                credencial: { type: string, format: password }
+      responses:
+        "201":
+          description: Token emitido
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string, example: 64 caracteres hexadecimales }
+                      tipo: { type: string, example: Bearer }
+                      expiraEn: { type: string, format: date-time }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "429": { description: Demasiados intentos }
+
   # ---------------------------------------------------------------- Usuarios
   /api/usuarios:
     post:
@@ -211,29 +256,61 @@ paths:
           content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
     get:
       tags: [Usuarios]
-      summary: Buscar candidatos a revisor de una campaña
-      description: Solo el creador de la campaña. Busca por nombre o por correo exacto, entre cuentas verificadas.
+      summary: Listar los usuarios del sistema (SuperUsuario) o buscar candidatos a revisor
+      description: |
+        - **SuperUsuario** (token `rootBearer` o cookie de /root): todos los usuarios del sistema,
+          20 por página, del más reciente al más antiguo. Filtros opcionales: `q`, `rol`, `estado`, `pagina`.
+        - **Usuario** (`session_token`): buscador de "agregar revisor". Exige `campanaId` (y ser su
+          creador); busca por nombre (3+ letras) o correo exacto, entre cuentas verificadas, hasta 10
+          resultados con el correo oculto.
+      security:
+        - rootBearer: []
+        - sessionCookie: []
       parameters:
-        - { name: campanaId, in: query, required: true, schema: { type: integer } }
-        - { name: q, in: query, required: false, schema: { type: string }, description: Nombre o correo }
+        - { name: q, in: query, required: false, schema: { type: string }, description: "SuperUsuario: nombre, apellidos, correo o id. Usuario: nombre o correo" }
+        - { name: rol, in: query, required: false, schema: { type: string, enum: [usuario, supervisor, revisor] }, description: Solo SuperUsuario }
+        - { name: estado, in: query, required: false, schema: { type: string, enum: [ACTIVA, CON_STRIKES, SUSPENDIDA, BANEADA] }, description: Solo SuperUsuario }
+        - { name: pagina, in: query, required: false, schema: { type: integer, minimum: 1, default: 1 }, description: Solo SuperUsuario }
+        - { name: campanaId, in: query, required: false, schema: { type: integer }, description: Solo usuario (obligatorio para él) }
       responses:
         "200":
-          description: Candidatos
+          description: Usuarios (SuperUsuario) o candidatos (usuario)
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        id: { type: integer }
-                        nombre: { type: string }
-                        apellidos: { type: string }
-                        emailOculto: { type: string, example: "an***@correo.com" }
-                        role: { type: string }
+                oneOf:
+                  - type: object
+                    title: Directorio (SuperUsuario)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: string }
+                            nombre: { type: string, description: Nombre y apellidos }
+                            correo: { type: string }
+                            rol: { type: string, description: "Rol principal, legible" }
+                            roles: { type: array, items: { type: string } }
+                            estado: { type: string, enum: [ACTIVA, CON_STRIKES, SUSPENDIDA, BANEADA] }
+                            strikes: { type: integer }
+                      pagina: { type: integer }
+                      porPagina: { type: integer }
+                      total: { type: integer }
+                      totalPaginas: { type: integer }
+                  - type: object
+                    title: Candidatos a revisor (usuario)
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            id: { type: integer }
+                            nombre: { type: string }
+                            apellidos: { type: string }
+                            emailOculto: { type: string, example: "an***@correo.com" }
+                            role: { type: array, items: { type: string } }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
@@ -245,8 +322,12 @@ paths:
     get:
       tags: [Usuarios]
       summary: Perfil de un usuario
-      description: No pide sesión en el código actual.
-      security: []
+      description: |
+        Un usuario solo ve su propia cuenta (401 sin sesión, 403 con otro id). El SuperUsuario
+        (`rootBearer`) ve cualquier id; para listarlos todos usa `GET /api/usuarios`.
+      security:
+        - rootBearer: []
+        - sessionCookie: []
       responses:
         "200":
           description: Usuario (columnas de la tabla, en snake_case)
@@ -257,6 +338,8 @@ paths:
                 properties:
                   data: { type: object }
         "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
     patch:
       tags: [Usuarios]
@@ -281,6 +364,92 @@ paths:
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
 
+    delete:
+      tags: [Usuarios]
+      summary: Pedir la baja de la propia cuenta
+      description: |
+        Solo la cuenta propia. Exige `confirmacion: "ELIMINAR"` y, si la cuenta tiene contraseña,
+        `contrasena` (una equivocada suma al bloqueo del login, 423 al llegar a 5). Las cuentas de
+        Google no la mandan. Efectos inmediatos: se cierran todas las sesiones, las campañas propias
+        activas o pausadas se finalizan y las que no tienen aportes (y no están finalizadas) se borran.
+        A los 30 días se aplica `destino` a los aportes y la cuenta se vacía de datos personales;
+        iniciar sesión antes lo cancela. Los aportes aceptados en campañas finalizadas nunca se borran
+        (con `eliminar` se anonimizan). Bitácora: `usuario.baja_solicitar`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [destino, confirmacion]
+              properties:
+                destino: { type: string, enum: [eliminar, anonimizar, autoria] }
+                confirmacion: { type: string, enum: [ELIMINAR] }
+                contrasena: { type: string, format: password, description: Obligatoria si la cuenta tiene contraseña }
+            example: { destino: anonimizar, confirmacion: ELIMINAR, contrasena: "Contraseña123!" }
+      responses:
+        "200":
+          description: Baja registrada; la cookie de sesión se borra
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      efectivaEn: { type: string, format: date-time }
+                      campanasFinalizadas: { type: integer }
+                      campanasBorradas: { type: integer }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "423":
+          description: Demasiados intentos fallidos; la cuenta está bloqueada temporalmente
+          content: { application/json: { schema: { $ref: "#/components/schemas/Error" } } }
+
+  /api/usuarios/{id}/contrasena:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    patch:
+      tags: [Usuarios]
+      summary: Cambiar la propia contraseña
+      description: |
+        Solo la cuenta propia (403 con otro id) y solo si tiene contraseña (400 si es de Google).
+        `nueva` debe tener 8 caracteres o más (y como máximo 72 bytes), una mayúscula, un número y
+        un carácter especial, y ser distinta de `actual`. Una `actual` equivocada suma un intento
+        fallido al mismo contador del login: con 5 la cuenta queda bloqueada 15 minutos (423).
+        Las sesiones abiertas se conservan. Se registra en audit_log como `usuario.contrasena_cambiar`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [actual, nueva]
+              properties:
+                actual: { type: string, format: password }
+                nueva: { type: string, format: password }
+      responses:
+        "200":
+          description: Contraseña cambiada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { ok: { type: boolean } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "423":
+          description: Demasiados intentos fallidos; la cuenta está bloqueada temporalmente
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Error" }
+
   # ---------------------------------------------------------------- Campañas
   /api/campanas:
     get:
@@ -293,7 +462,7 @@ paths:
         - { name: available, in: query, schema: { type: boolean }, description: Campañas en las que puedo aportar (excluye aquellas de las que el creador me baneó) }
         - { name: mine, in: query, schema: { type: boolean }, description: Campañas que creé (requiere sesión) }
         - { name: supervised, in: query, schema: { type: boolean }, description: Campañas que superviso (requiere sesión) }
-        - { name: misAportes, in: query, schema: { type: boolean }, description: Campañas donde aporté, con `myContributionsCount` }
+        - { name: misAportes, in: query, schema: { type: boolean }, description: "Campañas donde aporté, con `myContributionsCount`" }
       responses:
         "200":
           description: Campañas
@@ -308,6 +477,10 @@ paths:
     post:
       tags: [Campañas]
       summary: Crear campaña
+      description: |
+        Exige sesión: la campaña es de quien la crea. `status` solo `borrador` (por defecto) o
+        `en_revision`; con 5 campañas activas, solo `borrador`. Contadores, XP, `isSpecial` y
+        `hasReviewerAssigned` del body se ignoran.
       requestBody:
         required: true
         content:
@@ -455,7 +628,7 @@ paths:
       - $ref: "#/components/parameters/Id"
     get:
       tags: [Campañas]
-      summary: Participantes baneados de la campaña (solo el creador)
+      summary: Participantes baneados y dispositivos anónimos bloqueados (solo el creador)
       responses:
         "200":
           description: Baneados, del más reciente al más antiguo
@@ -473,21 +646,32 @@ paths:
                         nombre: { type: string }
                         motivo: { type: string }
                         baneadoEn: { type: string, format: date-time }
+                  dispositivos:
+                    type: array
+                    description: Dispositivos de personas sin cuenta bloqueados en esta campaña
+                    items:
+                      type: object
+                      properties:
+                        bloqueoId: { type: string }
+                        aporteId: { type: [string, "null"] }
+                        motivo: { type: string }
+                        bloqueadoEn: { type: string, format: date-time }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
     delete:
       tags: [Campañas]
-      summary: Quitar el baneo de un participante (solo el creador)
+      summary: Quitar el baneo de un participante o desbloquear un dispositivo anónimo (solo el creador)
+      description: "Manda `usuarioId` para una cuenta o `bloqueoId` para un dispositivo. Bitácora: `campana.desbanear` o `campana.desbloquear_dispositivo`."
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [usuarioId]
               properties:
                 usuarioId: { type: integer }
+                bloqueoId: { type: integer }
       responses:
         "200": { $ref: "#/components/responses/Message" }
         "400": { $ref: "#/components/responses/BadRequest" }
@@ -497,6 +681,9 @@ paths:
     post:
       tags: [Campañas]
       summary: Banear de la campaña a quien envió un aporte (solo el creador)
+      description: |
+        Si el aporte es de una cuenta, la banea de la campaña. Si es anónimo, bloquea en la
+        campaña el dispositivo que lo envió (`campana.bloquear_dispositivo` en audit_log).
       requestBody:
         required: true
         content:
@@ -520,7 +707,7 @@ paths:
     get:
       tags: [Campañas]
       summary: Aportes aprobados por día y por tipo
-      description: "Pendiente conocido: solo pide sesión, no revisa que seas creador o supervisor."
+      description: Solo el creador de la campaña.
       responses:
         "200":
           description: Serie diaria y reparto por tipo
@@ -547,6 +734,120 @@ paths:
                         valor: { type: integer }
                         porcentaje: { type: integer }
         "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/campanas/{id}/enlace:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Campañas]
+      summary: Enlace público actual de la campaña
+      description: |
+        Cualquier usuario con sesión (el enlace es para difundir la campaña). Devuelve el último
+        enlace no revocado, vigente o caducado, o `data: null` si nunca se generó. `visitas` y
+        `aportesRecibidos` solo vienen si quien pide es el creador. El enlace se genera solo cuando
+        la campaña queda `activa`.
+      responses:
+        "200":
+          description: Enlace, estado de la campaña y si quien pide es el creador
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: [object, "null"]
+                    properties:
+                      url: { type: string }
+                      token: { type: string }
+                      creadoEn: { type: string, format: date-time }
+                      expiraEn: { type: string, format: date-time }
+                      vigente: { type: boolean }
+                      visitas: { type: integer, description: Solo para el creador }
+                      aportesRecibidos: { type: integer, description: Solo para el creador }
+                  campana:
+                    type: object
+                    properties:
+                      nombre: { type: string }
+                      status: { type: string }
+                      permiteAnonimos: { type: boolean, description: "Si /c/{token} acepta aportes sin cuenta" }
+                  viewer:
+                    type: object
+                    properties:
+                      esCreador: { type: boolean }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    post:
+      tags: [Campañas]
+      summary: Generar o regenerar el enlace público
+      description: |
+        Solo el creador y solo con la campaña `activa`. Crea un token que vale 24 horas
+        para la ruta pública /c/{token}. Si ya había uno, queda revocado para siempre
+        (conserva sus visitas y aportes). Se registra en audit_log como `campana.enlace_regenerar`.
+      responses:
+        "201":
+          description: Enlace nuevo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string }
+                      creadoEn: { type: string, format: date-time }
+                      expiraEn: { type: string, format: date-time }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "409":
+          description: La campaña no está activa
+    patch:
+      tags: [Campañas]
+      summary: Permitir o cortar los aportes sin cuenta
+      description: Solo el creador. No toca los aportes anónimos ya recibidos. Bitácora `campana.anonimos_cambiar`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [permiteAnonimos]
+              properties:
+                permiteAnonimos: { type: boolean }
+      responses:
+        "200":
+          description: Valor guardado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data: { type: object, properties: { permiteAnonimos: { type: boolean } } }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+
+  /api/campanas/{id}/qr:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    get:
+      tags: [Campañas]
+      summary: Descargar el código QR del enlace público
+      description: Cualquier usuario con sesión. QR de 512 × 512 px del enlace vigente, que apunta a /c/{token}.
+      parameters:
+        - name: formato
+          in: query
+          schema: { type: string, enum: [png, svg], default: png }
+      responses:
+        "200":
+          description: Archivo del QR (como descarga)
+          content:
+            image/png: { schema: { type: string, format: binary } }
+            image/svg+xml: { schema: { type: string } }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410":
+          description: El enlace caducó; hay que regenerarlo
 
   # ---------------------------------------------------------------- Aportes
   /api/aportes:
@@ -576,7 +877,9 @@ paths:
       summary: Enviar aporte con archivo
       description: |
         El archivo se sube a MinIO. Reglas: la campaña debe estar activa, no puedes
-        ser su creador ni estar baneado, y no debes haber alcanzado tu cuota.
+        ser su creador ni estar baneado, y no debes haber alcanzado tu cuota (se cuenta con
+        candado: dos envíos simultáneos no la pasan). El archivo debe ser de verdad JPG o PNG
+        (se revisa su firma) y se guarda sin metadatos (EXIF con GPS, etc.).
       requestBody:
         required: true
         content:
@@ -587,16 +890,89 @@ paths:
               properties:
                 campaignId: { type: string }
                 description: { type: string, maxLength: 1000 }
+                caracteristicas:
+                  type: array
+                  items: { type: string }
+                  description: 'Respuestas de checklists ("Título: opción"); se descartan las que no existen'
                 file:
                   type: string
                   format: binary
                   description: .jpg, .jpeg o .png, máximo 10 MB
+                enlace:
+                  type: string
+                  description: |
+                    Opcional. Token del enlace público (/c/{token}) por el que llegó la persona.
+                    Si es el enlace vigente de la campaña, el aporte se le atribuye (aportes.enlace_id);
+                    si no, se ignora sin rechazar el aporte.
       responses:
         "201": { $ref: "#/components/responses/ContributionResult" }
         "400": { $ref: "#/components/responses/BadRequest" }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
+
+  /api/c/{token}/aportes:
+    parameters:
+      - name: token
+        in: path
+        required: true
+        schema: { type: string }
+        description: Token del enlace público de la campaña (/c/{token})
+    post:
+      tags: [Aportes]
+      summary: Aporte anónimo (sin cuenta) desde un enlace público
+      description: |
+        Público, sin sesión: es lo único que una persona sin cuenta puede hacer. Solo con un
+        enlace vigente de una campaña activa que permita aportes sin cuenta. Con sesión iniciada
+        responde 409 (se aporta con la cuenta). El aporte se guarda sin datos personales (`user_id`
+        NULL, "Anónimo", sin correo ni nombre de archivo, foto sin metadatos) y sin ninguna
+        forma de la IP. Cuota: la cuota por persona de la campaña, contada por dispositivo con la
+        cookie `anonimo_id` (se crea en la primera respuesta exitosa); además, un tope de 20 aportes
+        anónimos por IP por hora, y 60 segundos de espera entre dos aportes del mismo
+        dispositivo (en cualquier campaña). Solo responde cuántos aportes le quedan y la espera.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [description, file]
+              properties:
+                description: { type: string, maxLength: 1000 }
+                caracteristicas:
+                  type: array
+                  items: { type: string }
+                  description: 'Respuestas de checklists ("Título: opción"); se descartan las que no existen'
+                file:
+                  type: string
+                  format: binary
+                  description: .jpg, .jpeg o .png, máximo 10 MB
+      responses:
+        "201":
+          description: Aporte enviado; queda pendiente de revisión
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      restantes: { type: integer, description: Aportes que aún puede enviar este dispositivo }
+                      esperaSegundos: { type: integer, description: Segundos hasta poder enviar otro }
+        "400": { $ref: "#/components/responses/BadRequest" }
+        "403":
+          description: La campaña no permite aportes sin cuenta, o el dispositivo está bloqueado
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409":
+          description: Hay sesión iniciada, o la campaña ya no recibe aportes
+        "410":
+          description: El enlace caducó o fue reemplazado
+        "429":
+          description: |
+            Tope de aportes anónimos por IP alcanzado, o el dispositivo envió otro hace menos de
+            60 segundos. En ese caso trae `esperaSegundos` y el encabezado `Retry-After`.
 
   /api/aportes/{id}:
     parameters:
@@ -644,7 +1020,10 @@ paths:
       description: |
         Revisión en dos instancias. El revisor solo puede dar la primera
         (`pendiente` → `espera_final`); el creador da la final.
-        `rejectionReason` es obligatorio al rechazar.
+        `rejectionReason` es obligatorio al rechazar. `inapropiado: true` marca un aporte
+        anónimo como contenido inapropiado al rechazarlo; con 3 marcados en 30 días, el
+        dispositivo queda bloqueado 30 días en toda la plataforma (el mensaje lo
+        avisa). Si el creador acepta, se quita la marca.
       requestBody:
         required: true
         content:
@@ -655,6 +1034,7 @@ paths:
               properties:
                 status: { $ref: "#/components/schemas/ContributionStatus" }
                 rejectionReason: { type: string }
+                inapropiado: { type: boolean, description: Solo con status rechazado y aporte anónimo }
             examples:
               primeraInstancia: { value: { status: espera_final } }
               aceptar: { value: { status: aceptado } }
@@ -668,6 +1048,7 @@ paths:
     delete:
       tags: [Aportes]
       summary: Eliminar mi aporte (si no está aceptado)
+      description: Borra también su archivo de MinIO y recalcula los contadores de la campaña.
       responses:
         "200": { $ref: "#/components/responses/Message" }
         "400": { $ref: "#/components/responses/BadRequest" }
@@ -683,10 +1064,52 @@ paths:
       summary: Descargar el archivo del aporte
       responses:
         "200":
-          description: Contenido del archivo con su `Content-Type`
+          description: Contenido del archivo (image/jpeg o image/png) con `X-Content-Type-Options nosniff`
           content:
             application/octet-stream:
               schema: { type: string, format: binary }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "410":
+          description: El creador borró el archivo
+    delete:
+      tags: [Aportes]
+      summary: Borrar el archivo de un aporte anónimo (solo el creador)
+      description: Para contenido ilegal o dañino. Se borra de MinIO y no se puede recuperar; la fila se conserva. Bitácora `aporte.archivo_borrar`.
+      responses:
+        "200": { $ref: "#/components/responses/Message" }
+        "400": { description: El aporte no es anónimo }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "403": { $ref: "#/components/responses/Forbidden" }
+        "404": { $ref: "#/components/responses/NotFound" }
+        "409": { description: El archivo ya se había borrado }
+
+  /api/aportes/{id}/inapropiado:
+    parameters:
+      - $ref: "#/components/parameters/Id"
+    post:
+      tags: [Aportes]
+      summary: Marcar un aporte anónimo como contenido inapropiado (creador o revisor aceptado)
+      description: |
+        No cambia el estado del aporte: decide el creador. Con 3 aportes inapropiados del mismo
+        dispositivo en 30 días, el dispositivo queda bloqueado 30 días. Bitácora
+        `aporte.inapropiado` (y `sancion.dispositivo_bloquear` si dispara el bloqueo).
+      responses:
+        "200":
+          description: Marcado
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message: { type: string }
+                  data:
+                    type: object
+                    properties:
+                      inapropiado: { type: boolean }
+                      bloqueoGlobal: { type: boolean }
+        "400": { description: El aporte no es anónimo }
         "401": { $ref: "#/components/responses/Unauthorized" }
         "403": { $ref: "#/components/responses/Forbidden" }
         "404": { $ref: "#/components/responses/NotFound" }
@@ -696,6 +1119,7 @@ paths:
     get:
       tags: [Revisiones y notificaciones]
       summary: Campañas en las que soy revisor
+      description: Ordenadas por la fecha en que aceptaste ser revisor, de la más reciente a la más vieja.
       responses:
         "200":
           description: Campañas
@@ -715,8 +1139,12 @@ paths:
                         status: { $ref: "#/components/schemas/CampaignStatus" }
                         tag: { type: string }
                         goalContributions: { type: integer }
-                        pendingContributions: { type: integer }
+                        pendingContributions: { type: integer, description: Aportes en estado pendiente (los que le tocan al revisor) }
                         participants: { type: integer }
+                        currentContributions: { type: integer }
+                        creatorName: { type: string }
+                        dataTypes: { type: array, items: { type: string, enum: [foto, video, audio, documento, texto] } }
+                        endDate: { type: [string, "null"], format: date }
         "401": { $ref: "#/components/responses/Unauthorized" }
 
   /api/notificaciones:
@@ -776,6 +1204,10 @@ components:
       in: cookie
       name: pending_verification_id
       description: La dejan el registro o un login sin verificar.
+    rootBearer:
+      type: http
+      scheme: bearer
+      description: Token del SuperUsuario. Se obtiene con `POST /api/auth/root/token` y vale 2 horas.
 
   parameters:
     Id:
@@ -883,7 +1315,7 @@ components:
         nombre: { type: string }
         apellidos: { type: string }
         email: { type: string, format: email }
-        password: { type: string, format: password }
+        password: { type: string, format: password, description: "Al menos 8 caracteres (máximo 72 bytes), una mayúscula, un número y un carácter especial" }
         state: { type: string }
         city: { type: string }
         specialty: { type: string }
@@ -892,7 +1324,7 @@ components:
         nombre: Ana
         apellidos: Pérez López
         email: ana@correo.com
-        password: Contraseña123
+        password: Contraseña123!
         state: Nayarit
         city: Tepic
         specialty: ""
@@ -917,7 +1349,6 @@ components:
           items: { $ref: "#/components/schemas/ChecklistSeccion" }
         goalContributions: { type: integer, minimum: 1 }
         quotaPerUser: { type: integer, minimum: 1 }
-        xpPerContribution: { type: integer }
         startDate: { type: string, format: date }
         startTime: { type: string, example: "08:00" }
         endDate: { type: string, format: date }
@@ -939,7 +1370,6 @@ components:
             opciones: [Para autos, Para peatones]
         goalContributions: 100
         quotaPerUser: 5
-        xpPerContribution: 30
         startDate: "2026-10-01"
         startTime: "08:00"
         endDate: "2026-10-31"
@@ -1005,6 +1435,9 @@ components:
         rejectionReason: { type: string }
         firstPassBy: { type: string }
         firstPassByUserId: { type: string }
+        inapropiado: { type: boolean, description: Aporte anónimo marcado como contenido inapropiado }
+        archivoBorrado: { type: boolean, description: El creador borró el archivo }
+        dispositivoBloqueadoId: { type: [string, "null"], description: "Solo al creador, en aportes anónimos: bloqueo del dispositivo en la campaña" }
 
     Notification:
       type: object

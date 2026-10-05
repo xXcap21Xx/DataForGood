@@ -77,9 +77,7 @@ export default async function ListadoDeCampanasPage({ searchParams }: { searchPa
     return qs ? `${BASE}?${qs}` : BASE;
   }
 
-  const subtitulo = estado
-    ? `${formatearNumero(conteos.todas)} registradas · mostrando ${formatearNumero(conteos[estado])} ${ETIQUETA_DE_CAMPANA[estado].texto.toLowerCase()}`
-    : `${formatearNumero(conteos.todas)} registradas`;
+  const subtitulo = `${formatearNumero(conteos.todas)} registradas`;
 
   const claseChip = (activo: boolean) =>
     `inline-flex items-center gap-1.5 rounded-pill border px-3 py-1 text-[11.5px] font-semibold transition-colors ${
@@ -88,7 +86,11 @@ export default async function ListadoDeCampanasPage({ searchParams }: { searchPa
 
   return (
     <div>
-      <Subtabs pestanas={PESTANAS_CAMPANAS} etiquetaAria="Secciones de campañas" />
+      <Subtabs
+        pestanas={PESTANAS_CAMPANAS}
+        etiquetaAria="Secciones de campañas"
+        distribuidasEnMovil
+      />
 
       <Encabezado
         titulo="Campañas"
@@ -131,7 +133,71 @@ export default async function ListadoDeCampanasPage({ searchParams }: { searchPa
         </p>
       ) : (
         <>
-          <div className="overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm">
+          <div className="space-y-3 md:hidden">
+            {filas.map((c) => {
+              const et = ETIQUETA_DE_CAMPANA[c.estado];
+              const dias = diasRestantes(c.venceEn);
+              return (
+                <article key={c.id} className="rounded-lg border border-line bg-surface p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="break-words text-[14px] font-bold leading-snug text-ink">
+                        {c.nombre}
+                      </p>
+                      <p className="mt-1 break-words text-[11px] leading-snug text-ink-3">
+                        {c.tematica || "Sin temática"} · {c.creador || "Sin creador"}
+                      </p>
+                    </div>
+                    <Tag tone={et.tono}>{et.texto}</Tag>
+                  </div>
+
+                  <div className="mt-3 border-t border-line pt-3">
+                    <p className="text-[11px] text-ink-2">Tipo de dato</p>
+                    <p className="mt-1 break-words text-[13px] leading-relaxed text-ink">
+                      {c.tiposDeDato.length > 0
+                        ? c.tiposDeDato.map((t) => NOMBRE_DE_TIPO[t]).join(" · ")
+                        : "—"}
+                    </p>
+                  </div>
+
+                  <dl className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <dt className="text-[11px] text-ink-2">Participantes</dt>
+                      <dd className="mt-0.5 font-mono text-[14px] font-semibold tabular-nums text-ink">
+                        {formatearNumero(c.participantes)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-ink-2">Aportes / meta</dt>
+                      <dd className="mt-0.5 font-mono text-[14px] font-semibold tabular-nums text-ink">
+                        {formatearNumero(c.aportes)}/{formatearNumero(c.meta)}
+                      </dd>
+                    </div>
+                    <div className="col-span-2">
+                      <dt className="text-[11px] text-ink-2">Vence</dt>
+                      <dd className="mt-0.5 text-[12px] text-ink">
+                        {c.venceEn ? (
+                          <span title={dias !== null ? `Faltan ${dias} días` : undefined}>
+                            {formatearFechaCampana(c.venceEn, false)}
+                          </span>
+                        ) : (
+                          "Sin fecha"
+                        )}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-3 grid">
+                    <EnlaceBoton href={`${BASE}/${c.id}`}>
+                      Ver campaña<span className="sr-only"> {c.nombre}</span>
+                    </EnlaceBoton>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm md:block">
             <table className="w-full min-w-[820px] text-left text-[13.5px]">
               <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
                 <tr>

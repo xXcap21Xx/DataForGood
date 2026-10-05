@@ -1,11 +1,16 @@
 // /api/usuarios/[id] — perfil de un usuario.
-// Ojo: el GET no pide sesión (hueco conocido, docs/README.md § 8).
+// GET sobre la cuenta propia (o cualquiera, con sesión raíz); PATCH y DELETE (baja) solo sobre la propia.
 
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
-import { getSessionUser } from "@/lib/session";
+import { destroySession, getSessionUser } from "@/lib/session";
+import { hasRootSession } from "@/lib/rootSession";
+import { errorDeLargo, interesesValidos } from "@/lib/usuarios/perfil";
+import { comprobarContrasenaActual } from "@/lib/usuarios/contrasena-actual";
+import { solicitarBaja } from "@/lib/usuarios/baja";
+import { esDestinoDeAportes, PALABRA_DE_CONFIRMACION } from "@/lib/usuarios/baja-opciones";
 
-// GET: perfil de un usuario. Ojo: no pide sesión (hueco conocido).
+// GET: tu propio perfil (401 sin sesión, 403 si el id no es el tuyo); el SuperUsuario, cualquier perfil.
 export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
@@ -19,6 +24,19 @@ export async function GET(
         { error: "El id del usuario es obligatorio" },
         { status: 400 }
       );
+    }
+
+    // Un usuario solo ve su propia cuenta, igual que en el PATCH: antes respondía
+    // sin sesión y dejaba sacar el correo y la ubicación de cualquier id. El
+    // SuperUsuario (cookie de /root o token Bearer) puede ver cualquiera.
+    if (!(await hasRootSession())) {
+      const sessionUser = await getSessionUser();
+      if (!sessionUser) {
+        return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+      }
+      if (Number(sessionUser.id) !== Number(rawId)) {
+        return NextResponse.json({ error: "Solo puedes ver tu propia cuenta" }, { status: 403 });
+      }
     }
 
     const result = await pool.query(
@@ -107,9 +125,10 @@ export async function PATCH(
     const state = body.state !== undefined ? String(body.state).trim() || null : undefined;
     const city = body.city !== undefined ? String(body.city).trim() || null : undefined;
     const specialty = body.specialty !== undefined ? String(body.specialty).trim() || null : undefined;
-    const intereses = Array.isArray(body.intereses)
-      ? JSON.stringify(body.intereses.map(String))
-      : null;
+    // Solo intereses de la lista oficial (antes se guardaba cualquier arreglo, sin tope).
+    const intereses = Array.isArray(body.intereses) ? JSON.stringify(interesesValidos(body.intereses)) : null;
+    const errorLargo = errorDeLargo({ nombre, apellidos, state, city, specialty });
+    if (errorLargo) return NextResponse.json({ error: errorLargo }, { status: 400 });
 
     const result = await pool.query(
       `UPDATE usuarios
@@ -150,5 +169,69 @@ export async function PATCH(
       { error: "No se pudo actualizar el usuario" },
       { status: 500 }
     );
+  }
+}
+
+// DELETE: pide la baja de la propia cuenta (SCR-WEB-31). Body:
+// { destino: "eliminar" | "anonimizar" | "autoria", confirmacion: "ELIMINAR", contrasena }.
+// `contrasena` solo se exige si la cuenta tiene una (las de Google no); un error cuenta
+// para el bloqueo del login. La cuenta entra en un plazo de gracia de 30 días: se cierran
+// todas sus sesiones y volver a iniciar sesión cancela la baja (lib/usuarios/baja.ts).
+export async function DELETE(
+  request: Request,
+  context: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await context.params;
+
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) {
+      return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
+    }
+    if (Number(sessionUser.id) !== Number(id)) {
+      return NextResponse.json({ error: "Solo puedes eliminar tu propia cuenta" }, { status: 403 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    if (!esDestinoDeAportes(body.destino)) {
+      return NextResponse.json({ error: "Elige qué hacer con tus aportes" }, { status: 400 });
+    }
+    if (body.confirmacion !== PALABRA_DE_CONFIRMACION) {
+      return NextResponse.json(
+        { error: `Escribe ${PALABRA_DE_CONFIRMACION} para confirmar` },
+        { status: 400 }
+      );
+    }
+
+    const conContrasena = await pool.query<{ tiene: boolean }>(
+      `SELECT password_hash IS NOT NULL AS tiene FROM usuarios WHERE id = $1`,
+      [Number(id)]
+    );
+    if (conContrasena.rows[0]?.tiene) {
+      const contrasena = typeof body.contrasena === "string" ? body.contrasena : "";
+      if (!contrasena) {
+        return NextResponse.json({ error: "Confirma con tu contraseña" }, { status: 400 });
+      }
+      const comprobacion = await comprobarContrasenaActual(Number(id), contrasena);
+      if (!comprobacion.ok) {
+        const error = comprobacion.status === 400 ? "La contraseña no es correcta" : comprobacion.error;
+        return NextResponse.json({ error }, { status: comprobacion.status });
+      }
+    }
+
+    const baja = await solicitarBaja(Number(id), body.destino);
+    await destroySession();
+
+    return NextResponse.json({
+      message: "Baja registrada",
+      data: {
+        efectivaEn: baja.efectivaEn.toISOString(),
+        campanasFinalizadas: baja.campanasFinalizadas,
+        campanasBorradas: baja.campanasBorradas,
+      },
+    });
+  } catch (error) {
+    console.error("DELETE /api/usuarios/[id]:", error);
+    return NextResponse.json({ error: "No se pudo registrar la baja" }, { status: 500 });
   }
 }

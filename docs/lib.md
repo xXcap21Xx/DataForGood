@@ -14,19 +14,22 @@
 | --- | --- | --- |
 | `db.ts` | Pool de conexiones a PostgreSQL (se crea en el primer uso) | `pool`, `dbQuery` |
 | `db-schema.ts` | **El esquema completo** de la BD. Lo ejecuta `instrumentation.ts` al arrancar | `ensureCoreSchema`, `ensure<Tabla>Table` |
-| `minio.ts` | Cliente de MinIO: subir y leer archivos | `saveUploadedFile`, `readUploadedFile` |
+| `minio.ts` | Cliente de MinIO: guardar, leer y borrar archivos | `guardarArchivo`, `readUploadedFile`, `borrarArchivo` |
 | `base-path.ts` 🟢 | Prefijo de la app (`/dataforgood` en producción, vacío en `next dev`) | `BASE_PATH` |
 | `app-url.ts` | URL absoluta con `APP_ORIGIN` + `BASE_PATH` (para redirecciones y correos) | `absoluteUrl` |
 | `ip.ts` | IP real del cliente detrás del proxy | `ipDelCliente` |
 | `api-docs.ts` | Decide si se puede ver `/api/docs` | `puedeVerDocs` |
+| `animaciones.ts` 🟢 | Ayudantes de las animaciones de entrada de las páginas públicas (clases `.landing-*` de `globals.css`) | `retraso`, `entradaDeTarjeta` |
 
 ## Autenticación y cuentas
 
 | Archivo | Qué hace | Exporta |
 | --- | --- | --- |
 | `session.ts` | Sesión del usuario: crearla, leerla, cerrarla; detectar si está bloqueado | `getSessionUser`, `exigirUsuario`, `createSession`, `destroySession`, `obtenerBloqueoDeLaSesion`, `SessionUser` |
-| `rootSession.ts` | Sesión del SuperUsuario | `createRootSession`, `hasRootSession`, `destroyRootSession` |
-| `password.ts` | Hash y verificación de contraseñas (bcrypt; migra hashes viejos) | `hashPassword`, `verifyPassword`, `wasLegacyHash` |
+| `rootSession.ts` | Sesión del SuperUsuario (cookie de `/root` o token Bearer de `POST /api/auth/root/token`) | `emitirTokenRoot`, `createRootSession`, `hasRootSession`, `destroyRootSession` |
+| `root-acceso.ts` | Valida la credencial de SuperUsuario del entorno con límite de intentos; la usan `POST /api/auth/root` y `POST /api/auth/root/token` | `verificarCredencialRoot` |
+| `password.ts` | Hash y verificación de contraseñas (bcrypt; migra hashes viejos) y límites del bloqueo por intentos fallidos | `hashPassword`, `verifyPassword`, `wasLegacyHash`, `MAX_FAILED_ATTEMPTS`, `LOCK_DURATION_MS` |
+| `reglas-contrasena.ts` 🟢 | Requisitos de una contraseña nueva (registro y `/cuenta`) | `REGLAS_DE_CONTRASENA`, `cumpleReglasDeContrasena`, `LARGO_MAXIMO_DE_CONTRASENA` |
 | `verification.ts` | Código de verificación por correo | `startVerification`, `verifyCode`, `getPendingVerification`, `PENDING_COOKIE` |
 | `google.ts` | OAuth de Google | `getGoogleAuthUrl`, `exchangeCodeForProfile` |
 | `redireccion.ts` 🟢 | Valida el parámetro `?next=` para que solo apunte a rutas internas | `destinoSeguro`, `conDestino`, `DESTINO_POR_DEFECTO` |
@@ -47,6 +50,19 @@
 
 ## Por módulo
 
+### `aportes/`
+
+| Archivo | Qué hace | Lo usa |
+| --- | --- | --- |
+| `archivo.ts` 🟢 | Tipos y tamaño de archivo permitidos, largo de la descripción, `errorDeArchivo()`, `formatearTamano()` (KB/MB) y `TIPO_DE_DATO` (cómo se describe cada tipo a quien aporta) | Endpoints de aportes, formulario anónimo, pantallas de aportes y `/campanas/[id]` |
+| `comun.ts` | `guardarFotoDelAporte()` (valida, limpia y sube a MinIO), `insertarAporteConCuota()` (cuenta e inserta con candado: sin carrera de cuota), `recalcularContadores()` (contadores de la campaña desde `aportes`, con la campaña bloqueada) y reexporta `archivo.ts` | `POST /api/aportes`, `aportes-anonimos.ts` |
+| `imagen.ts` | `limpiarImagen()`: comprueba la firma JPG/PNG y vuelve a codificar con `sharp`, quitando EXIF (GPS), ICC y XMP | `comun.ts` |
+| `anonimato.ts` | Cookie `anonimo_id` y `hashDeDispositivo()` | Aporte anónimo, `/c/[token]`, sanciones |
+| `sanciones-anonimas.ts` | Sanciones a personas sin cuenta: marcar inapropiado, bloqueo por campaña, bloqueo global automático (3 inapropiados en 30 días → 30 días), borrar archivo, listar y quitar bloqueos | API de aportes y de baneos, `/usuarios/sanciones` |
+| `acciones-bloqueos.ts` | Server action `quitarBloqueoDeDispositivo` (SuperUsuario) | `/usuarios/sanciones` |
+| `bandeja.ts` | Bandeja del SuperUsuario: `buscarAportes` (filtros y paginación en SQL), `contarPorEtapa`, `listarCampanasConAportes`, `campanaTieneRevisor`, `PESTANAS_APORTES` y etiquetas de etapa. Exige sesión raíz; no lee archivos, correos ni la descripción completa | `/aportes`, `/aportes/dashboard` |
+| `dashboard.ts` | `obtenerDashboardDeAportes(rango)`: totales, cola de pendientes, tasa de aprobación, recolección por día/semana/mes (hora de Tepic), reparto por tipo y temática, motivos de rechazo (textos idénticos agrupados) y campañas que más aportan. Exige sesión raíz | `/aportes/dashboard` |
+
 ### `campanas/`
 
 | Archivo | Qué hace | Lo usa |
@@ -54,9 +70,13 @@
 | `publicas.ts` | Búsqueda de campañas activas con filtros | `/explorar` |
 | `panel.ts` | Métricas de una campaña (aportes por estado, participantes, avance) | Paneles de `/supervision`, `/supervisar`, `/sistema/campanas/[id]` |
 | `baneos.ts` | Baneos por campaña: consultar, listar, quitar | API de baneos, `/api/aportes`, `/usuarios/[id]` |
+| `aportes-anonimos.ts` | Aporte **sin cuenta** desde `/c/[token]`: valida enlace, campaña e interruptor `permite_anonimos`, bloqueos del dispositivo, cuota por dispositivo (se guarda el hash de la cookie), espera entre aportes del dispositivo (`ESPERA_ENTRE_APORTES_SEGUNDOS`), tope por IP en memoria (`TOPE_POR_IP_POR_HORA`, se poda cada minuto) y guarda el aporte sin datos personales, sin ninguna forma de la IP (los límites por IP viven en memoria). Bitácora `aporte.anonimo_enviar` sin IP | `POST /api/c/[token]/aportes`, `/c/[token]` |
+| `enlaces.ts` | Enlace público `/c/[token]`: `asegurarEnlaceVigente` (se genera solo al quedar activa la campaña), `regenerarEnlace` (creador), buscar por token, contar visitas, atribuir aportes y generar el QR (SVG/PNG con `qrcode`). Todo en transacción con la campaña bloqueada. No autoriza: el llamador comprueba antes | `/api/campanas/[id]/{enlace,qr}`, `/c/[token]`, `POST /api/aportes`, `lib/supervision/decision.ts`, `lib/campaign-date.ts`, `PATCH`/`PUT /api/campanas/[id]` |
+| `estado-del-creador.ts` | Qué estado puede pedir el creador (`borrador`/`en_revision`), límite de 5 activas, XP fijo | `POST /api/campanas`, `PATCH`/`PUT /api/campanas/[id]` |
 | `checklist.ts` 🟢 | Checklists con título: normalizar, validar respuestas, límites (`MAX_SECCIONES`...) | Formulario de campaña, aportar, API |
 | `sistema.ts` | Consultas del panel del SuperUsuario (listado, conteos, dashboard). Exigen sesión raíz | `/sistema/campanas/**` |
-| `sistema-opciones.ts` 🟢 | Constantes y tipos de esas pantallas (pestañas, etiquetas, órdenes) | `/sistema/campanas/filtros.tsx` |
+| `sistema-opciones.ts` 🟢 | Constantes y tipos de esas pantallas (pestañas, etiquetas, órdenes) | `/sistema/campanas/filtros.tsx`, `components/campanas/BarraDeFiltros.tsx` |
+| `filtro-local.ts` 🟢 | Filtra y ordena en el navegador listas ya cargadas, con los mismos criterios que `buscarCampanas()`; aviso de lista vacía (`avisoSinResultados`) | `/supervision`, `/supervisar`, `/revisiones` |
 
 ### `supervision/`
 
@@ -73,8 +93,12 @@
 | `directorio.ts` | Búsqueda de usuarios, ficha, estado de la cuenta, sanciones activas | `/usuarios/**` |
 | `dashboard.ts` | Métricas de usuarios por rango de fechas | `/usuarios/dashboard` |
 | `supervisores.ts` | Lista de supervisores y su actividad | `/usuarios/supervisores/**` |
-| `revisor.ts` | Retirar a alguien como revisor de todas sus campañas | `revocarRol` (al quitar el rol de revisor) |
+| `revisor.ts` | Retirar a alguien como revisor de todas sus campañas | `revocarRol` (al quitar el rol de revisor), borrado definitivo de una cuenta |
+| `baja.ts` | Baja voluntaria: resumen, pedirla, cancelarla al iniciar sesión y borrado definitivo al vencer el plazo | `/cuenta/eliminar`, `DELETE /api/usuarios/[id]`, login y Google, `instrumentation-node.ts` (cada hora) |
+| `baja-opciones.ts` 🟢 | Constantes de la baja: 30 días, ELIMINAR, destinos de los aportes, formato de fecha | `/cuenta/eliminar`, `/baja-solicitada`, `baja.ts` |
+| `contrasena-actual.ts` | Comprueba la contraseña actual; un error suma al bloqueo del login | Cambio de contraseña, baja de cuenta |
 | `rol-asignable.ts` 🟢 | Nombres y descripciones de roles para la interfaz | Panel |
+| `perfil.ts` 🟢 | Largos máximos de los campos del perfil (`errorDeLargo`) y `interesesValidos()` contra `lib/intereses.ts` | `POST /api/usuarios`, `PATCH /api/usuarios/[id]` |
 | `acciones-usuarios.ts` ⚡ | `asignarRol`, `revocarRol`, `aplicarSancion`, `restaurarAcceso` | `/usuarios/[id]/{roles,sancion}`, `/usuarios/sanciones` |
 | `acciones-supervisor.ts` ⚡ | `revertirAccion` (**sin implementar**) | `/usuarios/supervisores/[id]/revertir/...` |
 

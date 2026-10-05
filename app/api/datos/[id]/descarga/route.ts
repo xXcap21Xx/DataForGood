@@ -25,7 +25,7 @@ export async function GET(_request: Request, context: { params: Promise<{ id: st
     const aportes = await pool.query(
       `SELECT id, file_path, file_mime_type
        FROM aportes
-       WHERE campaign_id = $1 AND status = 'aceptado' AND file_path IS NOT NULL AND file_path <> ''
+       WHERE campaign_id = $1 AND status = 'aceptado' AND file_path IS NOT NULL AND file_path <> '' AND archivo_borrado_en IS NULL
        ORDER BY id`,
       [id]
     );

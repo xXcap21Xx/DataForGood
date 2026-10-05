@@ -103,9 +103,10 @@ DataForGood/
 ├── components/
 │   ├── ui/                 # botones, inputs, tags, tarjetas de la zona de usuario
 │   ├── cards/              # CampaignCard, ContributionCard
-│   ├── layout/             # TopBar, SidebarNav, NotificationsBell, Public{Header,Footer}...
+│   ├── layout/             # TopBar, SidebarNav, NotificationsBell, Logo (animado), Public{Header,Footer}...
 │   ├── sistema/            # kit visual del panel del SuperUsuario
 │   ├── supervision/        # piezas compartidas entre /supervision y /supervisar
+│   ├── campanas/           # BarraDeFiltros: filtros de campañas (/sistema/campanas, /supervision, /supervisar, /revisiones)
 │   └── auth/               # LogoutButton
 ├── lib/                    # LÓGICA DE SERVIDOR: BD, sesiones, reglas, consultas, server actions (ver lib.md)
 ├── types/index.ts          # tipos que devuelve la API a la zona de usuario
@@ -208,14 +209,14 @@ Están anotados para que no te sorprendan. No los "arregles de paso": cada uno e
 
 | Problema | Dónde |
 | --- | --- |
-| **Se puede crear una campaña ya `activa` sin supervisión.** `POST /api/campanas` toma `status` del body y, si no viene, usa `activa`; tampoco revisa el límite de 5 activas. El `PATCH` de un borrador también acepta cualquier estado válido. La interfaz siempre manda `borrador` o `en_revision`, pero alguien que llame a la API directamente se salta al supervisor | `app/api/campanas/route.ts` (POST), `app/api/campanas/[id]/route.ts` (PATCH/PUT) |
-| **El registro acepta roles desde el body.** Alguien puede registrarse como `supervisor` | `app/api/usuarios/route.ts` (POST) + `lib/roles.ts` |
-| **`GET /api/usuarios/[id]` no pide sesión** y devuelve el correo de cualquier usuario | `app/api/usuarios/[id]/route.ts` |
-| **`GET /api/campanas/[id]/recoleccion-diaria`** solo pide sesión, no que seas el creador: cualquier usuario ve las estadísticas de cualquier campaña | `app/api/campanas/[id]/recoleccion-diaria/route.ts` |
-| **La revisión en dos instancias no está completa.** Cuando un revisor acepta un aporte, el servidor lo deja en `aceptado` directamente; nunca lo pone en `espera_final`, aunque la interfaz sí muestra ese estado | `app/api/aportes/[id]/route.ts` (PATCH) |
 | **Páginas del panel protegidas solo por el layout.** `/sistema` y `/usuarios/**` no vuelven a comprobar la sesión raíz (ni la página ni sus funciones de `lib/`). Las server actions que escriben sí verifican | `app/(panel)/sistema/page.tsx`, `app/(panel)/usuarios/**`, `lib/usuarios/{directorio,dashboard,supervisores}.ts`, `lib/sistema/metricas.ts` |
 | **`revertirAccion` no hace nada** todavía (tiene la guardia, pero la lógica es un `TODO`) | `lib/usuarios/acciones-supervisor.ts` |
-| Enlace público `/c/[token]`, aportes anónimos y recuperar contraseña: **no existen** | — |
+| Recuperar contraseña: **no existe** | — |
+| **Tope de aportes anónimos por IP en memoria:** se reinicia con cada despliegue y no se comparte entre instancias. En local, sin proxy delante, todas las peticiones caen en la misma "IP" (`desconocida`) y comparten el tope de 20 por hora | `lib/campanas/aportes-anonimos.ts` |
+| **El tope y la espera por IP confían en `X-Forwarded-For`.** Detrás del proxy es correcto; si el puerto de la app queda abierto a Internet, alguien puede inventar su IP. La cuota por dispositivo sí aplica. Se resuelve en el despliegue, no en el código | `lib/ip.ts`, `docker-compose.yml` |
+| **Fotos anteriores al 2026-10-01 en el servidor:** pueden conservar su EXIF (GPS incluido) hasta correr `scripts/limpiar-metadatos.mjs --aplicar` (comando en su cabecera) | MinIO |
+| **Sin CSP global:** hay X-Frame-Options, nosniff, Referrer-Policy y Permissions-Policy (`next.config.ts`), pero una Content-Security-Policy completa necesita probar Google OAuth y las fuentes | `next.config.ts` |
+| **Un usuario sancionado puede aportar como anónimo** desde un enlace (al no tener sesión válida ve el formulario anónimo), igual que cualquiera que cierre sesión. No hay forma de ligar el dispositivo a la cuenta | `app/c/[token]/page.tsx` |
 | Solo se aceptan fotos JPG/PNG de hasta 10 MB | `app/api/aportes/route.ts` |
 | El build falla a veces descargando Google Fonts; reintentar. La solución es `next/font/local` | `app/layout.tsx` |
 | La imagen de MinIO ya no se puede descargar de internet; solo sirve la que está en caché | `docker-compose.yml` |

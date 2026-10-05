@@ -33,16 +33,18 @@
 
 | Tabla | Para qué | Columnas clave |
 | --- | --- | --- |
-| `usuarios` | Cuenta y perfil | `nombre`, `apellidos`, `email`, `password_hash`, `role` (JSONB, p. ej. `["usuario","supervisor"]`), `state`, `city`, `specialty`, `intereses` (JSONB), `xp_total`, `level`, `streak_days`, `email_verificado`, `failed_login_attempts`, `locked_until`, `google_id`, código de verificación (hash, vencimiento, intentos) |
+| `usuarios` | Cuenta y perfil | `nombre`, `apellidos`, `email`, `password_hash`, `role` (JSONB, p. ej. `["usuario","supervisor"]`), `state`, `city`, `specialty`, `intereses` (JSONB), `xp_total`, `level`, `streak_days`, `email_verificado`, `failed_login_attempts`, `locked_until`, `google_id`, código de verificación (hash, vencimiento, intentos), baja voluntaria (`baja_solicitada_en`, `baja_efectiva_en`, `baja_destino_aportes`, `eliminada_en`: la fila se vacía, nunca se borra) |
 | `sessions` | Sesiones de usuario | `token_hash` (sha256 del token de la cookie), `usuario_id`, `expires_at` |
 | `root_sessions` | Sesiones del SuperUsuario | `token_hash`, `expires_at` (sin usuario) |
 | `campanas` | Campañas | `creator_id`, `name`, `description`, `tag` (temática), `data_types` (JSONB), `goal_contributions`, `quota_per_user`, `status`, `start_date`/`start_time`, `end_date`/`end_time`, ubicación (`location_state`, `location_city`, `location_colonia`), `checklist_secciones` (JSONB), `supervisor_id`, `supervisado_por_root`, `share_token`, `downloads_count`. **Contadores desnormalizados:** `current_contributions`, `approved_contributions`, `pending_contributions`, `rejected_contributions`, `participants` |
 | `campana_supervisores` | Historial de dictámenes | `campana_id`, `supervisor_id` (NULL si fue el SuperUsuario), `por_superusuario`, `accion` (`aceptada`, `rechazada`, `reportada`, `reasignada`), `motivo` |
 | `campana_revisores` | Revisores por campaña | `campana_id`, `usuario_id`, `estado` (`invitado`, `aceptado`, `rechazado`) |
 | `campana_baneados` | Participantes baneados de una campaña | `campana_id`, `usuario_id`, `motivo`, `baneado_por` |
+| `dispositivos_bloqueados` | Bloqueos de personas sin cuenta | `anonimo_id`, `campana_id` (NULL = global), `motivo`, `bloqueado_por`, `aporte_id`, `hasta`, `activo`, `restaurado_en` |
+| `campana_enlaces` | Enlaces públicos `/c/[token]` (historial: una fila por token) | `campana_id`, `token` (único), `creado_por`, `creado_en`, `expira_en` (24 h), `revocado_en` (al regenerar), `visitas`. Vigente = sin revocar y sin vencer. Reemplaza a `campanas.share_token`, que ya no se usa |
 | `campanas_guardadas` | Favoritos | `usuario_id`, `campana_id` |
 | `notificaciones` | Avisos para el usuario | `usuario_id`, `tipo` (p. ej. `invitacion_revisor`), `titulo`, `mensaje`, `campana_id`, `metadata` (JSONB), `leida_en` |
-| `aportes` | Aportes | `campaign_id`, `user_id` (NULL = anónimo), `participant_name`/`participant_email`, `description`, `file_path` (clave en MinIO), `file_original_name`, `file_mime_type`, `file_size_bytes`, `file_type`, `caracteristicas` (JSONB: respuestas de checklists), `status`, `rejection_reason`, `first_pass_by`/`first_pass_by_user_id` (revisor), `submitted_at`, `reviewed_at` |
+| `aportes` | Aportes | `campaign_id`, `user_id` (NULL = anónimo), `participant_name`/`participant_email`, `description`, `file_path` (clave en MinIO), `file_original_name`, `file_mime_type`, `file_size_bytes`, `file_type`, `caracteristicas` (JSONB: respuestas de checklists), `status`, `rejection_reason`, `first_pass_by`/`first_pass_by_user_id` (revisor), `enlace_id` (enlace público por el que llegó, o NULL), `anonimo_id` (aporte sin cuenta: sha256 de la cookie del dispositivo, para su cuota; NULL si tiene cuenta), `inapropiado`/`inapropiado_por`/`inapropiado_en`, `archivo_borrado_en`, `submitted_at`, `reviewed_at`. Un aporte anónimo tiene `user_id` NULL, `participant_name` "Anónimo" y ni correo ni `file_original_name` |
 | `sanciones` | Sanciones del panel | `usuario_id`, `tipo` (`STRIKE`, `SUSPENSION_TEMPORAL`, `BANEO_DE_CAMPANA`), `detalle`, `dias`, `activa`, `aplicada_en`, `aplicada_por`, `restaurada_en` |
 | `audit_log` | Bitácora de acciones sensibles (solo inserción) | `actor_tipo`, `actor_id`, `accion`, `objetivo_tipo`, `objetivo_id`, `detalle` (JSONB), `ip`, `created_at` |
 
@@ -74,6 +76,7 @@ borrador ──► en_revision ──(supervisor acepta)──► aceptada ─�
 | `rechazada` | El supervisor la rechazó con un motivo | El supervisor |
 
 - **Transiciones automáticas sin cron.** `activateScheduledCampaigns()` (`aceptada` → `activa`) y `finalizeExpiredCampaigns()` (`activa` → `finalizada`) de `lib/campaign-date.ts` se ejecutan **cada vez que se lee `GET /api/campanas`**. Una `pausada` no se finaliza sola.
+- **Enlace público automático.** Cada vez que una campaña **pasa a `activa`** (el supervisor la acepta y ya empezó, llega su fecha de inicio o se reactiva) se le genera un enlace `/c/[token]` de 24 h si no tiene uno vigente (`asegurarEnlaceVigente` de `lib/campanas/enlaces.ts`). Si la acepta con inicio futuro, el enlace se crea el día que arranca, no antes, para que no venza sin usarse. Después solo el creador lo regenera.
 - **"Reportada"** no cambia el estado: queda registrada en `campana_supervisores`.
 - **Tomar una campaña:** un supervisor la reserva con un `UPDATE ... WHERE supervisor_id IS NULL AND NOT supervisado_por_root`. Si dos la toman a la vez, solo uno gana; el otro recibe 409.
 - **Qué se puede editar según el estado** (`PATCH /api/campanas/[id]`):
@@ -86,18 +89,19 @@ borrador ──► en_revision ──(supervisor acepta)──► aceptada ─�
 | Estado | Significado |
 | --- | --- |
 | `pendiente` | Recién enviado, sin revisar |
-| `espera_final` | Validado por un revisor, esperando al creador. **Hoy el servidor no lo asigna:** el revisor que acepta deja el aporte directamente en `aceptado` (ver problemas conocidos en [README.md](README.md)) |
+| `espera_final` | Validado por un revisor, esperando la decisión final del creador |
 | `aceptado` | Aprobado; cuenta para la meta y para los datos abiertos |
 | `rechazado` | Rechazado con `rejection_reason`; **sigue contando para la cuota** de la persona |
 
-Reglas al enviar (`POST /api/aportes`): campaña `activa`, no ser el creador, no estar baneado (`campana_baneados`), tener cuota disponible, archivo JPG/PNG de hasta 10 MB y descripción obligatoria (máx. 1000 caracteres).
+Reglas al enviar (`POST /api/aportes`): campaña `activa`, no ser el creador, no estar baneado (`campana_baneados`), tener cuota disponible, archivo JPG/PNG de hasta 10 MB (se comprueba la firma real y se quitan los metadatos) y descripción obligatoria (máx. 1000 caracteres). La cuota se cuenta dentro de una transacción con candado, así que dos envíos simultáneos no la pasan.
 
 **Contadores:** cuando un aporte se crea, cambia de estado o se borra, el handler actualiza los contadores de `campanas` (`pending_contributions`, `approved_contributions`...). Si escribes código que cambia aportes, actualiza también los contadores.
 
 ## 5. Archivos en MinIO
 
 - **Módulo:** `lib/minio.ts`.
-  - `saveUploadedFile(file, subdir)` guarda el objeto como `<subdir>/<uuid>.<ext>` y devuelve la clave, el nombre original, el mime y el tamaño. Los aportes usan `subdir = campanas/<campaignId>`.
+  - `guardarArchivo(buffer, { subdir, extension, mimeType })` guarda el objeto como `<subdir>/<uuid><ext>` y devuelve la clave, el mime y el tamaño. Los aportes usan `subdir = campanas/<campaignId>` y llegan ya limpios desde `guardarFotoDelAporte()` (`lib/aportes/comun.ts`).
+  - `borrarArchivo(key)` borra el objeto (archivo de un aporte anónimo que el creador quitó).
   - `readUploadedFile(key)` descarga el objeto completo a un `Buffer`.
 - **El archivo pasa por el servidor.** El navegador sube `multipart/form-data` a `POST /api/aportes`, y el handler lo sube a MinIO. No hay URLs firmadas.
 - **Para mostrarlo**, usa `GET /api/aportes/[id]/archivo` como `src`: verifica permisos y lo sirve con `Cache-Control: private`. **Nunca armes URLs directas a MinIO:** el bucket es privado y no se publica.

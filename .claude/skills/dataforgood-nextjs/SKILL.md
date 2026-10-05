@@ -9,25 +9,68 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 
 **El repositorio es la referencia.** Si esta skill y el código no coinciden, manda el código, y hay que actualizar la skill en el mismo commit. Si el código tiene un error evidente (algo que falla, es inválido o inseguro), señálalo y propón la corrección.
 
-## Estado del proyecto (rama `migracion-github`, septiembre 2026)
+## Estado del proyecto (rama `migracion-github`, octubre 2026)
 
 - **Repositorio:** `gitlab.com/cicese-tepic-dev-1/dataforgood`. `main` está protegida; se trabaja en `migracion-github`.
 - **Funciona de punta a punta con datos reales:** registro con verificación por correo, inicio de sesión (correo/contraseña y Google), campañas, aportes con archivo en MinIO, revisión en dos instancias, supervisión, notificaciones, catálogo de datos abiertos y panel del SuperUsuario.
 - **Ya no existe `data/screensData.ts`:** ninguna pantalla usa datos simulados.
 - **No hay pruebas automatizadas** (no hay Vitest ni otro runner).
-- **Último avance (2026-09-30):** `/explorar` público, regreso a la pantalla pedida tras iniciar sesión (`?next=`), pantalla `/cuenta-bloqueada` para cuentas sancionadas, baneos por campaña reversibles y visibles, checklists con título en campañas, 23 temáticas compartidas con selector en ventana. Ver el mensaje del commit `c9fb7b7` para el detalle.
+- **2026-09-30:** `/explorar` público, regreso a la pantalla pedida tras iniciar sesión (`?next=`), `/cuenta-bloqueada`, baneos por campaña reversibles, checklists con título, 23 temáticas compartidas (commit `c9fb7b7`).
+- **2026-10-01 (commits `de9a367` a `3e18424`):**
+  - **Aporte anónimo** desde `/c/[token]` con cuota por dispositivo, espera de 60 s y tope por IP en memoria. **La IP de una persona sin cuenta no se guarda en ningún lado** (hubo un HMAC de la IP y se quitó a pedido del usuario: no volver a proponerlo).
+  - **Sanciones para anónimos** en 4 niveles (inapropiado, bloqueo del dispositivo en la campaña, interruptor "Permitir aportes sin cuenta", bloqueo global por dispositivo).
+  - **Fotos:** firma real JPG/PNG, máximo 50 MP y re-codificación con `sharp` sin EXIF/GPS (`lib/aportes/imagen.ts`).
+  - **Contadores** recalculados desde `aportes`, **revisión en dos instancias** real (`espera_final`), cuota sin carrera (candados de Postgres).
+  - **Seguridad:** registro solo con rol `usuario`, `GET /api/usuarios/[id]` solo la cuenta propia, `POST /api/campanas` con sesión y solo `borrador`/`en_revision`, ids validados en `proxy.ts`, cabeceras de seguridad en `next.config.ts`, login sin enumerar correos.
+  - Prueba de punta a punta y revisión en Chrome: hallazgos y estado en la memoria del proyecto.
+- **2026-10-02 (commit `b3f24bf`):**
+  - **Contraseñas:** `ui/PasswordInput` (botón de ojo) en todo campo de contraseña de la zona de usuario. Reglas en `lib/reglas-contrasena.ts` (8+ caracteres, mayúscula, número, carácter especial, máx. 72 bytes), exigidas en la pantalla y en el servidor (registro y cambio). **Cambio de contraseña** en `/cuenta` (`PATCH /api/usuarios/[id]/contrasena`): la actual equivocada suma al mismo contador de bloqueo que el login (`MAX_FAILED_ATTEMPTS`/`LOCK_DURATION_MS` en `lib/password.ts`), **no cierra sesiones** (decisión del usuario) y se registra como `usuario.contrasena_cambiar`.
+  - **`/cuenta`:** campos deshabilitados hasta "Editar perfil"; "Guardar cambios" solo en edición y aviso centrado al guardar. Arriba "Editar perfil" y "Cerrar sesión"; "Eliminar cuenta" hasta abajo; "Preferencias" es una fila de Seguridad que abre un `<dialog>`.
+  - **Filtros de campañas:** `components/campanas/BarraDeFiltros` (la de `/sistema/campanas`) también en `/supervision`, `/supervisar` y `/revisiones`, que filtran en el navegador con `lib/campanas/filtro-local.ts` (mismos criterios que `buscarCampanas()`).
+  - **Buscador de la barra superior** (`layout/BuscadorDeLaBarra`): solo en `/campanas` y `/mis-aportes`.
+  - **Logo:** `layout/Logo`, con el ícono y la palabra de `public/logo.svg` y `public/Texto.svg`. Con el cursor encima pasa a "DFG"; en `max-md`, siempre "DFG".
+- **2026-10-04 (commit `47528cf`, de Gerard): panel del SuperUsuario en móvil.**
+  - `components/sistema/Topbar` ya **no tiene buscador** (mandaba a `/campanas?q=`, inútil para el SuperUsuario) ni la insignia "SuperUsuario".
+  - "Usuarios" en `components/sistema/Sidebar` apunta a `/usuarios?movil=menu`: en móvil muestra un menú (Dashboard, Directorio, Supervisores, Sanciones) y cada sección un enlace "← Menú de usuarios"; en escritorio se ve el directorio con sus pestañas.
+  - `Subtabs` acepta `listaEnMovil`, `distribuidasEnMovil`, `volverAlMenuEnMovil` y `menuInicialMovil`; `MetricCard` acepta `centrado`. Directorio, supervisores, sanciones y listas de campañas usan tarjetas en móvil (`md:hidden`) y tabla en escritorio.
+- **2026-10-04 (commits `e34e979` y `8adb35d`):**
+  - **Sección Aportes del SuperUsuario**, con pestañas Dashboard/Bandeja (`PESTANAS_APORTES`). "Aportes" del menú lateral abre `/aportes`.
+    - `/aportes/dashboard` (SCR-WEB-34, `lib/aportes/dashboard.ts`): aprobados, pendientes (cola de hoy, sin importar el rango), rechazados, tasa, recolección por día/semana/mes **en hora de Tepic** (`submitted_at` es `TIMESTAMP` en UTC), tipo, temática, motivos de rechazo (texto libre: se agrupan textos idénticos) y campañas que más aportan. Rango `?rango=30d|90d|12m` con el selector de `/usuarios/dashboard`. Sin botones al pie (se quitaron a pedido del usuario).
+    - `/aportes` (SCR-WEB-14, `lib/aportes/bandeja.ts`): toda la plataforma, fichas por etapa (`?etapa=pendientes|aceptado|rechazado`), búsqueda, filtro `?campana=`, paginación y aviso de si la campaña tiene revisor. **El SuperUsuario ve el registro, no el contenido:** participante ("Anónimo" sin cuenta), fecha, campaña, resumen de 90 caracteres (nada en anónimos), tipo y etapa; nunca el archivo ni el correo. `/sistema/campanas/[id]` enlaza con "Ver aportes recibidos".
+    - El prototipo de origen es `DataForGood_Pantallas_Web_SuperUsuario_v16.html`; las carpetas `.tsx` sueltas que manda el usuario pueden ser de otra pantalla: revisar antes de usarlas.
+  - **Ajustes de interfaz:** sin la nota gris al final de `/usuarios/supervisores/[id]`; el recuadro motivacional de los dos menús laterales ya no es azul sólido (parecía botón): fondo `accent-tint` con franja `border-accent`.
+  - **Animaciones** (todas se detienen con movimiento reducido; cómo, en `references/ui-responsiva.md`):
+    - Landing, `/explorar`, `/datos` y `/entrar`: `.landing-entrada` (escalonada con `retraso()`; `backwards`, no `both`, para no bloquear el hover), `.landing-revelar` (al hacer scroll, `animation-timeline: view()` dentro de `@supports`), `.landing-tarjeta` (elevación con el cursor) y `.landing-brillo` (llamado final). Ayudantes en `lib/animaciones.ts` (`retraso`, `entradaDeTarjeta`: las 6 primeras tarjetas entran al cargar, las demás con el scroll).
+    - "DataForGood" del texto de la landing lleva `.marca-animada` (degradado accent/ok). Las cifras cuentan desde 0 con `ui/ContadorAnimado` (escribe en el DOM, sin estado: el lint prohíbe `setState` en efectos; el lector de pantalla oye solo el valor final).
+    - Menús laterales (`sistema/Sidebar`, `layout/SidebarNav`): la opción activa la marca una pastilla que se desliza (`ui/useIndicadorDeMenu.tsx`) y se mueve al hacer clic, sin esperar a la navegación. Cada enlace lleva `data-menu-clave`; la pastilla es siempre azul (accent; el verde de "Mis aportes" y "Mis campañas" se quitó el 2026-10-05 a pedido del usuario); la opción marcada usa `claseDeOpcionMarcada()`, que conserva su fondo hasta que la pastilla está colocada. El separador de "Modo supervisor" es un elemento aparte. **Gerard debe revisar la pastilla en la tira horizontal del móvil.**
+- **Último avance (2026-10-05):**
+  - **Token del SuperUsuario para la API:** `POST /api/auth/root/token` (credencial del entorno → token Bearer de 2 h, bitácora `root.token_api`); `hasRootSession()` acepta la cookie o `Authorization: Bearer`. La validación de la credencial está en `lib/root-acceso.ts` (la comparten `/api/auth/root` y el token). Con el token: `GET /api/usuarios` lista a todos (`buscarUsuarios()`, 20 por página, `q`/`rol`/`estado`/`pagina`) y `GET /api/usuarios/[id]` ve cualquier id. En Swagger: **Authorize → `rootBearer`**.
+  - **`openapi.yaml`** cuadrado con los handlers (faltaba `caracteristicas` en `POST /api/aportes`, sobraba `xpPerContribution`) y sin errores de estructura (Redocly).
+  - **`/api/docs` en producción sigue pidiendo sesión raíz:** abrirlo sin sesión lo bloqueó el control de permisos; queda a decisión del usuario.
+  - **Temática de campaña:** `ui/SelectorDeTemas` con `unica` (una sola temática) en `NuevaCampanaForm`, en vez de mostrar todas.
+  - **Registro en 4 pasos:** `/bienvenida` tiene paso 3 (estado y municipio, se guardan al dar "Siguiente") y paso 4 (especialidad e intereses); `/registro` y `/verificar` dicen "de 4".
+  - **Eliminar cuenta** (SCR-WEB-31): `/cuenta/eliminar` → `DELETE /api/usuarios/[id]` → `/baja-solicitada`. Reglas en `references/dominio.md` § 1 (baja voluntaria); lógica en `lib/usuarios/baja.ts`. El borrado definitivo lo corre `instrumentation-node.ts` al arrancar y cada hora (no hay cron). La contraseña actual se comprueba con `lib/usuarios/contrasena-actual.ts` (también en el cambio de contraseña). Si iniciar sesión cancela la baja, `/entrar` muestra el aviso "Tu cuenta sigue activa" (Google llega con `?baja=cancelada`).
+  - `docker-compose.override.yml` (en `.gitignore`) publica la consola de MinIO en `127.0.0.1:9001` solo en local.
+  - **Producción:** subir varios aportes tumbó el servidor (sharp + mozjpeg a resolución completa, sin fila ni tope de memoria; plan en la memoria del proyecto) y después `POST /api/aportes` da 500 con Postgres funcionando: probablemente MinIO. Falta el log del servidor. Aparte: un cuerpo de más de 10 MB llega cortado por `proxy.ts` (`proxyClientMaxBodySize`) y da 500 en lugar de 413 (la app lo evita en el navegador; pasa con Swagger o curl).
+- **Pendiente:**
+  - **Antes del próximo despliegue:** correr una vez `scripts/limpiar-metadatos.mjs` en el servidor (lista; luego `--aplicar`) y que el puerto de la app solo sea accesible desde el proxy (el tope y la espera por IP confían en `X-Forwarded-For`; lo está consultando el usuario con el encargado).
+  - **Pantallas a 360 px: las hace Gerard** (otro colaborador). No tocar el responsivo móvil ni los estilos de `globals.css` por iniciativa propia; si un cambio afecta el móvil, avisar.
+  - Números provisionales (`TODO(dominio)`): 3 inapropiados en 30 días → 30 días de bloqueo, 60 s de espera, 20 aportes anónimos por IP por hora, 50 MP.
+  - **Botones sin función:** los indicadores de "Preferencias" y el interruptor de "Privacidad" en `/cuenta`, y el buscador de la barra superior (no busca nada).
+  - Favicon: sigue el de Next; se puede usar el ícono de `public/logo.svg`.
 
 | Zona | Rutas | Acceso |
 | --- | --- | --- |
-| Documentación de la API | `/api/docs` (Swagger UI de `openapi.yaml`) | Abierta en `next dev`; sesión raíz en producción |
-| Pública | `/`, `/explorar` (campañas activas), `/datos`, `/datos/[id]`, `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
-| Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario); `/cuenta-bloqueada` (fuera del grupo: cuenta suspendida o baneada) | Libre |
-| Participar, `(dashboard)` | `/campanas`, `/campanas/[id]`, `/campanas/[id]/aportar`, `/mis-aportes`, `/mis-aportes/[campanaId]`, `/cuenta` | Sesión de usuario |
-| Administrar campañas propias | `/mis-campanas`, `/mis-campanas/nueva` (`?edit=id`), `/mis-campanas/[id]/{panel, aportes, aportes/[aporteId], aportes/agregar-revisor, compartir, especial}` | Creador |
+| Documentación de la API | `/api/docs` (Swagger UI de `openapi.yaml`) | Abierta en `next dev`; sesión raíz en producción. Para probar como SuperUsuario: `POST /api/auth/root/token` → **Authorize** (`rootBearer`) |
+| Pública | `/`, `/explorar` (campañas activas), `/datos`, `/datos/[id]`, `/c/[token]` (enlace público de una campaña), `/contacto`, `/privacidad`, `/sobre-nosotros` | Libre |
+| Cuenta, `(auth)` | `/entrar`, `/registro` → `/verificar` → `/bienvenida`; `/root` (entrada del SuperUsuario); `/cuenta-bloqueada` (fuera del grupo: cuenta suspendida o baneada); `/baja-solicitada` (fuera del grupo: confirmación de la baja) | Libre |
+| Participar, `(dashboard)` | `/campanas`, `/campanas/[id]`, `/campanas/[id]/aportar`, `/mis-aportes`, `/mis-aportes/[campanaId]`, `/cuenta`, `/cuenta/eliminar` | Sesión de usuario |
+| Administrar campañas propias | `/mis-campanas`, `/mis-campanas/nueva` (`?edit=id`), `/mis-campanas/[id]/{panel, aportes, aportes/[aporteId], aportes/agregar-revisor, especial}` (compartir es un cuadro en `/campanas/[id]`) | Creador |
 | Revisión de aportes | `/revisiones`, `/revisiones/finalizadas`, `/revisiones/[aporteId]`, `/revisiones/campanas/[campaignId]/usuarios/...` | Revisor aceptado de la campaña |
 | Supervisión (usuario promovido) | `/supervision`, `/supervision/campanas`, `/supervision/[campaignId]/{panel, usuarios/...}` | Rol `supervisor` |
-| Panel del SuperUsuario, `(panel)` | `/sistema`, `/sistema/campanas{, /dashboard, /[id]}`, `/usuarios{, /dashboard, /[id]{, /roles, /sancion}, /sanciones, /supervisores{, /[id]{, /revertir/[accionId]}}}`, `/supervisar/...` | Sesión raíz (`root_sessions`) |
-| Aún sin pantalla | enlace público `/c/[token]`, recuperar contraseña | — |
+| Panel del SuperUsuario, `(panel)` | `/sistema`, `/sistema/campanas{, /dashboard, /[id]}`, `/aportes{, /dashboard}`, `/usuarios{, /dashboard, /[id]{, /roles, /sancion}, /sanciones, /supervisores{, /[id]{, /revertir/[accionId]}}}`, `/supervisar/...` | Sesión raíz (`root_sessions`) |
+| Persona anónima | Solo `/c/[token]` (ficha de la campaña compartida y formulario de aporte sin cuenta, `POST /api/c/[token]/aportes`) | Sin sesión, con enlace vigente |
+| Aún sin pantalla | recuperar contraseña | — |
 
 ## Stack real
 
@@ -39,7 +82,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 | Base de datos | PostgreSQL con **`pg` y SQL a mano** (`lib/db.ts`). **Sin ORM**: no hay Drizzle, Prisma ni migraciones versionadas; el DDL vive en `lib/db-schema.ts` |
 | Validación | A mano (`lib/validation.ts`, regex, `Set` de valores permitidos). No hay Zod |
 | Archivos | MinIO con el SDK `minio` (`lib/minio.ts`). El archivo pasa por el servidor (`putObject`), no hay URLs firmadas |
-| Otros | `bcryptjs` (contraseñas), `nodemailer` + Gmail (códigos de verificación), `google-auth-library` (OAuth), `archiver` (ZIP de datos abiertos) |
+| Otros | `bcryptjs` (contraseñas), `nodemailer` + Gmail (códigos de verificación), `google-auth-library` (OAuth), `archiver` (ZIP de datos abiertos), `sharp` (valida y limpia las fotos de los aportes), `qrcode` (QR del enlace público) |
 | Infraestructura | Docker Compose con `postgres:16-alpine`, `quay.io/minio/minio` (solo la copia en caché: ya no se puede descargar), `minio-init` (usuario limitado) y la app (Dockerfile multi-stage, `node:24-alpine`). Secretos en `.env` (plantilla `.env.example`); Postgres y MinIO sin puertos publicados |
 
 ## Qué leer según la tarea
@@ -55,7 +98,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 
 ## Reglas del proyecto
 
-1. **Toda ruta o acción verifica la sesión y el permiso en el servidor.** `proxy.ts` solo redirige si falta la cookie y rechaza mutaciones de `/api` con `Origin` ajeno; no valida sesiones ni roles. Cada route handler llama a `getSessionUser()` (o `hasRootSession()`), cada server action empieza con su guardia y cada página de `(panel)` debe llamar a `exigirSesionRoot()` además del layout (hoy `/sistema` y `/usuarios/**` no lo hacen: ver `references/roles-y-sesiones.md` § 8). `getSessionUser()` ya devuelve `null` si la cuenta está suspendida o baneada (`lib/sanciones.ts`). **Páginas y layouts de servidor de la zona de usuario usan `exigirUsuario()`** (`lib/session.ts`), no `getSessionUser()` + `redirect("/entrar")`: manda a `/cuenta-bloqueada` si la cuenta está sancionada y a `/entrar` si no hay sesión, y layout y página deben coincidir porque corren en paralelo.
+1. **Toda ruta o acción verifica la sesión y el permiso en el servidor.** `proxy.ts` solo redirige si falta la cookie, rechaza mutaciones de `/api` con `Origin` ajeno y responde 404/400 a ids que no son enteros positivos de hasta 9 dígitos (en `/api/{aportes,campanas,datos,notificaciones,usuarios}/[id]` y en `?id=`/`?campaignId=`); no valida sesiones ni roles. Las cabeceras de seguridad (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy, sin X-Powered-By) están en `next.config.ts`. Cada route handler llama a `getSessionUser()` (o `hasRootSession()`), cada server action empieza con su guardia y cada página de `(panel)` debe llamar a `exigirSesionRoot()` además del layout (hoy `/sistema` y `/usuarios/**` no lo hacen: ver `references/roles-y-sesiones.md` § 8). `getSessionUser()` ya devuelve `null` si la cuenta está suspendida o baneada (`lib/sanciones.ts`). **Páginas y layouts de servidor de la zona de usuario usan `exigirUsuario()`** (`lib/session.ts`), no `getSessionUser()` + `redirect("/entrar")`: manda a `/cuenta-bloqueada` si la cuenta está sancionada y a `/entrar` si no hay sesión, y layout y página deben coincidir porque corren en paralelo.
 2. **Las acciones sensibles se registran en `audit_log`** con `registrarAuditoria()` (`lib/auditoria.ts`), después de completarse: cambios de rol, sanciones, dictámenes, tomar campaña, baneos por campaña, invitar o aceptar revisor, accesos a `/root`. Si agregas una acción de ese tipo, regístrala y amplía `AccionAuditada`.
 3. **Las reglas de negocio se aplican en el servidor**, aunque la interfaz ya las muestre: cuota por persona, transiciones de estado, motivo obligatorio al rechazar, tamaño y formato de archivos, que el creador no aporte ni supervise sus campañas. La interfaz solo informa.
 4. **Una regla, un lugar.** Si dos caminos (p. ej. `PATCH /api/campanas/[id]` y la server action del SuperUsuario) aplican la misma regla, se extrae a `lib/` (ejemplo: `lib/supervision/decision.ts`). No dupliques la lógica.
@@ -147,9 +190,22 @@ docker compose up -d --build     # compila la imagen: detecta prerender que fall
 docker compose logs -f app
 ```
 
+**Espacio en disco:** el disco virtual de Docker vive en C: y cada `docker compose up --build` deja caché de construcción. El 2026-10-04 llegó a 21 GB, llenó C: y tumbó Docker Desktop. Antes de reconstruir varias veces, revisa `docker system df` y el espacio libre; con permiso del usuario, `docker builder prune -af` y `docker image prune -f` (solo huérfanas: **nunca `-a`**, porque la imagen de MinIO ya no se puede volver a descargar, y las imágenes `dataforgood-app:<hash>` son respaldos del usuario).
+
+Las páginas públicas con `revalidate` se generan en el build **sin base de datos**: justo después de reconstruir salen vacías (sin aportes ni campañas) hasta la primera regeneración, a los 5 minutos. No es un error.
+
 Si `docker compose up --build` falla con `Can't resolve '@vercel/turbopack-next/internal/font/google/font'`, es la descarga de Google Fonts (`next/font/google` en `app/layout.tsx`) durante el build: reintenta. Pasó dos veces el 2026-09-30; la solución de fondo es `next/font/local` (pendiente).
 
 No hay suite de pruebas. Prueba a mano en el navegador los flujos que tocaste, con los roles involucrados: usuario común, creador, revisor, supervisor y SuperUsuario. Revisa también 360, 768 y 1280 px.
+
+**Cómo probar sin dañar datos reales** (lecciones del 2026-10-01):
+- Crea tus propios datos con un prefijo reconocible (usuarios `qa-prueba-*@example.test`, campañas `QA-PRUEBA ...`) y bórralos al terminar, incluida su carpeta `campanas/<id>/` en MinIO. Nunca uses aportes o campañas existentes para probar acciones destructivas: MinIO no tiene versionado y un archivo borrado no se recupera.
+- Las sesiones de prueba se crean insertando el sha256 del token en `sessions` (o `root_sessions`); bórralas al final.
+- En Chrome, el usuario tiene su sesión real en `localhost:3000`: entrar con una cuenta de prueba la cierra. Avísale antes.
+- Para probar sin cerrar la sesión del usuario, abre una pestaña nueva y pon la cookie de prueba con `document.cookie = 'session_token=<token>; path=/'` (o `root_session_token` con una fila en `root_sessions`); bórrala al terminar.
+- La pestaña de pruebas queda oculta para Chrome (`document.visibilityState === "hidden"`): los temporizadores y las transiciones se frenan. Espera 2–3 s tras teclear en una búsqueda con pausa antes de leer el resultado, y cambia los `<select>` con la herramienta de formularios, no con un evento simulado.
+- La ventana de Chrome suele estar maximizada y no cambia de tamaño, y `X-Frame-Options: DENY` impide cargar la app en un `<iframe>`: el móvil no se puede ver así. Revisa en las hojas de estilo compiladas que existan las reglas `max-md:` y pide al usuario que lo vea en su teléfono.
+- **Si tocas candados o transacciones, prueba envíos simultáneos.** El recálculo de contadores bloquea la campaña con `FOR NO KEY UPDATE`: con `FOR UPDATE` choca con el candado de la llave foránea que toma cada `INSERT` en `aportes` y Postgres aborta transacciones con deadlock.
 
 ## Al entregar el trabajo
 

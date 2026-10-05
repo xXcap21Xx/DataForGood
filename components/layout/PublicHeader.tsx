@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import ButtonLink from "@/components/ui/ButtonLink";
+import Logo from "@/components/layout/Logo";
 
 export default function PublicHeader() {
   return (
     <header className="flex items-center justify-between border-b border-line px-6 py-4">
-      <Link href="/" className="flex items-center gap-2 font-extrabold text-ink">
-        <span className="h-6 w-6 rounded-md bg-accent" aria-hidden />
-        DataForGood
+      <Link href="/" className="flex items-center">
+        <Logo />
       </Link>
       <nav className="hidden items-center gap-8 text-sm text-ink-2 md:flex">
         <Link href="/#como-funciona" className="hover:text-ink">

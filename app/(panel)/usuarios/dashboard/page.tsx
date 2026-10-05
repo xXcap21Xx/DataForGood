@@ -47,7 +47,11 @@ export default async function DashboardDeUsuariosPage({
 
   return (
     <div>
-      <Subtabs pestanas={PESTANAS_USUARIOS} etiquetaAria="Secciones de usuarios" />
+      <Subtabs
+        pestanas={PESTANAS_USUARIOS}
+        etiquetaAria="Secciones de usuarios"
+        volverAlMenuEnMovil
+      />
 
       <Encabezado
         titulo="Usuarios registrados"
@@ -142,7 +146,45 @@ export default async function DashboardDeUsuariosPage({
       </div>
 
       <TituloDeSeccion>Usuarios con mayor participación</TituloDeSeccion>
-      <div className="overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm">
+      <div className="space-y-3 md:hidden">
+        {d.masActivos.map((u) => (
+          <article key={u.id} className="rounded-lg border border-line bg-surface p-4 shadow-sm">
+            <div className="min-w-0">
+              <p className="break-words text-[14px] font-bold leading-snug text-ink">{u.nombre}</p>
+              <p className="mt-1 break-all font-mono text-[11px] text-ink-3">{u.correo}</p>
+            </div>
+
+            <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-line pt-3">
+              <div>
+                <dt className="text-[11px] text-ink-2">Aportes aprobados</dt>
+                <dd className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums text-ink">
+                  {formatearNumero(u.aportesAprobados)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[11px] text-ink-2">Campañas</dt>
+                <dd className="mt-0.5 font-mono text-[15px] font-semibold tabular-nums text-ink">
+                  {formatearNumero(u.campanas)}
+                </dd>
+              </div>
+              <div className="col-span-2 flex items-center justify-between gap-3">
+                <dt className="text-[11px] text-ink-2">Estado</dt>
+                <dd>
+                  <Tag tone={u.estado.tono}>{u.estado.texto}</Tag>
+                </dd>
+              </div>
+            </dl>
+
+            <div className="mt-3 grid">
+              <EnlaceBoton href={`/usuarios/${u.id}`}>
+                Ver ficha<span className="sr-only"> de {u.nombre}</span>
+              </EnlaceBoton>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm md:block">
         <table className="w-full min-w-[640px] text-left text-[13.5px]">
           <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
             <tr>

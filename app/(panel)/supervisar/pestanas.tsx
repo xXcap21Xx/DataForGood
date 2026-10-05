@@ -1,13 +1,18 @@
 "use client";
 
-// Pestañas de /supervisar (por revisar / supervisadas).
+// Pestañas de /supervisar (por revisar / supervisadas) con la barra de filtros de
+// components/campanas/BarraDeFiltros.tsx, aplicada en el navegador (lib/campanas/filtro-local.ts).
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Tag from "@/components/ui/Tag";
+import BarraDeFiltros, { type ValoresDeFiltros } from "@/components/campanas/BarraDeFiltros";
+import { FILTROS_VACIOS, avisoSinResultados, filtrarCampanas, opcionesDeTematica, type FiltrosLocales } from "@/lib/campanas/filtro-local";
 import type { CampanaSupervisable } from "@/lib/supervision/root";
 
 type TabKey = "pending" | "supervised" | "finished" | "flagged";
+
+const tematicaDe = (campaign: CampanaSupervisable) => campaign.tag;
 
 function porcentaje(campaign: CampanaSupervisable) {
   return campaign.goalContributions > 0
@@ -16,10 +21,10 @@ function porcentaje(campaign: CampanaSupervisable) {
 }
 
 export default function PestanasDeSupervision({
-  pendientes,
-  supervisadas,
-  finalizadas,
-  conIncidencia,
+  pendientes: todasPendientes,
+  supervisadas: todasSupervisadas,
+  finalizadas: todasFinalizadas,
+  conIncidencia: todasConIncidencia,
 }: {
   pendientes: CampanaSupervisable[];
   supervisadas: CampanaSupervisable[];
@@ -27,48 +32,58 @@ export default function PestanasDeSupervision({
   conIncidencia: CampanaSupervisable[];
 }) {
   const [activeTab, setActiveTab] = useState<TabKey>("pending");
+  const [filtros, setFiltros] = useState<FiltrosLocales>(FILTROS_VACIOS);
+
+  const tematicas = useMemo(
+    () => opcionesDeTematica([...todasPendientes, ...todasSupervisadas, ...todasFinalizadas, ...todasConIncidencia].map(tematicaDe)),
+    [todasPendientes, todasSupervisadas, todasFinalizadas, todasConIncidencia],
+  );
+
+  // Las listas filtradas; los contadores de las pestañas usan las completas.
+  const pendientes = useMemo(() => filtrarCampanas(todasPendientes, filtros, tematicaDe), [todasPendientes, filtros]);
+  const supervisadas = useMemo(() => filtrarCampanas(todasSupervisadas, filtros, tematicaDe), [todasSupervisadas, filtros]);
+  const finalizadas = useMemo(() => filtrarCampanas(todasFinalizadas, filtros, tematicaDe), [todasFinalizadas, filtros]);
+  const conIncidencia = useMemo(() => filtrarCampanas(todasConIncidencia, filtros, tematicaDe), [todasConIncidencia, filtros]);
+
+  function cambiarFiltro(clave: keyof ValoresDeFiltros, valor: string) {
+    setFiltros((actuales) => ({ ...actuales, [clave]: valor }));
+  }
 
   const renderPendingList = () => (
-    <>
-      <div className="mb-3 rounded-lg border border-line bg-sunken px-4 py-3 text-[13px] text-ink-2">
-        Selecciona una campaña para ver su detalle. Las disponibles puedes tomarlas con “Supervisar esta campaña”; una vez tomada, solo tú puedes dictaminarla.
-      </div>
-
-      <div className="space-y-3">
-        {pendientes.length === 0 ? (
-          <div className="rounded-lg border border-line bg-surface p-5 text-[13px] text-ink-2">
-            No hay campañas pendientes por revisar.
-          </div>
-        ) : (
-          pendientes.map((campaign) => (
-            <Link
-              key={campaign.id}
-              href={`/supervisar/${campaign.id}`}
-              className="block rounded-lg border border-line bg-surface p-5 shadow-sm transition-shadow hover:border-accent hover:shadow-md"
-            >
-              <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3">
-                <h2 className="text-[15px] font-extrabold text-ink">{campaign.name}</h2>
-                {campaign.supervision === "mia" ? <Tag tone="ok">La supervisas tú</Tag> : <Tag tone="warn">Disponible</Tag>}
-              </div>
-              <p className="text-[12.5px] text-ink-3">
-                {campaign.creatorName || "Usuario"} · {campaign.tag || "Sin temática"} · meta {campaign.goalContributions} aportes
-              </p>
-            </Link>
-          ))
-        )}
-      </div>
-    </>
+    <div className="space-y-3">
+      {pendientes.length === 0 ? (
+        <div className="rounded-lg border border-line bg-surface p-5 text-[13px] text-ink-2">
+          {avisoSinResultados(todasPendientes.length, "No hay campañas pendientes por revisar.")}
+        </div>
+      ) : (
+        pendientes.map((campaign) => (
+          <Link
+            key={campaign.id}
+            href={`/supervisar/${campaign.id}`}
+            className="block rounded-lg border border-line bg-surface p-5 shadow-sm transition-shadow hover:border-accent hover:shadow-md"
+          >
+            <div className="mb-1.5 flex flex-wrap items-start justify-between gap-3">
+              <h2 className="text-[15px] font-extrabold text-ink">{campaign.name}</h2>
+              {campaign.supervision === "mia" ? <Tag tone="ok">La supervisas tú</Tag> : <Tag tone="warn">Disponible</Tag>}
+            </div>
+            <p className="text-[12.5px] text-ink-3">
+              {campaign.creatorName || "Usuario"} · {campaign.tag || "Sin temática"} · meta {campaign.goalContributions} aportes
+            </p>
+          </Link>
+        ))
+      )}
+    </div>
   );
 
   const renderSupervisedList = () => (
     <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-sm">
       <div className="flex items-center justify-between border-b border-line bg-sunken px-4 py-3">
         <p className="text-[13px] font-semibold text-ink">Campañas que estás supervisando</p>
-        <Tag tone="ok">{supervisadas.length}</Tag>
+        <Tag tone="ok">{todasSupervisadas.length}</Tag>
       </div>
 
       {supervisadas.length === 0 ? (
-        <div className="p-5 text-[13px] text-ink-2">Todavía no tienes campañas aceptadas bajo supervisión.</div>
+        <div className="p-5 text-[13px] text-ink-2">{avisoSinResultados(todasSupervisadas.length, "Todavía no tienes campañas aceptadas bajo supervisión.")}</div>
       ) : (
         <div className="divide-y divide-line">
           {supervisadas.map((campaign) => (
@@ -105,11 +120,11 @@ export default function PestanasDeSupervision({
     <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-sm">
       <div className="flex items-center justify-between border-b border-line bg-sunken px-4 py-3">
         <p className="text-[13px] font-semibold text-ink">Campañas reportadas o rechazadas</p>
-        <Tag tone="danger">{conIncidencia.length}</Tag>
+        <Tag tone="danger">{todasConIncidencia.length}</Tag>
       </div>
 
       {conIncidencia.length === 0 ? (
-        <div className="p-5 text-[13px] text-ink-2">No tienes campañas reportadas o rechazadas.</div>
+        <div className="p-5 text-[13px] text-ink-2">{avisoSinResultados(todasConIncidencia.length, "No tienes campañas reportadas o rechazadas.")}</div>
       ) : (
         <div className="divide-y divide-line">
           {conIncidencia.map((campaign) => {
@@ -138,11 +153,11 @@ export default function PestanasDeSupervision({
     <div className="overflow-hidden rounded-lg border border-line bg-surface shadow-sm">
       <div className="flex items-center justify-between border-b border-line bg-sunken px-4 py-3">
         <p className="text-[13px] font-semibold text-ink">Campañas finalizadas</p>
-        <Tag>{finalizadas.length}</Tag>
+        <Tag>{todasFinalizadas.length}</Tag>
       </div>
 
       {finalizadas.length === 0 ? (
-        <div className="p-5 text-[13px] text-ink-2">Todavía no tienes campañas finalizadas.</div>
+        <div className="p-5 text-[13px] text-ink-2">{avisoSinResultados(todasFinalizadas.length, "Todavía no tienes campañas finalizadas.")}</div>
       ) : (
         <div className="divide-y divide-line">
           {finalizadas.map((campaign) => (
@@ -165,10 +180,10 @@ export default function PestanasDeSupervision({
   );
 
   const tabs: { key: TabKey; label: string; count: number }[] = [
-    { key: "pending", label: "Por supervisar", count: pendientes.length },
-    { key: "supervised", label: "Campañas supervisadas", count: supervisadas.length },
-    { key: "flagged", label: "Campañas reportadas / rechazadas", count: conIncidencia.length },
-    { key: "finished", label: "Campañas finalizadas", count: finalizadas.length },
+    { key: "pending", label: "Por supervisar", count: todasPendientes.length },
+    { key: "supervised", label: "Campañas supervisadas", count: todasSupervisadas.length },
+    { key: "flagged", label: "Campañas reportadas / rechazadas", count: todasConIncidencia.length },
+    { key: "finished", label: "Campañas finalizadas", count: todasFinalizadas.length },
   ];
 
   return (
@@ -197,6 +212,8 @@ export default function PestanasDeSupervision({
           </button>
         ))}
       </div>
+
+      <BarraDeFiltros valores={filtros} tematicas={tematicas} onCambiar={cambiarFiltro} />
 
       {activeTab === "pending" ? renderPendingList() : activeTab === "supervised" ? renderSupervisedList() : activeTab === "finished" ? renderFinishedList() : renderFlaggedList()}
     </div>

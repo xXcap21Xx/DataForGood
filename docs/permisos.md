@@ -19,9 +19,9 @@ Son independientes: la sesión de usuario no sirve en el panel, y la del SuperUs
 | | Usuario | SuperUsuario |
 | --- | --- | --- |
 | Módulo | `lib/session.ts` | `lib/rootSession.ts` |
-| Cookie | `session_token` (httpOnly, `SameSite=Lax`, 30 días) | `root_session_token` (httpOnly, `SameSite=Strict`, 2 horas) |
+| Cookie | `session_token` (httpOnly, `SameSite=Lax`, 30 días) | `root_session_token` (httpOnly, `SameSite=Strict`, 2 horas), o `Authorization: Bearer <token>` |
 | Tabla | `sessions` | `root_sessions` |
-| Se crea en | `POST /api/auth/login`, callback de Google, verificación del correo | `POST /api/auth/root` |
+| Se crea en | `POST /api/auth/login`, callback de Google, verificación del correo | `POST /api/auth/root` (cookie) o `POST /api/auth/root/token` (token en el JSON, para Swagger) |
 | Leer | `getSessionUser()` → `SessionUser \| null` | `hasRootSession()` → `boolean` |
 
 - **Token:** 32 bytes aleatorios en la cookie. En la BD solo se guarda su sha256, así que una copia de la base no permite suplantar sesiones.
@@ -109,8 +109,23 @@ No hay una función central: cada handler lo comprueba con SQL. Si agregas una r
 - **Login** (`POST /api/auth/login`): bcrypt (`lib/password.ts`, que también reconoce hashes viejos y los migra al vuelo). Tras 5 fallos bloquea la cuenta 15 minutos (`locked_until`). Rechaza cuentas sin verificar.
 - **Google** (`lib/google.ts`): `GET /api/auth/google` guarda un `state` aleatorio en la cookie `google_oauth_state` y redirige. El callback compara el `state`, vincula `google_id` a una cuenta existente con ese correo o crea una nueva ya verificada.
 - **Volver a donde estabas:** el parámetro `?next=` viaja por `/entrar`, `/registro`, `/verificar`, `/bienvenida` y Google. `destinoSeguro()` (`lib/redireccion.ts`) solo acepta rutas internas, para evitar redirecciones abiertas.
-- **SuperUsuario** (`POST /api/auth/root`): compara en tiempo constante y limita a 5 intentos por minuto por IP y 30 en total (en memoria: se reinicia con cada despliegue).
+- **SuperUsuario** (`POST /api/auth/root` y `POST /api/auth/root/token`, ambos con `verificarCredencialRoot()` de `lib/root-acceso.ts`): compara en tiempo constante y limita a 5 intentos por minuto por IP y 30 en total (en memoria: se reinicia con cada despliegue).
 - **Recuperar contraseña:** no existe.
+
+### Persona anónima (sin cuenta)
+
+Puede participar **solo si le comparten una campaña** (enlace o QR `/c/[token]`). No tiene sesión ni rol.
+
+- **Ve:** únicamente `/c/[token]`, con la ficha de la campaña y el formulario. Todo lo demás de la app le pide iniciar sesión, y la API le responde 401.
+- **Puede:** enviar aportes con `POST /api/c/[token]/aportes`, solo con un enlace vigente de una campaña activa.
+- **No puede:** ver sus aportes después, consultar archivos, ver el enlace o el QR desde la app, ni modificar nada.
+- **Límites:** la cuota por persona de la campaña, contada por dispositivo (cookie `anonimo_id`), 60 segundos de espera entre dos aportes del mismo dispositivo, y 20 aportes por IP por hora (`lib/campanas/aportes-anonimos.ts`). No puede aportar si el creador apagó "Permitir aportes sin cuenta" o si su dispositivo está bloqueado. Sin cookie, además espera 60 s desde el último aporte anónimo de su IP (en memoria).
+- **Privacidad:** el aporte se guarda como "Anónimo", sin correo ni nombre de archivo, y la foto sin metadatos. De la cookie solo se guarda su hash. La IP no se guarda en ningún lado (ni en la bitácora): los límites por IP viven en memoria.
+- **Revisión:** el creador lo acepta o rechaza como cualquier aporte; nadie recibe el motivo del rechazo.
+- **Sanciones** (`lib/aportes/sanciones-anonimas.ts`):
+  - Creador y revisor marcan un aporte como "Contenido inapropiado" (el creador al rechazar; el revisor con un botón que no cambia el estado).
+  - Solo el creador bloquea el dispositivo en su campaña (se quita en "Participantes baneados"), borra el archivo y apaga los aportes sin cuenta.
+  - 3 aportes inapropiados del mismo dispositivo en 30 días lo bloquean 30 días en toda la plataforma. Solo el SuperUsuario lo quita antes (`/usuarios/sanciones`).
 
 ## 7. Sanciones y baneos
 
@@ -138,6 +153,6 @@ Hay dos cosas distintas con nombres parecidos:
 Las acciones sensibles se registran con `registrarAuditoria()` (`lib/auditoria.ts`) **después** de completarse. Si el registro falla, solo se escribe en consola: no revierte la acción.
 
 - **Guarda:** actor (`usuario` + id, `superusuario` o `anonimo`), acción, objetivo (`usuario:5`, `campana:3`), detalle JSONB e IP (`lib/ip.ts`, último valor de `X-Forwarded-For`).
-- **Acciones registradas:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `revisor.invitar`, `revisor.aceptar`, `root.acceso`, `root.acceso_fallido`.
+- **Acciones registradas:** `rol.asignar`, `rol.revocar`, `sancion.aplicar`, `sancion.restaurar`, `supervision.tomar`, `supervision.dictaminar`, `campana.banear`, `campana.desbanear`, `campana.enlace_regenerar`, `revisor.invitar`, `revisor.aceptar`, `root.acceso`, `root.acceso_fallido`, `usuario.contrasena_cambiar` (cambio de contraseña en /cuenta; no guarda ninguna contraseña).
 - **Si agregas una acción sensible**, regístrala y añade su nombre al tipo `AccionAuditada`.
 - **No hay pantalla** para consultarla todavía; se lee con SQL.

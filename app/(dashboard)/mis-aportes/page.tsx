@@ -45,9 +45,21 @@ export default function MisAportesPage() {
   return <div>
     <div className="mb-6 flex items-start justify-between gap-4 max-md:mb-4 max-md:gap-3">
       <div><h1 className="text-2xl font-extrabold text-ink max-md:text-xl max-md:leading-tight">Mis aportes</h1><p className="mt-1 text-[13px] text-ink-2 max-md:max-w-[220px] max-md:text-[12px] max-md:leading-5">Campañas en las que ya aportaste o que guardaste para después.</p></div>
-      <Link href="/campanas"><Button variant="primary" size="sm" className="max-md:max-w-[116px] max-md:px-2.5 max-md:py-1.5 max-md:text-[11.5px] max-md:leading-4">Explorar campañas</Button></Link>
+      <Link href="/campanas"><Button variant="primary" size="sm" className="whitespace-nowrap max-md:max-w-[126px] max-md:px-2.5 max-md:py-1.5 max-md:text-[11.5px] max-md:leading-4">Explorar campaña</Button></Link>
     </div>
-    <div className="mb-6 flex flex-wrap gap-2 max-md:mb-4 max-md:gap-1.5">{["Todas", "Puedo aportar", "Cuota completa", "Finalizadas", "Favoritos"].map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${filter === item ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2"}`}>{item}</button>)}</div>
+    <div className="dashboard-nav mb-6 mt-4 flex w-full min-w-0 flex-nowrap gap-2 overflow-x-auto overscroll-x-contain pb-2 [-webkit-overflow-scrolling:touch] max-md:mb-4 max-md:gap-1.5 md:flex-wrap md:overflow-visible md:pb-0" role="group" aria-label="Filtrar campañas">
+      {["Todas", "Puedo aportar", "Cuota completa", "Finalizadas", "Favoritos"].map((item) => (
+        <button
+          key={item}
+          type="button"
+          aria-pressed={filter === item}
+          onClick={() => setFilter(item)}
+          className={`shrink-0 whitespace-nowrap rounded-pill border px-3.5 py-1.5 text-[13px] font-semibold max-md:px-2.5 max-md:py-1 max-md:text-[12px] ${filter === item ? "border-accent bg-accent text-white" : "border-line-2 bg-surface text-ink-2"}`}
+        >
+          {item}
+        </button>
+      ))}
+    </div>
     {error ? <p className="rounded-lg bg-danger-tint p-4 text-sm text-danger">{error}</p> : visible.length === 0 ? <p className="rounded-lg border border-dashed border-line-2 p-6 text-sm text-ink-2">Todavía no aportaste ni guardaste ninguna campaña.</p> : <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">{visible.map((campaign) => {
       const pct = campaign.goalContributions > 0 ? Math.min(100, Math.round(campaign.currentContributions / campaign.goalContributions * 100)) : 0;
       const canContribute = campaign.status === "activa" && !cuotaCompleta(campaign) && !campaign.isBanned;

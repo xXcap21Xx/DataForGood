@@ -1,13 +1,17 @@
-// /api/usuarios — registro de cuentas y buscador de revisores.
-// Ojo: el POST lee roles del body (hueco conocido, docs/README.md § 8).
+// /api/usuarios — registro de cuentas, directorio completo (SuperUsuario) y buscador de revisores.
+// El registro siempre crea la cuenta con el rol "usuario": los demás los asigna el
+// SuperUsuario (Supervisor) o se ganan al aceptar una invitación (Revisor).
 
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { hashPassword } from "@/lib/password";
+import { cumpleReglasDeContrasena } from "@/lib/reglas-contrasena";
 import { isValidEmail } from "@/lib/validation";
 import { startVerification } from "@/lib/verification";
-import { normalizeRoles } from "@/lib/roles";
 import { getSessionUser } from "@/lib/session";
+import { hasRootSession } from "@/lib/rootSession";
+import { buscarUsuarios, POR_PAGINA } from "@/lib/usuarios/directorio";
+import { errorDeLargo, interesesValidos } from "@/lib/usuarios/perfil";
 
 // POST: registro. Crea la cuenta sin verificar y envía el código por correo.
 export async function POST(request: Request) {
@@ -21,14 +25,27 @@ export async function POST(request: Request) {
     const state = String(body.state ?? "").trim();
     const city = String(body.city ?? "").trim();
     const specialty = String(body.specialty ?? "").trim();
-    const intereses = Array.isArray(body.intereses) ? body.intereses : [];
-    const roles = normalizeRoles(body.role ?? body.roles ?? ["usuario"]);
+    const intereses = interesesValidos(body.intereses);
+    // Nunca se leen roles del body: antes cualquiera podía registrarse como supervisor.
+    const roles = ["usuario"];
 
-    if (!nombre || !apellidos || !email || password.length < 6) {
+    if (!nombre || !apellidos || !email || !password) {
       return NextResponse.json(
-        { error: "nombre, apellidos, email y password (mínimo 6 caracteres) son obligatorios" },
+        { error: "nombre, apellidos, email y password son obligatorios" },
         { status: 400 }
       );
+    }
+    // Las mismas reglas que muestra /registro: antes el servidor solo pedía 6 caracteres
+    // y una llamada directa a la API podía crear la cuenta con "123456".
+    if (!cumpleReglasDeContrasena(password)) {
+      return NextResponse.json(
+        { error: "La contraseña debe tener al menos 8 caracteres, una mayúscula, un número y un carácter especial" },
+        { status: 400 }
+      );
+    }
+    const errorLargo = errorDeLargo({ nombre, apellidos, state, city, specialty });
+    if (errorLargo || email.length > 255) {
+      return NextResponse.json({ error: errorLargo ?? "El correo es demasiado largo" }, { status: 400 });
     }
 
     if (!isValidEmail(email)) {
@@ -102,20 +119,61 @@ function ocultarCorreo(email: string): string {
   return `${visible}***@${dominio ?? ""}`;
 }
 
+const ESTADOS_DE_CUENTA = new Set<string>(["ACTIVA", "CON_STRIKES", "SUSPENDIDA", "BANEADA"]);
+
 /**
- * GET /api/usuarios?campanaId=…&q=… — buscador de "agregar revisor".
- * Solo lo usa el creador de esa campaña, con al menos 3 letras del nombre o
- * un correo completo, y devuelve pocas coincidencias con el correo oculto:
- * así no sirve para descargar la lista de usuarios.
+ * GET /api/usuarios con sesión raíz (cookie de /root o token Bearer de
+ * POST /api/auth/root/token) — directorio completo de usuarios del sistema,
+ * el mismo de /usuarios: 20 por página, con filtros opcionales.
+ */
+async function listarTodos(url: URL) {
+  const pagina = Number(url.searchParams.get("pagina") ?? "1");
+  const estado = (url.searchParams.get("estado") ?? "").trim().toUpperCase();
+  if (!Number.isInteger(pagina) || pagina < 1) {
+    return NextResponse.json({ error: "pagina debe ser un entero positivo" }, { status: 400 });
+  }
+  if (estado && !ESTADOS_DE_CUENTA.has(estado)) {
+    return NextResponse.json(
+      { error: `estado debe ser uno de: ${Array.from(ESTADOS_DE_CUENTA).join(", ")}` },
+      { status: 400 }
+    );
+  }
+
+  const { filas, total } = await buscarUsuarios({
+    q: url.searchParams.get("q") ?? "",
+    rol: url.searchParams.get("rol") ?? "",
+    estado,
+    pagina,
+  });
+  return NextResponse.json({
+    data: filas,
+    pagina,
+    porPagina: POR_PAGINA,
+    total,
+    totalPaginas: Math.max(1, Math.ceil(total / POR_PAGINA)),
+  });
+}
+
+/**
+ * GET /api/usuarios
+ * - SuperUsuario: lista todos los usuarios (ver `listarTodos`).
+ * - Usuario con `?campanaId=…&q=…`: buscador de "agregar revisor". Solo lo usa
+ *   el creador de esa campaña, con al menos 3 letras del nombre o un correo
+ *   completo, y devuelve pocas coincidencias con el correo oculto: así no sirve
+ *   para descargar la lista de usuarios.
  */
 export async function GET(request: Request) {
   try {
+    const url = new URL(request.url);
+    if (await hasRootSession()) {
+      return await listarTodos(url);
+    }
+
     const user = await getSessionUser();
     if (!user) {
       return NextResponse.json({ error: "Debes iniciar sesion" }, { status: 401 });
     }
 
-    const url = new URL(request.url);
     const campanaId = Number(url.searchParams.get("campanaId"));
     const q = (url.searchParams.get("q") ?? "").trim();
 
@@ -142,6 +200,7 @@ export async function GET(request: Request) {
       `SELECT id, nombre, apellidos, email, role
        FROM usuarios
        WHERE email_verificado
+         AND baja_solicitada_en IS NULL
          AND id <> $1
          AND ${porCorreo ? "LOWER(email) = LOWER($2)" : "(nombre || ' ' || apellidos) ILIKE $2"}
        ORDER BY nombre, apellidos

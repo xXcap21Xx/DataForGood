@@ -1,11 +1,18 @@
 // /api/campanas/[id]/baneos — baneos de participantes en esta campaña (lib/campanas/baneos.ts).
 // Solo el creador. Lo usan el detalle del aporte y la sección de baneados de la bandeja.
+// Un aporte anónimo no tiene cuenta: "banear" bloquea su dispositivo en la campaña
+// (lib/aportes/sanciones-anonimas.ts).
 
 import { NextResponse } from "next/server";
 import { pool } from "@/lib/db";
 import { getSessionUser, type SessionUser } from "@/lib/session";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { listarBaneadosDeCampana, quitarBaneoDeCampana } from "@/lib/campanas/baneos";
+import {
+  bloquearEnCampana,
+  desbloquearEnCampana,
+  listarDispositivosBloqueadosDeCampana,
+} from "@/lib/aportes/sanciones-anonimas";
 
 /** Solo quien creó la campaña administra sus baneos. Devuelve la respuesta de error, o null si puede. */
 async function exigirCreador(campaignId: string, user: SessionUser | null): Promise<NextResponse | null> {
@@ -18,21 +25,26 @@ async function exigirCreador(campaignId: string, user: SessionUser | null): Prom
   return null;
 }
 
-// GET: participantes baneados de la campaña.
+// GET: participantes baneados (data) y dispositivos anónimos bloqueados (dispositivos).
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await context.params;
     const denegado = await exigirCreador(campaignId, await getSessionUser());
     if (denegado) return denegado;
 
-    return NextResponse.json({ data: await listarBaneadosDeCampana(campaignId) });
+    const [baneados, dispositivos] = await Promise.all([
+      listarBaneadosDeCampana(campaignId),
+      listarDispositivosBloqueadosDeCampana(Number(campaignId)),
+    ]);
+    return NextResponse.json({ data: baneados, dispositivos });
   } catch (error) {
     console.error("Error listando baneados de campaña", error);
     return NextResponse.json({ error: "No se pudieron cargar los baneos" }, { status: 500 });
   }
 }
 
-// POST: banea a un participante de esta campaña (no de toda la app).
+// POST: banea a un participante de esta campaña (no de toda la app). Si el aporte es
+// anónimo, bloquea el dispositivo que lo envió.
 export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await context.params;
@@ -61,7 +73,14 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       return NextResponse.json({ error: "Solo el dueño de la campaña puede banear participantes" }, { status: 403 });
     }
     if (row.user_id == null) {
-      return NextResponse.json({ error: "No se puede banear a un aporte anónimo" }, { status: 400 });
+      const bloqueado = await bloquearEnCampana({
+        campanaId: Number(campaignId),
+        aporteId: Number(contributionId),
+        usuarioId: Number(user.id),
+        motivo: reason,
+      });
+      if (!bloqueado) return NextResponse.json({ error: "Este aporte no tiene dispositivo que bloquear" }, { status: 400 });
+      return NextResponse.json({ message: "Dispositivo bloqueado en la campaña" });
     }
 
     await pool.query(
@@ -84,7 +103,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     return NextResponse.json({ error: "No se pudo banear al usuario de la campaña" }, { status: 500 });
   }
 }
-// DELETE: quita el baneo.
+// DELETE { usuarioId } quita el baneo; { bloqueoId } desbloquea un dispositivo anónimo.
 export async function DELETE(request: Request, context: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await context.params;
@@ -93,6 +112,16 @@ export async function DELETE(request: Request, context: { params: Promise<{ id: 
     if (denegado) return denegado;
 
     const body = await request.json().catch(() => ({}));
+    if (body.bloqueoId !== undefined) {
+      const bloqueoId = Number(body.bloqueoId);
+      if (!Number.isInteger(bloqueoId) || bloqueoId <= 0) {
+        return NextResponse.json({ error: "bloqueoId no es válido" }, { status: 400 });
+      }
+      if (!(await desbloquearEnCampana(Number(campaignId), bloqueoId, Number(user!.id)))) {
+        return NextResponse.json({ error: "Ese dispositivo no está bloqueado en esta campaña" }, { status: 404 });
+      }
+      return NextResponse.json({ message: "Dispositivo desbloqueado" });
+    }
     const usuarioId = Number(body.usuarioId);
     if (!Number.isInteger(usuarioId) || usuarioId <= 0) {
       return NextResponse.json({ error: "usuarioId es obligatorio" }, { status: 400 });

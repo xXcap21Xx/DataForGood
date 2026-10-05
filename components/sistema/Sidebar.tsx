@@ -4,7 +4,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ComponentType, SVGProps } from "react";
+import { Fragment, type ComponentType, type SVGProps } from "react";
+
+import { claseDeOpcionMarcada, useIndicadorDeMenu } from "@/components/ui/useIndicadorDeMenu";
 
 import {
   IconoAportes,
@@ -29,7 +31,7 @@ type Entrada = {
 const MENU: Entrada[] = [
   { href: "/sistema", etiqueta: "Inicio", Icono: IconoInicio, seccion: ["/sistema"], exacto: true },
   {
-    href: "/usuarios",
+    href: "/usuarios?movil=menu",
     etiqueta: "Usuarios",
     Icono: IconoUsuarios,
     seccion: ["/usuarios", "/supervisores"],
@@ -53,6 +55,12 @@ const MENU: Entrada[] = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const activo =
+    MENU.find(({ seccion, exacto }) =>
+      seccion.some((base) => pathname === base || (!exacto && pathname.startsWith(`${base}/`))),
+    )?.href ?? null;
+  // La opción activa la marca una pastilla que se desliza (components/ui/useIndicadorDeMenu.tsx).
+  const { navRef, visual, indicador, alElegir } = useIndicadorDeMenu(activo);
 
   return (
     <aside className="dashboard-sidebar w-64 shrink-0 border-r border-line bg-surface p-3 lg:sticky lg:top-0 lg:h-[calc(100vh-61px)]">
@@ -60,33 +68,38 @@ export default function Sidebar() {
         Sistema
       </p>
 
-      <nav aria-label="Secciones del panel" className="dashboard-nav flex flex-col gap-1">
-        {MENU.map(({ href, etiqueta, Icono, seccion, apartado, exacto }) => {
-          const activo = seccion.some(
-            (base) => pathname === base || (!exacto && pathname.startsWith(`${base}/`)),
-          );
+      <nav ref={navRef} aria-label="Secciones del panel" className="dashboard-nav relative flex flex-col gap-1">
+        {indicador}
+        {MENU.map(({ href, etiqueta, Icono, apartado }) => {
+          const marcada = visual === href;
 
           return (
-            <Link
-              key={href}
-              href={href}
-              aria-current={activo ? "page" : undefined}
-              className={`flex items-center gap-2.5 rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors ${
-                activo ? "bg-accent text-white" : "text-ink-2 hover:bg-sunken hover:text-ink"
-              } ${apartado ? "mt-2 border-t border-line pt-4" : ""}`}
-            >
-              <Icono className="h-4 w-4 shrink-0" />
-              {etiqueta}
-            </Link>
+            <Fragment key={href}>
+              {/* Separador aparte, no en el enlace: así no queda dentro de la pastilla. */}
+              {apartado ? <span aria-hidden="true" className="my-1.5 border-t border-line" /> : null}
+              <Link
+                href={href}
+                data-menu-clave={href}
+                aria-current={activo === href ? "page" : undefined}
+                onClick={alElegir(href)}
+                className={`group relative flex items-center gap-2.5 rounded-pill px-3.5 py-2.5 text-sm font-medium transition-colors duration-300 ${
+                  marcada ? claseDeOpcionMarcada() : "text-ink-2 hover:bg-sunken hover:text-ink"
+                }`}
+              >
+                <Icono className="h-4 w-4 shrink-0 transition-transform duration-200 group-hover:translate-x-0.5 motion-reduce:transition-none" />
+                {etiqueta}
+              </Link>
+            </Fragment>
           );
         })}
       </nav>
 
-      <div className="dashboard-sidebar-callout mt-5 rounded-lg bg-accent-deep p-4 text-white">
-        <p className="text-[12.5px] leading-relaxed opacity-90">
+      {/* Nota, no botón: fondo claro y franja lateral para no confundirse con la opción activa del menú. */}
+      <div className="dashboard-sidebar-callout mt-5 rounded-r-lg border-l-4 border-accent bg-accent-tint px-4 py-3.5">
+        <p className="text-[12.5px] leading-relaxed text-ink-2">
           Revisa con criterio: cada validación sostiene la calidad de los datos.
         </p>
-        <p className="mt-2 text-[13.5px] font-bold">Gracias por moderar</p>
+        <p className="mt-2 text-[13px] font-semibold text-accent-deep">Gracias por moderar</p>
       </div>
     </aside>
   );
