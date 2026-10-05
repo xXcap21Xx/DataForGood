@@ -98,6 +98,7 @@ Las pantallas del panel usan solo ese kit, y las de usuario solo `components/ui/
 - **Barra lateral:** por debajo de 768 px pasa a navegación horizontal con scroll (`globals.css`, clases `dashboard-*`) y oculta el bloque motivacional.
 - **Grids:** `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`.
 - **TopBar:** oculta el nombre en pantallas pequeñas.
+- **Panel del SuperUsuario (2026-10-04, Gerard):** menú de Usuarios en móvil con `/usuarios?movil=menu` y las opciones móviles de `Subtabs` (`listaEnMovil`, `distribuidasEnMovil`, `volverAlMenuEnMovil`, `menuInicialMovil`); tablas del panel como tarjetas `md:hidden` + tabla en escritorio; botones de sanciones con `anchoCompleto`.
 
 **Pendiente o por revisar:**
 

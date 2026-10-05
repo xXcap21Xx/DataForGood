@@ -1,6 +1,6 @@
 "use client";
 
-// Selector del rango de fechas de /usuarios/dashboard; lo escribe en la URL.
+// Selector del rango de fechas de /usuarios/dashboard y /aportes/dashboard; lo escribe en la URL.
 
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useId, useTransition } from "react";

@@ -68,11 +68,12 @@ export default function SidebarNav({ usuario }: { usuario: SessionUser }) {
         )}
       </nav>
 
-      <div className="dashboard-sidebar-callout mt-6 rounded-lg bg-accent-deep p-4 text-white">
-        <p className="text-sm font-bold leading-snug">
+      {/* Nota, no botón: fondo claro y franja lateral para no confundirse con la opción activa del menú. */}
+      <div className="dashboard-sidebar-callout mt-6 rounded-r-lg border-l-4 border-accent bg-accent-tint px-4 py-3.5">
+        <p className="text-[13px] leading-snug text-ink-2">
           Cada aporte transforma datos en impacto para tu comunidad.
         </p>
-        <p className="mt-2 text-sm font-bold">¡Súmate!</p>
+        <p className="mt-2 text-[13px] font-semibold text-accent-deep">¡Súmate!</p>
       </div>
     </aside>
   );

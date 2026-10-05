@@ -112,6 +112,7 @@ Al seleccionar Usuarios en la navegación principal, en móvil se abre un menú 
 
 Comprobación propia de cada página, además del layout:
 
+- `/aportes/**`: sí (`exigirSesionRoot()` en cada página y `hasRootSession()` en `lib/aportes/{bandeja,dashboard}.ts`).
 - `/supervisar/**` y `/sistema/campanas/**`: sí, porque las funciones de `lib/supervision/root.ts` y `lib/campanas/sistema.ts` comprueban la sesión raíz.
 - **`/sistema` y `/usuarios/**`: no.** Ni la página ni `lib/sistema/metricas.ts` ni `lib/usuarios/{directorio,dashboard,supervisores}.ts` la comprueban; solo el layout las protege. Las server actions que escriben sí verifican. Ver problemas conocidos en [README.md](README.md).
 
@@ -123,6 +124,8 @@ Patrón: página de servidor que lee de `lib/` + componente cliente hermano que 
 | `/sistema/campanas` | `sistema/campanas/page.tsx` + `filtros.tsx` | `lib/campanas/sistema.ts` (`buscarCampanas`, `contarPorEstado`, `listarTematicas`); constantes en `sistema-opciones.ts` | — (solo consulta) |
 | `/sistema/campanas/dashboard` | `sistema/campanas/dashboard/page.tsx` | `obtenerDashboardDeCampanas` | — |
 | `/sistema/campanas/[id]` | `sistema/campanas/[id]/page.tsx` | `obtenerCabeceraDeCampana`, `lib/campanas/panel.ts` | — |
+| `/aportes` | `aportes/page.tsx` + `filtros.tsx` | `lib/aportes/bandeja.ts` (`buscarAportes`, `contarPorEtapa`, `listarCampanasConAportes`, `campanaTieneRevisor`; `?q=`, `?campana=`, `?etapa=pendientes\|aceptado\|rechazado`, `?pagina=`). Llama a `exigirSesionRoot()`. Muestra participante ("Anónimo" sin cuenta), fecha, campaña, los primeros 90 caracteres de la descripción (nada en anónimos), tipo y etapa; nunca el archivo ni el correo. `/sistema/campanas/[id]` enlaza aquí con "Ver aportes recibidos" | — (solo consulta) |
+| `/aportes/dashboard` | `aportes/dashboard/page.tsx` (reusa `usuarios/dashboard/selector-de-rango.tsx`) | `lib/aportes/dashboard.ts` (`obtenerDashboardDeAportes`, `?rango=30d\|90d\|12m`). Llama a `exigirSesionRoot()` | — (solo cifras, nunca el contenido de un aporte) |
 | `/usuarios` | `usuarios/page.tsx` + `filtros.tsx` | `lib/usuarios/directorio.ts` (`buscarUsuarios`) | — |
 | `/usuarios/dashboard` | `usuarios/dashboard/page.tsx` + `selector-de-rango.tsx` | `lib/usuarios/dashboard.ts` | — |
 | `/usuarios/[id]` | `usuarios/[id]/page.tsx` | `obtenerUsuario`, `baneosDeUsuario` (`lib/campanas/baneos.ts`) | — |

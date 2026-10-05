@@ -29,12 +29,18 @@ DataForGood conecta organizaciones con personas que aportan información en camp
   - **Filtros de campañas:** `components/campanas/BarraDeFiltros` (la de `/sistema/campanas`) también en `/supervision`, `/supervisar` y `/revisiones`, que filtran en el navegador con `lib/campanas/filtro-local.ts` (mismos criterios que `buscarCampanas()`).
   - **Buscador de la barra superior** (`layout/BuscadorDeLaBarra`): solo en `/campanas` y `/mis-aportes`.
   - **Logo:** `layout/Logo`, con el ícono y la palabra de `public/logo.svg` y `public/Texto.svg`. Con el cursor encima pasa a "DFG"; en `max-md`, siempre "DFG".
+- **2026-10-04 (commit `47528cf`, de Gerard): panel del SuperUsuario en móvil.**
+  - `components/sistema/Topbar` ya **no tiene buscador** (mandaba a `/campanas?q=`, inútil para el SuperUsuario) ni la insignia "SuperUsuario".
+  - "Usuarios" en `components/sistema/Sidebar` apunta a `/usuarios?movil=menu`: en móvil muestra un menú (Dashboard, Directorio, Supervisores, Sanciones) y cada sección un enlace "← Menú de usuarios"; en escritorio se ve el directorio con sus pestañas.
+  - `Subtabs` acepta `listaEnMovil`, `distribuidasEnMovil`, `volverAlMenuEnMovil` y `menuInicialMovil`; `MetricCard` acepta `centrado`. Directorio, supervisores, sanciones y listas de campañas usan tarjetas en móvil (`md:hidden`) y tabla en escritorio.
+- **2026-10-04: sección Aportes del SuperUsuario.** `/aportes/dashboard` (SCR-WEB-34, `lib/aportes/dashboard.ts`, selector de rango de `/usuarios/dashboard`) y la bandeja `/aportes` (SCR-WEB-14, `lib/aportes/bandeja.ts`), con pestañas Dashboard/Bandeja. Solo consulta: la bandeja muestra origen y etapa, un resumen de 90 caracteres (nada en anónimos) y nunca el archivo ni el correo.
+  - El recuadro motivacional de los dos menús laterales (`sistema/Sidebar`, `layout/SidebarNav`) ya no es azul sólido (parecía botón): fondo `accent-tint` con franja `border-accent`.
+  - En la landing, "DataForGood" del texto de entrada lleva la clase `marca-animada` (`globals.css`): degradado accent/ok en bucle, quieto con `prefers-reduced-motion`.
 - **Pendiente:**
   - **Antes del próximo despliegue:** correr una vez `scripts/limpiar-metadatos.mjs` en el servidor (lista; luego `--aplicar`) y que el puerto de la app solo sea accesible desde el proxy (el tope y la espera por IP confían en `X-Forwarded-For`; lo está consultando el usuario con el encargado).
   - **Pantallas a 360 px: las hace Gerard** (otro colaborador). No tocar el responsivo móvil ni los estilos de `globals.css` por iniciativa propia; si un cambio afecta el móvil, avisar.
   - Números provisionales (`TODO(dominio)`): 3 inapropiados en 30 días → 30 días de bloqueo, 60 s de espera, 20 aportes anónimos por IP por hora, 50 MP.
   - **Botones sin función:** "Eliminar cuenta", los indicadores de "Preferencias" y el interruptor de "Privacidad" en `/cuenta`, y el buscador de la barra superior (no busca nada).
-  - **El buscador del panel del SuperUsuario** (`components/sistema/Topbar.tsx`) manda a `/campanas?q=`, que es la zona de usuario: al SuperUsuario no le sirve.
   - Favicon: sigue el de Next; se puede usar el ícono de `public/logo.svg`.
 
 | Zona | Rutas | Acceso |
@@ -46,7 +52,7 @@ DataForGood conecta organizaciones con personas que aportan información en camp
 | Administrar campañas propias | `/mis-campanas`, `/mis-campanas/nueva` (`?edit=id`), `/mis-campanas/[id]/{panel, aportes, aportes/[aporteId], aportes/agregar-revisor, especial}` (compartir es un cuadro en `/campanas/[id]`) | Creador |
 | Revisión de aportes | `/revisiones`, `/revisiones/finalizadas`, `/revisiones/[aporteId]`, `/revisiones/campanas/[campaignId]/usuarios/...` | Revisor aceptado de la campaña |
 | Supervisión (usuario promovido) | `/supervision`, `/supervision/campanas`, `/supervision/[campaignId]/{panel, usuarios/...}` | Rol `supervisor` |
-| Panel del SuperUsuario, `(panel)` | `/sistema`, `/sistema/campanas{, /dashboard, /[id]}`, `/usuarios{, /dashboard, /[id]{, /roles, /sancion}, /sanciones, /supervisores{, /[id]{, /revertir/[accionId]}}}`, `/supervisar/...` | Sesión raíz (`root_sessions`) |
+| Panel del SuperUsuario, `(panel)` | `/sistema`, `/sistema/campanas{, /dashboard, /[id]}`, `/aportes{, /dashboard}`, `/usuarios{, /dashboard, /[id]{, /roles, /sancion}, /sanciones, /supervisores{, /[id]{, /revertir/[accionId]}}}`, `/supervisar/...` | Sesión raíz (`root_sessions`) |
 | Persona anónima | Solo `/c/[token]` (ficha de la campaña compartida y formulario de aporte sin cuenta, `POST /api/c/[token]/aportes`) | Sin sesión, con enlace vigente |
 | Aún sin pantalla | recuperar contraseña | — |
 

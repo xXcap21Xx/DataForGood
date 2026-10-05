@@ -82,11 +82,12 @@ export default function Sidebar() {
         })}
       </nav>
 
-      <div className="dashboard-sidebar-callout mt-5 rounded-lg bg-accent-deep p-4 text-white">
-        <p className="text-[12.5px] leading-relaxed opacity-90">
+      {/* Nota, no botón: fondo claro y franja lateral para no confundirse con la opción activa del menú. */}
+      <div className="dashboard-sidebar-callout mt-5 rounded-r-lg border-l-4 border-accent bg-accent-tint px-4 py-3.5">
+        <p className="text-[12.5px] leading-relaxed text-ink-2">
           Revisa con criterio: cada validación sostiene la calidad de los datos.
         </p>
-        <p className="mt-2 text-[13.5px] font-bold">Gracias por moderar</p>
+        <p className="mt-2 text-[13px] font-semibold text-accent-deep">Gracias por moderar</p>
       </div>
     </aside>
   );

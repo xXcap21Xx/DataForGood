@@ -6,7 +6,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import {
-  Aviso,
   EnlaceBoton,
   ListaClaveValor,
   TituloDeSeccion,
@@ -134,12 +133,6 @@ export default async function ActividadDeSupervisorPage({
           </tbody>
         </table>
       </div>
-
-      <Aviso tono="info" className="mt-5">
-        El historial es de solo lectura: no se edita ni se borra. Una decisión
-        revertida conserva su fila y queda marcada, con el registro de quién la
-        revirtió y por qué.
-      </Aviso>
 
       <p className="sr-only">{formatearNumero(s.acciones.length)} decisiones registradas.</p>
     </div>

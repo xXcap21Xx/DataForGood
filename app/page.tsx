@@ -183,7 +183,7 @@ export default async function LandingPage() {
           Cada dato cuenta, cuando lo cuenta la comunidad
         </h1>
         <p className="mx-auto mt-5 max-w-xl text-[16.5px] leading-relaxed text-ink-2">
-          DataForGood conecta organizaciones con personas dispuestas a aportar
+          <span className="marca-animada">DataForGood</span> conecta organizaciones con personas dispuestas a aportar
           información en campo —fotos, audio o texto— para causas sociales,
           ambientales y comunitarias.
         </p>
