@@ -108,6 +108,8 @@ Para revisores que aceptaron una invitación (`campana_revisores.estado = 'acept
 
 **`app/(panel)/layout.tsx`** llama a `hasRootSession()` (`lib/rootSession.ts`); sin sesión raíz → `/root`. Dibuja `components/sistema/Topbar` y `Sidebar`.
 
+Al seleccionar Usuarios en la navegación principal, en móvil se abre un menú separado con Dashboard, Directorio, Supervisores y Sanciones. Al elegir una opción se muestra solo su pantalla, con un enlace para volver al menú; la navegación principal permanece visible. Directorio, supervisores, sanciones y las listas de campañas usan tarjetas en móvil y conservan las tablas en escritorio.
+
 Comprobación propia de cada página, además del layout:
 
 - `/supervisar/**` y `/sistema/campanas/**`: sí, porque las funciones de `lib/supervision/root.ts` y `lib/campanas/sistema.ts` comprueban la sesión raíz.

@@ -35,7 +35,11 @@ export default async function DashboardDeCampanasPage() {
 
   return (
     <div>
-      <Subtabs pestanas={PESTANAS_CAMPANAS} etiquetaAria="Secciones de campañas" />
+      <Subtabs
+        pestanas={PESTANAS_CAMPANAS}
+        etiquetaAria="Secciones de campañas"
+        distribuidasEnMovil
+      />
 
       <Encabezado
         titulo="Campañas"
@@ -112,7 +116,59 @@ export default async function DashboardDeCampanasPage() {
       {d.masParticipacion.length === 0 ? (
         <p className="py-4 text-[13px] text-ink-2">No hay campañas activas.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm">
+        <>
+          <div className="space-y-3 md:hidden">
+            {d.masParticipacion.map((c) => {
+              const pct = porcentajeDeMeta(c.aportes, c.meta);
+              return (
+                <article key={c.id} className="rounded-lg border border-line bg-surface p-4 shadow-sm">
+                  <div className="min-w-0">
+                    <p className="break-words text-[14px] font-bold leading-snug text-ink">{c.nombre}</p>
+                    <p className="mt-1 break-words text-[11px] text-ink-3">
+                      {c.tiposDeDato.map((t) => NOMBRE_DE_TIPO[t]).join(" · ") || "—"}
+                    </p>
+                  </div>
+
+                  <p className="mt-3 break-words border-t border-line pt-3 text-[12px] text-ink-2">
+                    {c.tematica || "Sin temática"}
+                  </p>
+
+                  <dl className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <dt className="text-[11px] text-ink-2">Participantes</dt>
+                      <dd className="mt-0.5 font-mono text-[14px] font-semibold tabular-nums text-ink">
+                        {formatearNumero(c.participantes)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-[11px] text-ink-2">Aportes</dt>
+                      <dd className="mt-0.5 font-mono text-[14px] font-semibold tabular-nums text-ink">
+                        {formatearNumero(c.aportes)}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-3">
+                    <div className="mb-1 flex items-center justify-between gap-3 text-[11px] text-ink-2">
+                      <span>Avance de meta</span>
+                      <span className="font-mono tabular-nums">
+                        {formatearNumero(c.aportes)}/{formatearNumero(c.meta)}
+                      </span>
+                    </div>
+                    <ProgressBar pct={pct} tone="ok" />
+                  </div>
+
+                  <div className="mt-3 grid">
+                    <EnlaceBoton href={`/sistema/campanas/${c.id}`}>
+                      Ver campaña<span className="sr-only"> {c.nombre}</span>
+                    </EnlaceBoton>
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm md:block">
           <table className="w-full min-w-[720px] text-left text-[13.5px]">
             <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
               <tr>
@@ -152,7 +208,8 @@ export default async function DashboardDeCampanasPage() {
               })}
             </tbody>
           </table>
-        </div>
+          </div>
+        </>
       )}
     </div>
   );

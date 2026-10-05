@@ -3,10 +3,8 @@
 // Barra superior del panel del SuperUsuario.
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
 import Logo from "@/components/layout/Logo";
-import { IconoBuscar, IconoCampana } from "./icons";
+import { IconoCampana } from "./icons";
 
 type TopbarProps = {
   /** Valor configurado en ROOT_USER_ID. La sesión raíz no es una persona con nombre propio. */
@@ -14,16 +12,7 @@ type TopbarProps = {
 };
 
 export default function Topbar({ identificador }: TopbarProps) {
-  const router = useRouter();
   const iniciales = identificador.slice(0, 2).toUpperCase();
-  const [consulta, setConsulta] = useState("");
-
-  function buscar(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const q = consulta.trim();
-    if (q === "") return;
-    router.push(`/campanas?q=${encodeURIComponent(q)}`);
-  }
 
   return (
     <header className="dashboard-topbar flex flex-wrap items-center justify-between gap-3 border-b border-line bg-surface px-4 py-3 sm:px-6">
@@ -31,27 +20,7 @@ export default function Topbar({ identificador }: TopbarProps) {
         <Logo />
       </Link>
 
-      <form
-        onSubmit={buscar}
-        role="search"
-        className="flex min-w-[150px] max-w-md flex-1 items-center gap-2 rounded-pill border border-line-2 bg-surface px-4 py-2 text-ink-3 transition-colors focus-within:border-accent"
-      >
-        <IconoBuscar className="h-4 w-4 shrink-0" />
-        <input
-          type="search"
-          value={consulta}
-          onChange={(e) => setConsulta(e.target.value)}
-          placeholder="Buscar campañas, temas o palabras clave…"
-          aria-label="Buscar campañas"
-          className="w-full min-w-0 bg-transparent text-sm text-ink outline-none placeholder:text-ink-3"
-        />
-      </form>
-
       <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-        <span className="inline-flex items-center rounded-pill border border-line-2 bg-surface px-3 py-1 text-[11.5px] font-semibold text-ink-2">
-          SuperUsuario
-        </span>
-
         <span className="inline-flex text-ink-2" aria-hidden="true">
           <IconoCampana className="h-4 w-4" />
         </span>

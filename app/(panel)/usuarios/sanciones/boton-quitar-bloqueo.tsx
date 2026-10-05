@@ -8,14 +8,25 @@ import { useState, useTransition } from "react";
 import Button from "@/components/sistema/Button";
 import { quitarBloqueoDeDispositivo } from "@/lib/aportes/acciones-bloqueos";
 
-export default function BotonQuitarBloqueo({ bloqueoId }: { bloqueoId: string }) {
+export default function BotonQuitarBloqueo({
+  bloqueoId,
+  anchoCompleto = false,
+}: {
+  bloqueoId: string;
+  anchoCompleto?: boolean;
+}) {
   const [pendiente, iniciar] = useTransition();
   const [confirmando, setConfirmando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!confirmando) {
     return (
-      <Button variant="secondary" size="sm" onClick={() => setConfirmando(true)}>
+      <Button
+        variant="secondary"
+        size="sm"
+        className={anchoCompleto ? "w-full md:w-auto" : ""}
+        onClick={() => setConfirmando(true)}
+      >
         Quitar bloqueo
         <span className="sr-only"> del dispositivo {bloqueoId}</span>
       </Button>
@@ -23,14 +34,20 @@ export default function BotonQuitarBloqueo({ bloqueoId }: { bloqueoId: string })
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
-      <div className="flex flex-nowrap items-center justify-end gap-2">
-        <Button variant="secondary" size="sm" onClick={() => setConfirmando(false)}>
+    <div className={`flex flex-col gap-1 ${anchoCompleto ? "w-full items-stretch md:w-auto md:items-end" : "items-end"}`}>
+      <div className={`flex flex-nowrap items-center gap-2 ${anchoCompleto ? "w-full justify-stretch" : "justify-end"}`}>
+        <Button
+          variant="secondary"
+          size="sm"
+          className={anchoCompleto ? "flex-1 md:flex-none" : ""}
+          onClick={() => setConfirmando(false)}
+        >
           No
         </Button>
         <Button
           variant="primary"
           size="sm"
+          className={anchoCompleto ? "flex-1 md:flex-none" : ""}
           disabled={pendiente}
           onClick={() =>
             iniciar(async () => {
@@ -43,7 +60,7 @@ export default function BotonQuitarBloqueo({ bloqueoId }: { bloqueoId: string })
           {pendiente ? "…" : "Confirmar"}
         </Button>
       </div>
-      {error && <p className="text-[12px] text-danger">{error}</p>}
+      {error && <p className={`text-[12px] text-danger ${anchoCompleto ? "text-center" : ""}`}>{error}</p>}
     </div>
   );
 }

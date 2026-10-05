@@ -29,7 +29,7 @@ type Entrada = {
 const MENU: Entrada[] = [
   { href: "/sistema", etiqueta: "Inicio", Icono: IconoInicio, seccion: ["/sistema"], exacto: true },
   {
-    href: "/usuarios",
+    href: "/usuarios?movil=menu",
     etiqueta: "Usuarios",
     Icono: IconoUsuarios,
     seccion: ["/usuarios", "/supervisores"],

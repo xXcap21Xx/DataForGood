@@ -25,6 +25,7 @@ export default async function PanelDelSistemaPage() {
         <MetricCard
           label="Usuarios registrados"
           value={m.usuariosRegistrados}
+          centrado
           links={[
             { label: "Dashboard", href: "/usuarios/dashboard" },
             { label: "Lista", href: "/usuarios" },
@@ -34,6 +35,7 @@ export default async function PanelDelSistemaPage() {
           label="Campañas activas"
           value={m.campanasActivas}
           secundario={{ label: "Campañas finalizadas", value: m.campanasFinalizadas }}
+          centrado
           links={[
             { label: "Dashboard", href: "/sistema/campanas/dashboard" },
             { label: "Lista", href: "/sistema/campanas" },
@@ -42,6 +44,7 @@ export default async function PanelDelSistemaPage() {
         <MetricCard
           label="Aportes recolectados"
           value={m.aportesRecolectados}
+          centrado
           links={[
             { label: "Dashboard", href: "/aportes/dashboard" },
             { label: "Lista", href: "/aportes" },

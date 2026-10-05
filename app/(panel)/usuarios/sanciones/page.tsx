@@ -22,7 +22,11 @@ export default async function SancionesPage() {
 
   return (
     <div>
-      <Subtabs pestanas={PESTANAS_USUARIOS} etiquetaAria="Secciones de usuarios" />
+      <Subtabs
+        pestanas={PESTANAS_USUARIOS}
+        etiquetaAria="Secciones de usuarios"
+        volverAlMenuEnMovil
+      />
 
       <Encabezado
         titulo="Sanciones activas"
@@ -32,37 +36,62 @@ export default async function SancionesPage() {
       {sanciones.length === 0 ? (
         <p className="py-7 text-[13px] text-ink-2">No hay restricciones vigentes.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm">
-          <table className="w-full min-w-[640px] text-left text-[13.5px]">
-            <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
-              <tr>
-                <th className="pb-3 font-medium">Usuario</th>
-                <th className="pb-3 font-medium">Sanción</th>
-                <th className="pb-3 font-medium">Motivo</th>
-                <th className="pb-3 text-right font-medium">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sanciones.map((s) => (
-                <tr key={s.id} className="border-b border-line last:border-0">
-                  <td className="py-4">
-                    <p className="font-bold text-ink">{s.usuario}</p>
-                    <p className="font-mono text-[11px] text-ink-3">
-                      desde {formatearFecha(s.desde)}
-                    </p>
-                  </td>
-                  <td>
-                    <Tag tone={s.tono}>{s.etiqueta}</Tag>
-                  </td>
-                  <td className="text-ink-2">{s.motivo}</td>
-                  <td className="text-right">
-                    <BotonRestaurar sancionId={s.id} usuario={s.usuario} />
-                  </td>
+        <>
+          <div className="space-y-3 md:hidden">
+            {sanciones.map((s) => (
+              <article key={s.id} className="rounded-lg border border-line bg-surface p-4 shadow-sm">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="break-words text-[14px] font-bold leading-snug text-ink">{s.usuario}</p>
+                    <p className="mt-1 text-[11px] text-ink-3">Desde {formatearFecha(s.desde)}</p>
+                  </div>
+                  <Tag tone={s.tono}>{s.etiqueta}</Tag>
+                </div>
+
+                <div className="mt-3 border-t border-line pt-3">
+                  <p className="text-[11px] text-ink-2">Motivo</p>
+                  <p className="mt-1 break-words text-[13px] leading-relaxed text-ink">{s.motivo}</p>
+                </div>
+
+                <div className="mt-3 grid">
+                  <BotonRestaurar sancionId={s.id} usuario={s.usuario} anchoCompleto />
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm md:block">
+            <table className="w-full min-w-[640px] text-left text-[13.5px]">
+              <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+                <tr>
+                  <th className="pb-3 font-medium">Usuario</th>
+                  <th className="pb-3 font-medium">Sanción</th>
+                  <th className="pb-3 font-medium">Motivo</th>
+                  <th className="pb-3 text-right font-medium">Acción</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {sanciones.map((s) => (
+                  <tr key={s.id} className="border-b border-line last:border-0">
+                    <td className="py-4">
+                      <p className="font-bold text-ink">{s.usuario}</p>
+                      <p className="font-mono text-[11px] text-ink-3">
+                        desde {formatearFecha(s.desde)}
+                      </p>
+                    </td>
+                    <td>
+                      <Tag tone={s.tono}>{s.etiqueta}</Tag>
+                    </td>
+                    <td className="text-ink-2">{s.motivo}</td>
+                    <td className="text-right">
+                      <BotonRestaurar sancionId={s.id} usuario={s.usuario} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       <Aviso tono="neutro" className="mt-5">
@@ -79,36 +108,71 @@ export default async function SancionesPage() {
       {bloqueos.length === 0 ? (
         <p className="py-4 text-[13px] text-ink-2">No hay dispositivos bloqueados.</p>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm">
-          <table className="w-full min-w-[640px] text-left text-[13.5px]">
-            <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
-              <tr>
-                <th className="pb-3 font-medium">Dispositivo</th>
-                <th className="pb-3 font-medium">Motivo</th>
-                <th className="pb-3 font-medium">Vence</th>
-                <th className="pb-3 text-right font-medium">Acción</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bloqueos.map((b) => (
-                <tr key={b.id} className="border-b border-line last:border-0">
-                  <td className="py-4">
-                    <p className="font-bold text-ink">Anónimo #{b.id}</p>
-                    <p className="font-mono text-[11px] text-ink-3">
-                      desde {formatearFecha(b.desde)}
-                      {b.campana ? ` · ${b.campana}` : ""}
-                    </p>
-                  </td>
-                  <td className="text-ink-2">{b.motivo}</td>
-                  <td className="font-mono text-[12px] text-ink-2">{b.hasta ? formatearFecha(b.hasta) : "Sin fecha"}</td>
-                  <td className="text-right">
-                    <BotonQuitarBloqueo bloqueoId={b.id} />
-                  </td>
+        <>
+          <div className="space-y-3 md:hidden">
+            {bloqueos.map((b) => (
+              <article key={b.id} className="rounded-lg border border-line bg-surface p-4 shadow-sm">
+                <div>
+                  <p className="text-[14px] font-bold text-ink">Anónimo #{b.id}</p>
+                  <p className="mt-1 break-words text-[11px] text-ink-3">
+                    Desde {formatearFecha(b.desde)}
+                    {b.campana ? ` · ${b.campana}` : ""}
+                  </p>
+                </div>
+
+                <dl className="mt-3 space-y-3 border-t border-line pt-3">
+                  <div>
+                    <dt className="text-[11px] text-ink-2">Motivo</dt>
+                    <dd className="mt-1 break-words text-[13px] leading-relaxed text-ink">{b.motivo}</dd>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-[11px] text-ink-2">Vence</dt>
+                    <dd className="text-right font-mono text-[12px] text-ink">
+                      {b.hasta ? formatearFecha(b.hasta) : "Sin fecha"}
+                    </dd>
+                  </div>
+                </dl>
+
+                <div className="mt-3 grid">
+                  <BotonQuitarBloqueo bloqueoId={b.id} anchoCompleto />
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="hidden overflow-x-auto rounded-lg border border-line bg-surface p-5 shadow-sm md:block">
+            <table className="w-full min-w-[640px] text-left text-[13.5px]">
+              <thead className="border-b border-line font-mono text-[10px] uppercase tracking-[0.1em] text-ink-3">
+                <tr>
+                  <th className="pb-3 font-medium">Dispositivo</th>
+                  <th className="pb-3 font-medium">Motivo</th>
+                  <th className="pb-3 font-medium">Vence</th>
+                  <th className="pb-3 text-right font-medium">Acción</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {bloqueos.map((b) => (
+                  <tr key={b.id} className="border-b border-line last:border-0">
+                    <td className="py-4">
+                      <p className="font-bold text-ink">Anónimo #{b.id}</p>
+                      <p className="font-mono text-[11px] text-ink-3">
+                        desde {formatearFecha(b.desde)}
+                        {b.campana ? ` · ${b.campana}` : ""}
+                      </p>
+                    </td>
+                    <td className="text-ink-2">{b.motivo}</td>
+                    <td className="font-mono text-[12px] text-ink-2">
+                      {b.hasta ? formatearFecha(b.hasta) : "Sin fecha"}
+                    </td>
+                    <td className="text-right">
+                      <BotonQuitarBloqueo bloqueoId={b.id} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
     </div>
   );
